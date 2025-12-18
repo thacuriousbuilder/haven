@@ -1,9 +1,11 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { router } from 'expo-router';
 
 export default function Home() {
   async function signOut() {
     await supabase.auth.signOut();
+    router.replace('/(auth)/login')
   }
 
   return (
