@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { signInWithGoogle } from '../../lib/auth';
 
 export default function Signup() {
@@ -24,6 +25,12 @@ export default function Signup() {
 
   return (
     <View style={styles.container}>
+       <TouchableOpacity 
+      style={styles.backButton}
+      onPress={() => router.back()}
+    >
+      <Ionicons name="arrow-back" size={24} color="#2C4A52" />
+    </TouchableOpacity>
       <View style={styles.content}>
         <Text style={styles.headline}>
           No spam. No judgment.{'\n'}Just your data, your pace.
@@ -47,18 +54,24 @@ export default function Signup() {
             {googleLoading ? (
               <ActivityIndicator color="#2C4A52" />
             ) : (
-              <Text style={styles.secondaryButtonText}>Continue with Google</Text>
+              <View style={styles.buttonContent}>
+                <Ionicons name="logo-google" size={20} color="#2C4A52" />
+                <Text style={styles.secondaryButtonText}>Continue with Google</Text>
+              </View>
             )}
           </TouchableOpacity>
 
-          {/* <TouchableOpacity
-            style={[styles.secondaryButton, styles.disabledButton]}
+          <TouchableOpacity
+            style={[styles.secondaryButton]}
             disabled
           >
-            <Text style={[styles.secondaryButtonText, styles.disabledText]}>
-              Continue with Apple (Requires Developer Account)
-            </Text>
-          </TouchableOpacity> */}
+            <View style={styles.buttonContent}>
+              <Ionicons name="logo-apple" size={20} color="#2C4A52" />
+              <Text style={[styles.secondaryButtonText]}>
+                Continue with Apple
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -77,6 +90,10 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 40,
     justifyContent: 'space-between',
+  },
+  backButton: {
+    paddingVertical: 12,
+    width: 40,
   },
   content: {
     flex: 1,
@@ -112,13 +129,20 @@ const styles = StyleSheet.create({
   secondaryButton: {
     backgroundColor: '#fff',
     paddingVertical: 16,
+    paddingHorizontal: 24,
     borderRadius: 50,
-    alignItems: 'center',
+    alignItems: 'stretch',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   secondaryButtonText: {
     color: '#2C4A52',

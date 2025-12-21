@@ -1,14 +1,13 @@
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
-import { signInWithGoogle } from '../../lib/auth';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   async function signInWithEmail() {
     setLoading(true);
@@ -26,23 +25,14 @@ export default function Login() {
     setLoading(false);
   }
 
-  async function handleGoogleSignIn() {
-    try {
-      setGoogleLoading(true);
-      const session = await signInWithGoogle();
-      
-      if (session) {
-        router.replace('/(tabs)/home');
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Google sign-in failed');
-    } finally {
-      setGoogleLoading(false);
-    }
-  }
-
   return (
     <View style={styles.container}>
+       <TouchableOpacity 
+      style={styles.backButton}
+      onPress={() => router.back()}
+    >
+      <Ionicons name="arrow-back" size={24} color="#2C4A52" />
+    </TouchableOpacity>
       <View style={styles.content}>
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Email Address</Text>
@@ -77,7 +67,7 @@ export default function Login() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push('/(auth)/forgotPassword')}>
+        <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
           <Text style={styles.forgotPassword}>Forgot password?</Text>
         </TouchableOpacity>
 
@@ -85,23 +75,22 @@ export default function Login() {
 
         <TouchableOpacity
           style={styles.secondaryButton}
-          onPress={handleGoogleSignIn}
           disabled
         >
-          {googleLoading ? (
-            <ActivityIndicator color="#2C4A52" />
-          ) : (
+          <View style={styles.buttonContent}>
+            <Ionicons name="logo-google" size={20} color="#000" />
             <Text style={styles.secondaryButtonText}>Continue with Google</Text>
-          )}
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.secondaryButton}
-          disabled
+
         >
-          <Text style={styles.secondaryButtonText}>
-            Continue with Apple
-          </Text>
+          <View style={styles.buttonContent}>
+            <Ionicons name="logo-apple" size={20} color="#000" />
+            <Text style={styles.secondaryButtonText}>Continue with Apple</Text>
+          </View>
         </TouchableOpacity>
       </View>
     </View>
@@ -113,6 +102,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F1E8',
     paddingHorizontal: 24,
+    paddingTop:60,
+  },
+  backButton: {
+    paddingVertical: 12,
+    width: 40,
   },
   content: {
     flex: 1,
@@ -171,8 +165,9 @@ const styles = StyleSheet.create({
   secondaryButton: {
     backgroundColor: '#fff',
     paddingVertical: 16,
+    paddingHorizontal: 24,
     borderRadius: 50,
-    alignItems: 'center',
+    alignItems: 'stretch',
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -180,15 +175,16 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
   secondaryButtonText: {
+    textAlign: 'center',
     color: '#2C4A52',
     fontSize: 16,
     fontWeight: '600',
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  disabledText: {
-    opacity: 0.7,
   },
 });

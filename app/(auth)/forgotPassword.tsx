@@ -16,6 +16,7 @@ export default function ForgotPassword() {
 
     setLoading(true);
 
+    //incorrect url need to update
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: 'haven://reset-password',
     });

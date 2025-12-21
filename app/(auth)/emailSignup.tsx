@@ -2,6 +2,7 @@ import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'reac
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function EmailSignup() {
   const [email, setEmail] = useState('');
@@ -54,14 +55,13 @@ export default function EmailSignup() {
 
   return (
     <View style={styles.container}>
+         <TouchableOpacity 
+      style={styles.backButton}
+      onPress={() => router.back()}
+    >
+      <Ionicons name="arrow-back" size={24} color="#2C4A52" />
+    </TouchableOpacity>
       <View style={styles.content}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
-
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>
           Sign up with your email to get started
@@ -135,14 +135,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F1E8',
     paddingHorizontal: 24,
+    paddingTop:60,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     paddingBottom: 60,
   },
-  backButton: {
-    marginBottom: 32,
+   backButton: {
+    paddingVertical: 12,
+    width: 40,
   },
   backButtonText: {
     fontSize: 16,
