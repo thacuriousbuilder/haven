@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { BackButton } from '../../components/onboarding/backButton';
 
 export default function EmailSignup() {
   const [email, setEmail] = useState('');
@@ -38,29 +39,18 @@ export default function EmailSignup() {
 
     if (error) {
       Alert.alert('Error', error.message);
-    } else {
-      // Check if email confirmation is required
-      if (data.user && !data.session) {
-        Alert.alert(
-          'Check your email',
-          'We sent you a confirmation link. Please verify your email before signing in.',
-          [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
-        );
-      } else if (data.session) {
-        // Account created and logged in, go to onboarding
-        router.replace('/(onboarding)/step1');
-      }
+      return;
+    }
+
+    // Account created; proceed to onboarding regardless of confirmation state.
+    if (data.user || data.session) {
+      router.replace('/(onboarding)/gender');
     }
   }
 
   return (
     <View style={styles.container}>
-         <TouchableOpacity 
-      style={styles.backButton}
-      onPress={() => router.back()}
-    >
-      <Ionicons name="arrow-back" size={24} color="#2C4A52" />
-    </TouchableOpacity>
+      <BackButton/>
       <View style={styles.content}>
         <Text style={styles.title}>Create Account</Text>
         <Text style={styles.subtitle}>
@@ -141,10 +131,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingBottom: 60,
-  },
-   backButton: {
-    paddingVertical: 12,
-    width: 40,
   },
   backButtonText: {
     fontSize: 16,

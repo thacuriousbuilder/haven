@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
+import { BackButton } from '../../components/onboarding/backButton';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -27,12 +28,7 @@ export default function Login() {
 
   return (
     <View style={styles.container}>
-       <TouchableOpacity 
-      style={styles.backButton}
-      onPress={() => router.back()}
-    >
-      <Ionicons name="arrow-back" size={24} color="#2C4A52" />
-    </TouchableOpacity>
+    <BackButton/>
       <View style={styles.content}>
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Email Address</Text>
@@ -103,10 +99,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F1E8',
     paddingHorizontal: 24,
     paddingTop:60,
-  },
-  backButton: {
-    paddingVertical: 12,
-    width: 40,
   },
   content: {
     flex: 1,

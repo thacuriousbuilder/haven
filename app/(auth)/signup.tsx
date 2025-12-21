@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { signInWithGoogle } from '../../lib/auth';
+import { BackButton } from '../../components/onboarding/backButton';
 
 export default function Signup() {
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -25,12 +26,7 @@ export default function Signup() {
 
   return (
     <View style={styles.container}>
-       <TouchableOpacity 
-      style={styles.backButton}
-      onPress={() => router.back()}
-    >
-      <Ionicons name="arrow-back" size={24} color="#2C4A52" />
-    </TouchableOpacity>
+     <BackButton/>
       <View style={styles.content}>
         <Text style={styles.headline}>
           No spam. No judgment.{'\n'}Just your data, your pace.
@@ -90,10 +86,6 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 40,
     justifyContent: 'space-between',
-  },
-  backButton: {
-    paddingVertical: 12,
-    width: 40,
   },
   content: {
     flex: 1,
