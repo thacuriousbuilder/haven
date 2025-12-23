@@ -1,5 +1,3 @@
-// app/(tabs)/home.tsx
-
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
@@ -109,6 +107,10 @@ export default function HomeScreen() {
     setShowFoodLogSheet(false);
     fetchRecentLogs(); // Refresh the recent logs
   };
+
+  const handleCheckIn = () => {
+  router.push('/dailyCheckin');
+};
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -228,6 +230,15 @@ export default function HomeScreen() {
               >
                 <Ionicons name="restaurant" size={28} color="#FFFFFF" />
                 <Text style={styles.logFoodText}>Log Today's Food</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.logFoodButton, { backgroundColor: '#6B7280' }]}
+                onPress={handleCheckIn}
+                activeOpacity={0.8}
+>
+               <Ionicons name="checkmark-circle-outline" size={28} color="#FFFFFF" />
+                 <Text style={styles.logFoodText}>Test Daily Check-in</Text>
               </TouchableOpacity>
 
                {/* Info Card */}
