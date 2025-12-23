@@ -1,11 +1,14 @@
+// app/(tabs)/home.tsx
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context'
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '@/components/bottomSheet';
 import { FoodLogSheet } from '@/components/foodLogSheet';
+import { checkBaselineProgress, completeBaseline, BaselineProgress } from '@/utils/baselineProgress';
 
 interface ProfileData {
   baseline_start_date: string | null;
@@ -28,6 +31,7 @@ export default function HomeScreen() {
   const [showFoodLogSheet, setShowFoodLogSheet] = useState(false);
   const [recentLogs, setRecentLogs] = useState<FoodLog[]>([]);
   const [showAllLogs, setShowAllLogs] = useState(false);
+  const [baselineProgress, setBaselineProgress] = useState<BaselineProgress | null>(null);
 
   useEffect(() => {
     fetchProfile();
@@ -56,6 +60,27 @@ export default function HomeScreen() {
       }
 
       setProfile(data);
+      
+      // Check baseline progress
+      const progress = await checkBaselineProgress(user.id);
+      setBaselineProgress(progress);
+
+      // Auto-complete baseline if ready
+      if (progress.isComplete && !data.baseline_complete && progress.averageCalories) {
+        const success = await completeBaseline(user.id, progress.averageCalories);
+        if (success) {
+          // Refresh profile data
+          const { data: updatedData } = await supabase
+            .from('profiles')
+            .select('baseline_start_date, baseline_complete')
+            .eq('id', user.id)
+            .single();
+          
+          if (updatedData) {
+            setProfile(updatedData);
+          }
+        }
+      }
       
       // Calculate current baseline day
       if (data.baseline_start_date && !data.baseline_complete) {
@@ -86,7 +111,7 @@ export default function HomeScreen() {
         .select('id, food_name, calories, meal_type, log_date, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(10); // Fetch 10 but show 3 initially
+        .limit(10);
 
       if (error) {
         console.error('Error fetching recent logs:', error);
@@ -105,12 +130,13 @@ export default function HomeScreen() {
 
   const handleFoodLogSuccess = () => {
     setShowFoodLogSheet(false);
-    fetchRecentLogs(); // Refresh the recent logs
+    fetchRecentLogs();
+    fetchProfile(); // Refresh to check baseline progress
   };
 
   const handleCheckIn = () => {
-  router.push('/dailyCheckin');
-};
+    router.push('/dailyCheckin');
+  };
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -189,23 +215,27 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              {/* Day Counter - Big and Prominent */}
+              {/* Day Counter - Updated with actual progress */}
               <View style={styles.dayCard}>
                 <View style={styles.dayCircle}>
-                  <Text style={styles.dayNumber}>{currentDay}</Text>
+                  <Text style={styles.dayNumber}>{baselineProgress?.daysLogged || 0}</Text>
                   <Text style={styles.dayLabel}>of 7</Text>
                 </View>
                 <View style={styles.dayInfo}>
-                  <Text style={styles.dayTitle}>Day {currentDay}</Text>
+                  <Text style={styles.dayTitle}>
+                    {baselineProgress?.daysLogged === 7 
+                      ? 'Baseline Complete!' 
+                      : `Day ${currentDay}`}
+                  </Text>
                   <Text style={styles.dayDescription}>
-                    {currentDay === 7 
-                      ? "Final day! Keep tracking." 
-                      : `${7 - currentDay} days until your personalized plan`}
+                    {baselineProgress?.daysLogged === 7
+                      ? 'Great work! Building your plan...'
+                      : `${baselineProgress?.daysLogged || 0} days logged, ${7 - (baselineProgress?.daysLogged || 0)} to go`}
                   </Text>
                 </View>
               </View>
 
-              {/* Progress Dots */}
+              {/* Progress Dots - Updated with actual progress */}
               <View style={styles.progressContainer}>
                 <View style={styles.progressDots}>
                   {Array.from({ length: 7 }).map((_, index) => (
@@ -213,7 +243,7 @@ export default function HomeScreen() {
                       <View
                         style={[
                           styles.progressDot,
-                          index < currentDay && styles.progressDotActive
+                          index < (baselineProgress?.daysLogged || 0) && styles.progressDotActive
                         ]}
                       />
                       <Text style={styles.dotLabel}>{index + 1}</Text>
@@ -232,22 +262,15 @@ export default function HomeScreen() {
                 <Text style={styles.logFoodText}>Log Today's Food</Text>
               </TouchableOpacity>
 
+              {/* Daily Check-in Button */}
               <TouchableOpacity 
-                style={[styles.logFoodButton, { backgroundColor: '#6B7280' }]}
+                style={styles.checkInButton}
                 onPress={handleCheckIn}
                 activeOpacity={0.8}
->
-               <Ionicons name="checkmark-circle-outline" size={28} color="#FFFFFF" />
-                 <Text style={styles.logFoodText}>Test Daily Check-in</Text>
+              >
+                <Ionicons name="checkmark-circle-outline" size={24} color="#3D5A5C" />
+                <Text style={styles.checkInText}>Daily Check-in</Text>
               </TouchableOpacity>
-
-               {/* Info Card */}
-              <View style={styles.infoCard}>
-                <Ionicons name="information-circle-outline" size={24} color="#3D5A5C" />
-                <Text style={styles.infoText}>
-                  No judgment. No restrictions. We're just learning how you normally eat so we can build a realistic plan.
-                </Text>
-              </View>
 
               {/* Recently Logged Section */}
               {recentLogs.length > 0 && (
@@ -296,22 +319,32 @@ export default function HomeScreen() {
                   )}
                 </View>
               )}
+
+              {/* Info Card */}
+              <View style={styles.infoCard}>
+                <Ionicons name="information-circle-outline" size={24} color="#3D5A5C" />
+                <Text style={styles.infoText}>
+                  No judgment. No restrictions. We're just learning how you normally eat so we can build a realistic plan.
+                </Text>
+              </View>
             </>
           ) : (
             <>
               {/* Post-Baseline: Show placeholder for future dashboard */}
               <View style={styles.greetingSection}>
-                <Text style={styles.greeting}>Welcome back!</Text>
+                <Text style={styles.greeting}>Baseline Complete! 🎉</Text>
                 <Text style={styles.subGreeting}>
-                  Your baseline is complete. Building your personalized plan...
+                  {baselineProgress?.averageCalories 
+                    ? `Your average: ${baselineProgress.averageCalories} calories/day`
+                    : 'Building your personalized plan...'}
                 </Text>
               </View>
 
               <View style={styles.comingSoonCard}>
-                <Ionicons name="construct-outline" size={48} color="#3D5A5C" />
-                <Text style={styles.comingSoonTitle}>Dashboard Coming Soon</Text>
+                <Ionicons name="checkmark-circle" size={64} color="#4CAF50" />
+                <Text style={styles.comingSoonTitle}>Your Plan is Ready</Text>
                 <Text style={styles.comingSoonText}>
-                  Your weekly calorie bank, balance metrics, and planning tools will appear here.
+                  Weekly calorie bank, balance metrics, and planning tools coming soon!
                 </Text>
               </View>
 
@@ -534,7 +567,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -545,6 +578,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  checkInButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: '#3D5A5C',
+  },
+  checkInText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#3D5A5C',
   },
   recentSection: {
     marginBottom: 24,
@@ -635,7 +686,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     alignItems: 'flex-start',
-    marginBottom:24
   },
   infoText: {
     flex: 1,
