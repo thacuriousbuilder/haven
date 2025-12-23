@@ -84,10 +84,9 @@ export default function HomeScreen() {
       
       // Calculate current baseline day
       if (data.baseline_start_date && !data.baseline_complete) {
-        const startDate = new Date(data.baseline_start_date);
+        const startDate = parseDateOnly(data.baseline_start_date);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        startDate.setHours(0, 0, 0, 0);
         const diffTime = today.getTime() - startDate.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
         setCurrentDay(Math.max(1, Math.min(diffDays, 7)));
@@ -136,6 +135,16 @@ export default function HomeScreen() {
 
   const handleCheckIn = () => {
     router.push('/dailyCheckin');
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.replace('/(auth)/welcome');
+  };
+
+  const parseDateOnly = (dateString: string) => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
   };
 
   const formatTime = (timestamp: string) => {
@@ -406,6 +415,15 @@ export default function HomeScreen() {
               )}
             </>
           )}
+
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={handleSignOut}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="log-out-outline" size={18} color="#3D5A5C" />
+            <Text style={styles.signOutText}>Sign out</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -712,5 +730,23 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  signOutButton: {
+    marginTop: 24,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+  },
+  signOutText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3D5A5C',
   },
 });

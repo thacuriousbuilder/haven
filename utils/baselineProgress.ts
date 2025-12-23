@@ -8,6 +8,18 @@ export interface BaselineProgress {
   startDate: string | null;
 }
 
+const parseDateOnly = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const formatDateOnly = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export async function checkBaselineProgress(userId: string): Promise<BaselineProgress> {
   try {
     // Get user's baseline start date
@@ -50,10 +62,9 @@ export async function checkBaselineProgress(userId: string): Promise<BaselinePro
     }
 
     // Calculate days since baseline started
-    const startDate = new Date(profile.baseline_start_date);
+    const startDate = parseDateOnly(profile.baseline_start_date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    startDate.setHours(0, 0, 0, 0);
     
     const diffTime = today.getTime() - startDate.getTime();
     const daysSinceStart = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
@@ -64,7 +75,7 @@ export async function checkBaselineProgress(userId: string): Promise<BaselinePro
     for (let i = 0; i < 7; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
-      baselineDates.push(date.toISOString().split('T')[0]);
+      baselineDates.push(formatDateOnly(date));
     }
 
     console.log('Baseline dates to check:', baselineDates);
