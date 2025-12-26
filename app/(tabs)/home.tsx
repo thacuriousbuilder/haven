@@ -205,13 +205,13 @@ const getMonday = (date: Date): Date => {
         <Text style={styles.planButtonText}>Plan Cheat Day</Text>
         </TouchableOpacity>
 
-          <TouchableOpacity
-         style={styles.planButton}
-         onPress={() => router.push('/manageCheatDay')}
-        >            
-        <Ionicons name="folder-open" size={20} color="#2C4A52" />
-        <Text style={styles.planButtonText}>Plan Cheat Day</Text>
-        </TouchableOpacity>
+         <TouchableOpacity
+  style={styles.planButton}
+  onPress={() => router.push('/manageCheatDay')}
+>            
+  <Ionicons name="list-outline" size={20} color="#2C4A52" />
+  <Text style={styles.planButtonText}>Manage Cheat Days</Text>
+</TouchableOpacity>
 
       {/* Weekly Calendar */}
       <View style={styles.section}>
