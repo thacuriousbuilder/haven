@@ -30,53 +30,103 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
   };
 
   const handleSave = async () => {
-    if (!foodDescription.trim()) {
-      Alert.alert('Error', 'Please describe what you ate');
+  if (!foodDescription.trim()) {
+    Alert.alert('Error', 'Please describe what you ate');
+    return;
+  }
+
+  setSaving(true);
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      Alert.alert('Error', 'Not authenticated');
+      setSaving(false);
       return;
     }
 
-    setSaving(true);
+    const today = new Date().toISOString().split('T')[0];
+    const caloriesValue = estimatedCalories ? parseInt(estimatedCalories) : 0;
 
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        Alert.alert('Error', 'Not authenticated');
-        setSaving(false);
-        return;
-      }
+    // 1. Insert food log
+    const { error: logError } = await supabase
+      .from('food_logs')
+      .insert({
+        user_id: user.id,
+        food_name: foodDescription,
+        calories: caloriesValue,
+        log_date: today,
+        meal_type: mealType,
+        entry_method: 'manual',
+      });
 
-      const { error } = await supabase
-        .from('food_logs')
-        .insert({
+    if (logError) {
+      console.error('Error saving food log:', logError);
+      Alert.alert('Error', 'Failed to save food log');
+      setSaving(false);
+      return;
+    }
+
+    // 2. Update daily summary
+    if (caloriesValue > 0) {
+      // Get existing summary
+      const { data: existingSummary } = await supabase
+        .from('daily_summaries')
+        .select('calories_consumed')
+        .eq('user_id', user.id)
+        .eq('summary_date', today)
+        .single();
+
+      const newTotal = (existingSummary?.calories_consumed || 0) + caloriesValue;
+
+      // Upsert daily summary
+      const { error: summaryError } = await supabase
+        .from('daily_summaries')
+        .upsert({
           user_id: user.id,
-          food_name: foodDescription,
-          calories: estimatedCalories ? parseInt(estimatedCalories) : null,
-          log_date: new Date().toISOString().split('T')[0],
-          meal_type: mealType,
+          summary_date: today,
+          calories_consumed: newTotal,
+          calories_burned: 0,
+        }, {
+          onConflict: 'user_id,summary_date'
         });
 
-      if (error) {
-        console.error('Error saving food log:', error);
-        Alert.alert('Error', 'Failed to save food log');
-        setSaving(false);
-        return;
+      if (summaryError) {
+        console.error('Error updating daily summary:', summaryError);
+        // Don't fail the whole operation if summary update fails
       }
-
-      // Success
-      setFoodDescription('');
-      setEstimatedCalories('');
-      setMealType('snack');
-      setSelectedMethod(null);
-      setSaving(false);
-      Alert.alert('Success', 'Food logged!');
-      onSuccess();
-    } catch (error) {
-      console.error('Error in handleSave:', error);
-      Alert.alert('Error', 'Something went wrong');
-      setSaving(false);
     }
-  };
+
+    // Success - reset form
+    setFoodDescription('');
+    setEstimatedCalories('');
+    setMealType('breakfast');
+    setSelectedMethod(null);
+    setSaving(false);
+    
+    Alert.alert(
+      'Success',
+      'Food logged!',
+      [
+        {
+          text: 'Add Another',
+          onPress: () => {
+            // Form is already reset, do nothing
+          },
+        },
+        {
+          text: 'Done',
+          onPress: onSuccess,
+        },
+      ]
+    );
+  } catch (error) {
+    console.error('Error in handleSave:', error);
+    Alert.alert('Error', 'Something went wrong');
+    setSaving(false);
+  }
+};
 
   const mealTypes: { value: MealType; label: string; icon: string }[] = [
     { value: 'breakfast', label: 'Breakfast', icon: 'sunny-outline' },

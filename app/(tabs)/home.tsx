@@ -197,20 +197,12 @@ const getMonday = (date: Date): Date => {
       </Text>
       <Text style={styles.subtitle}>Enjoy yourself today, you've earned it!</Text>
 
-      <TouchableOpacity
-         style={styles.planButton}
-         onPress={() => router.push('/planCheatDay')}
-        >            
-        <Ionicons name="calendar-outline" size={20} color="#2C4A52" />
-        <Text style={styles.planButtonText}>Plan Cheat Day</Text>
-        </TouchableOpacity>
-
          <TouchableOpacity
   style={styles.planButton}
-  onPress={() => router.push('/manageCheatDay')}
+  onPress={() => router.push('/homeTemp')}
 >            
   <Ionicons name="list-outline" size={20} color="#2C4A52" />
-  <Text style={styles.planButtonText}>Manage Cheat Days</Text>
+  <Text style={styles.planButtonText}>Show Temp Home</Text>
 </TouchableOpacity>
 
       {/* Weekly Calendar */}
