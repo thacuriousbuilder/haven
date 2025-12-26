@@ -9,9 +9,11 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { BackButton } from '@/components/onboarding/backButton';
 
 export default function PlanCheatDayScreen() {
   const router = useRouter();
@@ -97,12 +99,10 @@ export default function PlanCheatDayScreen() {
   const days = getNext30Days();
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#2C4A52" />
-        </TouchableOpacity>
+       <BackButton/>
         <Text style={styles.headerTitle}>Plan Cheat Day</Text>
         <View style={{ width: 24 }} />
       </View>
@@ -185,7 +185,7 @@ export default function PlanCheatDayScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

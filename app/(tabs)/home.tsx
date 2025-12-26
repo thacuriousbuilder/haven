@@ -7,7 +7,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import CircularMetric from '@/components/circularMetric';
 import WeeklyCalendar from '@/components/weeklyCalendar';
@@ -15,6 +17,7 @@ import StatCard from '@/components/statCard';
 import { calculateMetrics } from '@/utils/metrics';
 import { calculateWeeklyBudget } from '@/utils/weeklyBudget';
 import { supabase } from '@/lib/supabase';
+import { router } from 'expo-router';
 
 interface MetricsData {
   balance_score: number;
@@ -39,12 +42,15 @@ export default function HomeScreen() {
     loadData();
   }, []);
 
-  const getMonday = (date: Date): Date => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setDate(diff));
-  };
+const getMonday = (date: Date): Date => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - daysFromMonday);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
 
   const loadData = async () => {
     try {
@@ -77,17 +83,17 @@ export default function HomeScreen() {
       if (profile?.baseline_complete) {
         try {
           // Check if weekly period exists for this week
-          const today = new Date();
-          const monday = getMonday(today);
-          const weekStartDate = monday.toISOString().split('T')[0];
-
-          const { data: weeklyPeriod } = await supabase
+         const today = new Date();
+        const monday = getMonday(today);
+        const weekStartDate = monday.toISOString().split('T')[0];
+        const { data: weeklyPeriod, error: periodError } = await supabase
             .from('weekly_periods')
             .select('*')
             .eq('user_id', user.id)
             .eq('week_start_date', weekStartDate)
             .single();
 
+        
           // If no weekly period exists, create it
           if (!weeklyPeriod) {
             console.log('No weekly period found, creating one...');
@@ -147,21 +153,21 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2C4A52" />
-      </View>
+      </SafeAreaView>
     );
   }
 
   // Show message if baseline not complete
   if (!baselineComplete) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <Text style={styles.logo}>HAVEN</Text>
         <Text style={styles.placeholderText}>
           Complete your baseline week to unlock weekly tracking
         </Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -169,13 +175,13 @@ export default function HomeScreen() {
   const firstName = userName ? userName.split(' ')[0] : 'there';
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.logo}>HAVEN</Text>
@@ -190,6 +196,22 @@ export default function HomeScreen() {
         Welcome, {firstName}
       </Text>
       <Text style={styles.subtitle}>Enjoy yourself today, you've earned it!</Text>
+
+      <TouchableOpacity
+         style={styles.planButton}
+         onPress={() => router.push('/planCheatDay')}
+        >            
+        <Ionicons name="calendar-outline" size={20} color="#2C4A52" />
+        <Text style={styles.planButtonText}>Plan Cheat Day</Text>
+        </TouchableOpacity>
+
+          <TouchableOpacity
+         style={styles.planButton}
+         onPress={() => router.push('/manageCheatDay')}
+        >            
+        <Ionicons name="folder-open" size={20} color="#2C4A52" />
+        <Text style={styles.planButtonText}>Plan Cheat Day</Text>
+        </TouchableOpacity>
 
       {/* Weekly Calendar */}
       <View style={styles.section}>
@@ -259,7 +281,8 @@ export default function HomeScreen() {
           size="small"
         />
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -339,4 +362,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 12,
   },
+  planButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: '#FFFFFF',
+  borderRadius: 12,
+  padding: 14,
+  marginBottom: 20,
+  justifyContent: 'center',
+  borderWidth: 1,
+  borderColor: '#2C4A52',
+},
+planButtonText: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#2C4A52',
+  marginLeft: 8,
+},
 });

@@ -1,4 +1,5 @@
-// @ts-ignore
+
+//@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -6,45 +7,57 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-console.log('Function "calculateWeeklyBudget" up and running!')
-// @ts-ignore
-Deno.serve(async (req: Request) => {
+Deno.serve(async (req:Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    const authHeader = req.headers.get('Authorization')
+    
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing Authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log('✅ Auth header present')
+
+    // Create client with Authorization header in global config
     const supabaseClient = createClient(
-      // @ts-ignore
+      //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
-      // @ts-ignore
+      //@ts-ignore
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
         global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
+          headers: { Authorization: authHeader },
         },
       }
     )
 
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing Authorization header')
-    }
-
-    const token = authHeader.replace('Bearer ', '')
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser(token)
+    console.log('🔵 Getting user (no token arg)')
+    
+    // Call getUser() with NO arguments - it reads from headers
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
 
     if (userError || !user) {
-      throw new Error('Authentication failed: ' + (userError?.message || 'User not found'))
+      console.error('❌ Auth failed:', userError?.message)
+      return new Response(
+        JSON.stringify({ 
+          error: 'Authentication failed',
+          details: userError?.message 
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
+
+    console.log('✅ User:', user.id)
 
     const userId = user.id
 
-    // Get baseline week daily summaries (7 days)
+    // Get baseline data
     const { data: dailySummaries, error: summariesError } = await supabaseClient
       .from('daily_summaries')
       .select('summary_date, calories_consumed')
@@ -53,33 +66,26 @@ Deno.serve(async (req: Request) => {
       .limit(7)
 
     if (summariesError) {
-      throw new Error('Failed to fetch daily summaries: ' + summariesError.message)
+      console.error('❌ Query error:', summariesError)
+      throw new Error(summariesError.message)
     }
+
+    console.log('📊 Summaries:', dailySummaries?.length)
 
     if (!dailySummaries || dailySummaries.length < 7) {
       return new Response(
         JSON.stringify({
-          error: 'Baseline week incomplete. Need 7 days of data.',
+          error: 'Need 7 days',
           found: dailySummaries?.length || 0,
-          message: 'Please complete 7 days of food logging before calculating weekly budget.',
         }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
-        }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Calculate average daily calories
-    const totalCalories = dailySummaries.reduce(
-      // @ts-ignore
-      (sum, day) => sum + day.calories_consumed,
-      0
-    )
+    const totalCalories = dailySummaries.reduce((sum, day) => sum + day.calories_consumed, 0)
     const averageDailyCalories = Math.round(totalCalories / 7)
     const weeklyBudget = averageDailyCalories * 7
 
-    // Get current week's Monday-Sunday
     const today = new Date()
     const dayOfWeek = today.getDay()
     const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
@@ -93,30 +99,21 @@ Deno.serve(async (req: Request) => {
     const weekStartDate = monday.toISOString().split('T')[0]
     const weekEndDate = sunday.toISOString().split('T')[0]
 
-    // Insert or update weekly_period
     const { data: weeklyPeriod, error: periodError } = await supabaseClient
       .from('weekly_periods')
-      .upsert(
-        {
-          user_id: userId,
-          week_start_date: weekStartDate,
-          week_end_date: weekEndDate,
-          baseline_average_daily: averageDailyCalories,
-          weekly_budget: weeklyBudget,
-        },
-        {
-          onConflict: 'user_id,week_start_date',
-        }
-      )
+      .upsert({
+        user_id: userId,
+        week_start_date: weekStartDate,
+        week_end_date: weekEndDate,
+        baseline_average_daily: averageDailyCalories,
+        weekly_budget: weeklyBudget,
+      }, { onConflict: 'user_id,week_start_date' })
       .select()
       .single()
 
-    if (periodError) {
-      throw new Error('Failed to create weekly period: ' + periodError.message)
-    }
+    if (periodError) throw new Error(periodError.message)
 
-    // Update user profile
-    const { error: profileError } = await supabaseClient
+    await supabaseClient
       .from('profiles')
       .update({
         baseline_complete: true,
@@ -125,11 +122,8 @@ Deno.serve(async (req: Request) => {
       })
       .eq('id', userId)
 
-    if (profileError) {
-      throw new Error('Failed to update profile: ' + profileError.message)
-    }
+    console.log('✅ Success!')
 
-    // Success
     return new Response(
       JSON.stringify({
         success: true,
@@ -141,19 +135,15 @@ Deno.serve(async (req: Request) => {
           weekly_period_id: weeklyPeriod.id,
         },
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+
   } catch (error) {
+    console.error('💥 Error:', error)
     return new Response(
-      // @ts-ignore
+      //@ts-ignore
       JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

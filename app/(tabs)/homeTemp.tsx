@@ -1,7 +1,7 @@
 // app/(tabs)/home.tsx
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -32,6 +32,7 @@ export default function HomeScreen() {
   const [recentLogs, setRecentLogs] = useState<FoodLog[]>([]);
   const [showAllLogs, setShowAllLogs] = useState(false);
   const [baselineProgress, setBaselineProgress] = useState<BaselineProgress | null>(null);
+  
 
   useEffect(() => {
     fetchProfile();
@@ -170,6 +171,20 @@ export default function HomeScreen() {
         return 'restaurant-outline';
     }
   };
+  
+  const testEdgeFunction = async () => {
+  try {
+    console.log('Testing edge function...');
+    const { data, error } = await supabase.functions.invoke('test-simple');
+    console.log('Test result:', { data, error });
+    Alert.alert('Test Result', JSON.stringify(data || error));
+  } catch (err) {
+    console.error('Test error:', err);
+    //@ts-ignore
+    Alert.alert('Test Error', err.message);
+  }
+};
+
 
   const capitalizeFirst = (str: string) => {
     return str.charAt(0).toUpperCase() + str.slice(1);
@@ -365,6 +380,7 @@ export default function HomeScreen() {
                 <Ionicons name="restaurant" size={28} color="#FFFFFF" />
                 <Text style={styles.logFoodText}>Log Food</Text>
               </TouchableOpacity>
+              
 
               {/* Recently Logged Section (post-baseline) */}
               {recentLogs.length > 0 && (

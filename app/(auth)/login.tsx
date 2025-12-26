@@ -20,7 +20,7 @@ export default function Login() {
     if (error) {
       Alert.alert('Error', error.message);
     } else if (data.session) {
-      router.replace('/(tabs)/home');
+      router.replace('/(tabs)/homeTemp');
     }
     
     setLoading(false);
