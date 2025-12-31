@@ -1,4 +1,5 @@
-// @ts-ignore
+
+//@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -6,13 +7,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-console.log('Function "calculateMetrics" up and running!')
-
 function getMonday(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  return new Date(d.setDate(diff))
+  const daysFromMonday = day === 0 ? 6 : day - 1
+  const monday = new Date(d)
+  monday.setDate(d.getDate() - daysFromMonday)
+  monday.setHours(0, 0, 0, 0)
+  return monday
 }
 
 function getSunday(monday: Date): Date {
@@ -20,40 +22,45 @@ function getSunday(monday: Date): Date {
   sunday.setDate(monday.getDate() + 6)
   return sunday
 }
-// @ts-ignore
-Deno.serve(async (req: Request) => {
+//@ts-ignore
+Deno.serve(async (req:Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    const authHeader = req.headers.get('Authorization')
+    
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing Authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const supabaseClient = createClient(
-      // @ts-ignore
+      //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
-      // @ts-ignore
+      //@ts-ignore
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
         global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
+          headers: { Authorization: authHeader },
         },
       }
     )
 
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing Authorization header')
-    }
-
-    const token = authHeader.replace('Bearer ', '')
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser(token)
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
 
     if (userError || !user) {
-      throw new Error('Authentication failed: ' + (userError?.message || 'User not found'))
+      console.error('Auth failed:', userError)
+      return new Response(
+        JSON.stringify({ error: 'Authentication failed', details: userError?.message }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
+
+    console.log('✅ User:', user.id)
 
     const userId = user.id
     const today = new Date()
@@ -64,6 +71,8 @@ Deno.serve(async (req: Request) => {
     const weekEndDate = sunday.toISOString().split('T')[0]
     const calculatedDate = today.toISOString().split('T')[0]
 
+    console.log('📅 Looking for week:', weekStartDate, 'to', weekEndDate)
+
     const { data: weeklyPeriod, error: periodError } = await supabaseClient
       .from('weekly_periods')
       .select('*')
@@ -71,20 +80,18 @@ Deno.serve(async (req: Request) => {
       .eq('week_start_date', weekStartDate)
       .single()
 
+    console.log('Period error:', periodError)
+    console.log('Period found:', !!weeklyPeriod)
+
     if (periodError || !weeklyPeriod) {
+      console.error('No weekly period found')
       return new Response(
-        JSON.stringify({
-          error: 'No weekly period found for current week',
-          details: 'Weekly period does not exist. Please complete baseline week first.',
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 404,
-        }
+        JSON.stringify({ error: 'No weekly period found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const { data: weekSummaries, error: summariesError } = await supabaseClient
+    const { data: weekSummaries } = await supabaseClient
       .from('daily_summaries')
       .select('*')
       .eq('user_id', userId)
@@ -92,136 +99,61 @@ Deno.serve(async (req: Request) => {
       .lte('summary_date', calculatedDate)
       .order('summary_date', { ascending: true })
 
-    if (summariesError) {
-      throw new Error('Failed to fetch daily summaries: ' + summariesError.message)
-    }
+    const totalConsumed = weekSummaries?.reduce((sum, day) => sum + (day.calories_consumed || 0), 0) || 0
 
-    const totalConsumed = weekSummaries?.reduce(
-      // @ts-ignore
-      (sum, day) => sum + (day.calories_consumed || 0),
-      0
-    ) || 0
-
-    const { data: cheatDays, error: cheatError } = await supabaseClient
+    const { data: cheatDays } = await supabaseClient
       .from('planned_cheat_days')
       .select('*')
       .eq('user_id', userId)
       .gte('cheat_date', weekStartDate)
       .lte('cheat_date', weekEndDate)
 
-    if (cheatError) {
-      throw new Error('Failed to fetch cheat days: ' + cheatError.message)
-    }
-
-    const upcomingCheatDays = cheatDays?.filter(
-      // @ts-ignore
-      (cd) => new Date(cd.cheat_date) > today
-    ) || []
-
-    const caloriesReserved = upcomingCheatDays.reduce(
-      // @ts-ignore
-      (sum, cd) => sum + (cd.planned_calories || 0),
-      0
-    )
-
+    const upcomingCheatDays = cheatDays?.filter(cd => new Date(cd.cheat_date) > today) || []
+    const caloriesReserved = upcomingCheatDays.reduce((sum, cd) => sum + (cd.planned_calories || 0), 0)
     const totalRemaining = weeklyPeriod.weekly_budget - totalConsumed
 
-    const daysLeftInWeek = Math.max(
-      1,
-      Math.ceil((sunday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) + 1
-    )
-
+    const daysLeftInWeek = Math.max(1, Math.ceil((sunday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) + 1)
     const dailyBudgetRemaining = totalRemaining / daysLeftInWeek
     const baselineAvg = weeklyPeriod.baseline_average_daily
 
-    let balanceScore = 0
-    if (dailyBudgetRemaining >= baselineAvg) {
-      balanceScore = 100
-    } else if (dailyBudgetRemaining >= baselineAvg * 0.7) {
-      balanceScore = 65
-    } else {
-      balanceScore = 30
-    }
+    let balanceScore = dailyBudgetRemaining >= baselineAvg ? 100 : dailyBudgetRemaining >= baselineAvg * 0.7 ? 65 : 30
 
     let consistencyScore = 50
-
     if (weekSummaries && weekSummaries.length >= 3) {
-      // @ts-ignore
       const calories = weekSummaries.map(s => s.calories_consumed || 0)
-      // @ts-ignore
       const mean = calories.reduce((a, b) => a + b, 0) / calories.length
-      // @ts-ignore
-      const squareDiffs = calories.map(value => Math.pow(value - mean, 2))
-      // @ts-ignore
-      const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / squareDiffs.length
-      const stdDev = Math.sqrt(avgSquareDiff)
-
-      const coefficientOfVariation = (stdDev / mean) * 100
-
-      if (coefficientOfVariation < 15) {
-        consistencyScore = 85
-      } else if (coefficientOfVariation < 30) {
-        consistencyScore = 55
-      } else {
-        consistencyScore = 25
-      }
+      const stdDev = Math.sqrt(calories.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / calories.length)
+      const cv = (stdDev / mean) * 100
+      consistencyScore = cv < 15 ? 85 : cv < 30 ? 55 : 25
     }
 
     let driftScore = 50
-
-    const pastCheatDays = cheatDays?.filter(
-      // @ts-ignore
-      (cd) => new Date(cd.cheat_date) <= today
-    ) || []
-
+    const pastCheatDays = cheatDays?.filter(cd => new Date(cd.cheat_date) <= today) || []
     if (pastCheatDays.length > 0) {
       let totalDrift = 0
-
       for (const cheatDay of pastCheatDays) {
-        const summary = weekSummaries?.find(
-          // @ts-ignore
-          s => s.summary_date === cheatDay.cheat_date
-        )
-
-        if (summary) {
-          const overage = summary.calories_consumed - cheatDay.planned_calories
-          totalDrift += Math.max(0, overage)
-        }
+        const summary = weekSummaries?.find(s => s.summary_date === cheatDay.cheat_date)
+        if (summary) totalDrift += Math.max(0, summary.calories_consumed - cheatDay.planned_calories)
       }
-
       const avgDrift = totalDrift / pastCheatDays.length
-
-      if (avgDrift < 200) {
-        driftScore = 80
-      } else if (avgDrift < 500) {
-        driftScore = 50
-      } else {
-        driftScore = 20
-      }
+      driftScore = avgDrift < 200 ? 80 : avgDrift < 500 ? 50 : 20
     }
 
-    const { error: metricsError } = await supabaseClient
+    await supabaseClient
       .from('weekly_metrics')
-      .upsert(
-        {
-          user_id: userId,
-          weekly_period_id: weeklyPeriod.id,
-          calculated_date: calculatedDate,
-          balance_score: balanceScore,
-          consistency_score: consistencyScore,
-          drift_score: driftScore,
-          total_consumed: totalConsumed,
-          total_remaining: totalRemaining,
-          calories_reserved: caloriesReserved,
-        },
-        {
-          onConflict: 'user_id,weekly_period_id,calculated_date',
-        }
-      )
+      .upsert({
+        user_id: userId,
+        weekly_period_id: weeklyPeriod.id,
+        calculated_date: calculatedDate,
+        balance_score: balanceScore,
+        consistency_score: consistencyScore,
+        drift_score: driftScore,
+        total_consumed: totalConsumed,
+        total_remaining: totalRemaining,
+        calories_reserved: caloriesReserved,
+      }, { onConflict: 'user_id,weekly_period_id,calculated_date' })
 
-    if (metricsError) {
-      throw new Error('Failed to save metrics: ' + metricsError.message)
-    }
+    console.log('✅ Metrics calculated!')
 
     return new Response(
       JSON.stringify({
@@ -236,19 +168,14 @@ Deno.serve(async (req: Request) => {
           weekly_budget: weeklyPeriod.weekly_budget,
         },
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+
   } catch (error) {
+    console.error('Error:', error)
     return new Response(
-      // @ts-ignore
       JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
