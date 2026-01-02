@@ -8,17 +8,20 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { searchFoods, getFoodDetails, getRecentFoods } from '@/utils/foodSearch';
+import * as ImagePicker from 'expo-image-picker';
 
 interface FoodLogSheetProps {
   onSuccess: () => void;
 }
 
-type LogMethod = 'manual' | 'search' | null;
+type LogMethod = 'manual' | 'search' | 'image' | null;
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
 
 interface SearchResult {
   food_id: string;
@@ -42,6 +45,9 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
   const [estimatedCalories, setEstimatedCalories] = useState('');
   const [mealType, setMealType] = useState<MealType>('breakfast');
   const [saving, setSaving] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [processingImage, setProcessingImage] = useState(false);
+
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,6 +65,12 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
   useEffect(() => {
     loadRecentFoods();
   }, []);
+
+  useEffect(() => {
+    if (selectedMethod === 'image' && selectedImage && !processingImage) {
+      processImageWithAI(selectedImage);
+    }
+  }, [selectedMethod, selectedImage]);
 
   const loadRecentFoods = async () => {
     try {
@@ -202,6 +214,130 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
     }
   };
 
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Camera access is required to scan food.');
+      return;
+    }
+  
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7, // Compress to reduce upload size and API costs
+      base64: true, // We need base64 to send to OpenAI
+    });
+  
+    if (!result.canceled && result.assets[0].base64) {
+      setSelectedImage(result.assets[0].base64);
+      setSelectedMethod('image');
+    }
+  };
+  
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Photo library access is required.');
+      return;
+    }
+  
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+      base64: true,
+    });
+  
+    if (!result.canceled && result.assets[0].base64) {
+      setSelectedImage(result.assets[0].base64);
+      setSelectedMethod('image');
+    }
+  };
+  
+  const processImageWithAI = async (base64Image: string) => {
+    setProcessingImage(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyzeFoodImage', {
+        body: { image_base64: base64Image },
+      });
+  
+      if (error) {
+        console.error('Function error:', error);
+        throw error;
+      }
+  
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to analyze image');
+      }
+  
+      const analysis = data.data;
+  
+      // Pre-fill the form with AI results
+      setFoodDescription(analysis.food_name);
+      setEstimatedCalories(analysis.calories.toString());
+      
+      // Store the analysis
+      setSelectedFood({
+        name: analysis.food_name,
+        calories: analysis.calories,
+        protein: analysis.protein_grams,
+        carbs: analysis.carbs_grams,
+        fat: analysis.fat_grams,
+      });
+  
+      // Show confidence level to user
+      const confidenceMessage = analysis.confidence === 'high' 
+        ? 'High confidence' 
+        : analysis.confidence === 'medium'
+        ? 'Medium confidence - please verify'
+        : 'Low confidence - please verify carefully';
+  
+      Alert.alert(
+        'Food Identified',
+        `${analysis.food_name}\n${analysis.calories} calories\n\n${confidenceMessage}${analysis.notes ? '\n\n' + analysis.notes : ''}`,
+        [
+          {
+            text: 'Edit Details',
+            onPress: () => setSelectedMethod('manual'),
+          },
+          {
+            text: 'Looks Good',
+            onPress: () => setSelectedMethod('manual'),
+            style: 'default',
+          },
+        ]
+      );
+  
+    } catch (error) {
+      console.error('Image processing error:', error);
+      Alert.alert(
+        'Analysis Failed',
+        'Could not analyze the image. Would you like to enter details manually?',
+        [
+          {
+            text: 'Cancel',
+            onPress: () => {
+              setSelectedImage(null);
+              setSelectedMethod(null);
+            },
+            style: 'cancel',
+          },
+          {
+            text: 'Enter Manually',
+            onPress: () => {
+              setSelectedMethod('manual');
+            },
+          },
+        ]
+      );
+    } finally {
+      setProcessingImage(false);
+    }
+  };
+
+
   const mealTypes: { value: MealType; label: string; icon: string }[] = [
     { value: 'breakfast', label: 'Breakfast', icon: 'sunny-outline' },
     { value: 'lunch', label: 'Lunch', icon: 'partly-sunny-outline' },
@@ -284,20 +420,37 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-        </TouchableOpacity>
+        </TouchableOpacity>    
 
-        <TouchableOpacity
-          style={[styles.methodCard, styles.methodCardDisabled]}
-          onPress={() => Alert.alert('Coming Soon', 'Barcode scanning will be available soon!')}
-        >
-          <View style={styles.methodIcon}>
-            <Ionicons name="camera-outline" size={28} color="#9CA3AF" />
-          </View>
-          <View style={styles.methodInfo}>
-            <Text style={[styles.methodTitle, styles.disabledText]}>Scan Barcode</Text>
-            <Text style={styles.methodDescription}>Coming soon</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+      <TouchableOpacity
+            style={styles.methodCard}
+            onPress={handleTakePhoto}
+>
+           <View style={styles.methodIcon}>
+             <Ionicons name="camera-outline" size={28} color="#3D5A5C" />
+           </View>
+           <View style={styles.methodInfo}>
+             <Text style={styles.methodTitle}>Take Photo</Text>
+             <Text style={styles.methodDescription}>
+              Take a photo of your food for AI recognition
+             </Text>
+             </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+         </TouchableOpacity>   
+         <TouchableOpacity
+            style={styles.methodCard}
+            onPress={handlePickImage}
+>
+         <View style={styles.methodIcon}>
+            <Ionicons name="images-outline" size={28} color="#3D5A5C" />
+         </View>
+         <View style={styles.methodInfo}>
+           <Text style={styles.methodTitle}>Select Photo</Text>
+           <Text style={styles.methodDescription}>
+            Select a photo from your gallery for AI recognition
+        </Text>
+        </View>
+             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
         </TouchableOpacity>
       </ScrollView>
     );
@@ -389,6 +542,61 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
       </ScrollView>
     );
   }
+  // Image processing screen
+  if (selectedMethod === 'image' && selectedImage) 
+    {
+     return (
+      <View style={styles.imageProcessingContainer}>
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => {
+          setSelectedMethod(null);
+          setSelectedImage(null);
+        }}
+      >
+        <Ionicons name="arrow-back" size={20} color="#3D5A5C" />
+        <Text style={styles.backText}>Back</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.formTitle}>Analyzing your food...</Text>
+
+      <View style={styles.imagePreview}>
+        <Image 
+          source={{ uri: `data:image/jpeg;base64,${selectedImage}` }}
+          style={styles.previewImage}
+          resizeMode="cover"
+        />
+        {processingImage && (
+          <View style={styles.processingOverlay}>
+            <ActivityIndicator size="large" color="#FFFFFF" />
+            <Text style={styles.processingText}>AI is reading your photo...</Text>
+          </View>
+        )}
+      </View>
+
+      {!processingImage && (
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => processImageWithAI(selectedImage)}
+        >
+          <Text style={styles.retryButtonText}>Analyze Image</Text>
+        </TouchableOpacity>
+      )}
+
+      <TouchableOpacity
+        style={styles.skipButton}
+        onPress={() => {
+          setSelectedMethod('manual');
+          setSelectedImage(null);
+        }}
+      >
+        <Text style={styles.skipButtonText}>Skip & Enter Manually</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+
 
   return (
     <ScrollView 
@@ -828,5 +1036,62 @@ const styles = StyleSheet.create({
   nutritionLabel: {
     fontSize: 12,
     color: '#6B7280',
+  },
+  imageProcessingContainer: {
+    flex: 1,
+    paddingBottom: 24,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 400,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginVertical: 24,
+    backgroundColor: '#F3F4F6',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  processingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(61, 90, 92, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  processingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  retryButton: {
+    backgroundColor: '#3D5A5C',
+    borderRadius: 12,
+    padding: 18,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  skipButton: {
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    padding: 18,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#3D5A5C',
+  },
+  skipButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#3D5A5C',
   },
 });
