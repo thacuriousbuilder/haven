@@ -1,5 +1,3 @@
-// app/(tabs)/log.tsx (NEW FILE)
-
 import React, { useEffect } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';

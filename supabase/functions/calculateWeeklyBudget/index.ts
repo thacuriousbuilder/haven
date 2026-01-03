@@ -7,7 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-Deno.serve(async (req:Request) => {
+//@ts-ignore
+  Deno.serve(async (req:Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -82,7 +83,8 @@ Deno.serve(async (req:Request) => {
       )
     }
 
-    const totalCalories = dailySummaries.reduce((sum, day) => sum + day.calories_consumed, 0)
+    //@ts-ignore
+    const totalCalories = dailySummaries.reduce((sum: any, day: any) => sum + day.calories_consumed, 0)
     const averageDailyCalories = Math.round(totalCalories / 7)
     const weeklyBudget = averageDailyCalories * 7
 

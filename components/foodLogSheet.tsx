@@ -56,6 +56,10 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedFood, setSelectedFood] = useState<any>(null);
   
+  // AI estimation state
+  const [estimatingNutrition, setEstimatingNutrition] = useState(false);
+  const [showEstimateButton, setShowEstimateButton] = useState(false);
+
   // Recent foods state
   const [recentFoods, setRecentFoods] = useState<RecentFood[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
@@ -122,6 +126,13 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
     }
   };
 
+  // Check if food description is substantial enough for AI estimation (minimum 3 words)
+  const checkDescriptionForEstimate = (text: string) => {
+    const words = text.trim().split(/\s+/);
+    //@ts-ignore
+    setShowEstimateButton(words.length >= 3 && words.filter((w: any) => w.length > 0).length >= 3);
+  };
+
   const handleSelectRecent = (food: RecentFood) => {
     setFoodDescription(food.food_name);
     setEstimatedCalories(food.calories.toString());
@@ -159,7 +170,13 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
           fat_grams: selectedFood?.fat || null,
           log_date: new Date().toISOString().split('T')[0],
           meal_type: mealType,
-          entry_method: selectedMethod === 'search' ? 'database' : 'manual',
+          entry_method: selectedMethod === 'search' 
+                                  ? 'database' 
+                                  : selectedMethod === 'image'
+                                  ? 'ai_image_scan'
+                                  : selectedFood 
+                                  ? 'ai_text_estimate' 
+                                  : 'manual',
         });
 
       if (error) {
@@ -334,6 +351,74 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
       );
     } finally {
       setProcessingImage(false);
+    }
+  };
+
+  const handleEstimateNutrition = async (descriptionText?: string) => {
+    // Use passed text or current state
+    const textToEstimate = descriptionText || foodDescription;
+    
+    if (!textToEstimate.trim() || estimatingNutrition) return;
+  
+    setEstimatingNutrition(true);
+  
+    try {
+      console.log('🔍 Estimating for:', textToEstimate); // Debug log
+      
+      const { data, error } = await supabase.functions.invoke('estimateNutrition', {
+        body: { 
+          food_description: textToEstimate,
+          meal_type: mealType 
+        },
+      });
+  
+      if (error) {
+        console.error('Estimation error:', error);
+        throw error;
+      }
+  
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to estimate nutrition');
+      }
+  
+      const estimate = data.data;
+  
+      console.log('✅ Received estimate:', estimate); // Debug log
+  
+      // Pre-fill the form with AI results
+      setFoodDescription(estimate.food_name);
+      setEstimatedCalories(estimate.calories.toString());
+      
+      // Store the estimate
+      setSelectedFood({
+        name: estimate.food_name,
+        calories: estimate.calories,
+        protein: estimate.protein_grams,
+        carbs: estimate.carbs_grams,
+        fat: estimate.fat_grams,
+      });
+  
+      // Show confidence level to user
+      const confidenceMessage = estimate.confidence === 'high' 
+        ? 'High confidence' 
+        : estimate.confidence === 'medium'
+        ? 'Medium confidence - please verify'
+        : 'Low confidence - please verify carefully';
+  
+      Alert.alert(
+        'Nutrition Estimated',
+        `${estimate.food_name}\n${estimate.calories} calories\n\n${confidenceMessage}${estimate.notes ? '\n\n' + estimate.notes : ''}\n\nPlease review and adjust if needed.`,
+        [{ text: 'Got it', style: 'default' }]
+      );
+  
+    } catch (error) {
+      console.error('Nutrition estimation error:', error);
+      Alert.alert(
+        'Estimation Failed',
+        'Could not estimate nutrition. Please enter values manually.'
+      );
+    } finally {
+      setEstimatingNutrition(false);
     }
   };
 
@@ -659,27 +744,47 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
         <TextInput
           style={styles.textInput}
           value={foodDescription}
-          onChangeText={setFoodDescription}
-          placeholder="e.g., Chicken salad with ranch dressing"
-          placeholderTextColor="#9CA3AF"
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
-        />
-      </View>
-
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Calories</Text>
-        <TextInput
-          style={styles.input}
-          value={estimatedCalories}
-          onChangeText={setEstimatedCalories}
-          placeholder="500"
-          placeholderTextColor="#9CA3AF"
-          keyboardType="numeric"
-          maxLength={5}
-        />
-      </View>
+          onChangeText={(text: string) => {
+        setFoodDescription(text);
+        //@ts-ignore
+        checkDescriptionForEstimate(text);
+    }}
+       placeholder="e.g., Chicken salad with ranch dressing"
+       placeholderTextColor="#9CA3AF"
+       multiline
+      numberOfLines={3}
+    textAlignVertical="top"
+  />
+  
+    {/* AI Estimate Button - only show when description is substantial (minimum 3 words) */}
+  {showEstimateButton && !selectedFood && (
+    <TouchableOpacity
+      style={[styles.estimateButton, estimatingNutrition && styles.estimateButtonDisabled]}
+      onPress={() => handleEstimateNutrition(foodDescription)}
+      disabled={estimatingNutrition}
+    >
+      {estimatingNutrition ? (
+        <>
+          <ActivityIndicator size="small" color="#3D5A5C" />
+          <Text style={styles.estimateButtonText}>Estimating...</Text>
+        </>
+      ) : (
+        <>
+          <Ionicons name="sparkles" size={16} color="#3D5A5C" />
+          <Text style={styles.estimateButtonText}>Estimate Nutrition with AI</Text>
+        </>
+      )}
+    </TouchableOpacity>
+  )}
+  
+  {/* Show when AI has already estimated */}
+  {selectedFood && (
+    <View style={styles.aiEstimateBadge}>
+      <Ionicons name="sparkles" size={14} color="#10B981" />
+      <Text style={styles.aiEstimateText}>AI estimated - please review</Text>
+    </View>
+  )}
+</View>
 
       {/* Nutrition Info if from database */}
       {selectedFood && (
@@ -1093,5 +1198,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#3D5A5C',
+  },
+  estimateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F5F1E8',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3D5A5C',
+    borderStyle: 'dashed',
+  },
+  estimateButtonDisabled: {
+    opacity: 0.6,
+  },
+  estimateButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3D5A5C',
+  },
+  aiEstimateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#D1FAE5',
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  aiEstimateText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#065F46',
   },
 });
