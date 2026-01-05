@@ -73,7 +73,7 @@ export default function AccountTypeScreen() {
         router.replace('/(tabs)/home');
       } else {
         // Clients continue to trainer code screen
-        router.push('/onboarding/trainerCode');
+        router.push('/(onboarding)/trainerCode');
       }
     } catch (error) {
       console.error('Error setting account type:', error);
