@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF6B35', // Orange for today
   },
   cheatCircle: {
-    backgroundColor: '#FF6B35', // Orange for cheat days
+    backgroundColor: '#3D5A5C', // Orange for cheat days
   },
   dateText: {
     fontSize: 14,

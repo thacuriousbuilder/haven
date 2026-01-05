@@ -8,82 +8,34 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-//@ts-ignore
-Deno.serve(async (req:Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
+async function calculateMetricsForUser(supabase: any, userId: string) {
   try {
-    const authHeader = req.headers.get('Authorization')
-    
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing Authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    console.log('📊 Calculating metrics for user:', userId)
 
-    const supabaseClient = createClient(
-      //@ts-ignore
-      Deno.env.get('SUPABASE_URL') ?? '',
-      //@ts-ignore
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
-    )
-
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
-
-    if (userError || !user) {
-      console.error('Auth failed:', userError)
-      return new Response(
-        JSON.stringify({ error: 'Authentication failed', details: userError?.message }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    console.log('✅ User:', user.id)
-
-    const userId = user.id
     const today = new Date()
     const calculatedDate = today.toISOString().split('T')[0]
 
     // Find the active weekly period that contains today's date
-    const { data: weeklyPeriod, error: periodError } = await supabaseClient
+    const { data: weeklyPeriod, error: periodError } = await supabase
       .from('weekly_periods')
       .select('*')
       .eq('user_id', userId)
       .eq('period_type', 'active')
       .eq('status', 'active')
-      .lte('week_start_date', calculatedDate)  // Period started on or before today
-      .gte('week_end_date', calculatedDate)    // Period ends on or after today
+      .lte('week_start_date', calculatedDate)
+      .gte('week_end_date', calculatedDate)
       .single()
 
-    console.log('Period error:', periodError)
-    console.log('Period found:', !!weeklyPeriod)
-
     if (periodError || !weeklyPeriod) {
-      console.error('No active weekly period found for today')
-      return new Response(
-        JSON.stringify({ 
-          error: 'No active weekly period found',
-          hint: 'Create a weekly period that includes today\'s date'
-        }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      console.log('⏭️  No active period for user:', userId)
+      return { success: false, reason: 'no_active_period' }
     }
 
-    // Use the period's actual dates
     const weekStartDate = weeklyPeriod.week_start_date
     const weekEndDate = weeklyPeriod.week_end_date
 
-    console.log('📅 Using period:', weekStartDate, 'to', weekEndDate)
-
-    const { data: weekSummaries } = await supabaseClient
+    // Get daily summaries for the week
+    const { data: weekSummaries } = await supabase
       .from('daily_summaries')
       .select('*')
       .eq('user_id', userId)
@@ -94,7 +46,8 @@ Deno.serve(async (req:Request) => {
     //@ts-ignore
     const totalConsumed = weekSummaries?.reduce((sum: any, day: any) => sum + (day.calories_consumed || 0), 0) || 0
 
-    const { data: cheatDays } = await supabaseClient
+    // Get cheat days
+    const { data: cheatDays } = await supabase
       .from('planned_cheat_days')
       .select('*')
       .eq('user_id', userId)
@@ -107,7 +60,7 @@ Deno.serve(async (req:Request) => {
     const caloriesReserved = upcomingCheatDays.reduce((sum: any, cd: any) => sum + (cd.planned_calories || 0), 0)
     const totalRemaining = weeklyPeriod.weekly_budget - totalConsumed
 
-    // Calculate days left using the period's end date
+    // Calculate Balance Score
     const sunday = new Date(weekEndDate)
     const daysLeftInWeek = Math.max(1, Math.ceil((sunday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) + 1)
     const dailyBudgetRemaining = totalRemaining / daysLeftInWeek
@@ -115,6 +68,7 @@ Deno.serve(async (req:Request) => {
 
     let balanceScore = dailyBudgetRemaining >= baselineAvg ? 100 : dailyBudgetRemaining >= baselineAvg * 0.7 ? 65 : 30
 
+    // Calculate Consistency Score
     let consistencyScore = 50
     if (weekSummaries && weekSummaries.length >= 3) {
       //@ts-ignore
@@ -127,6 +81,7 @@ Deno.serve(async (req:Request) => {
       consistencyScore = cv < 15 ? 85 : cv < 30 ? 55 : 25
     }
 
+    // Calculate Drift Score
     let driftScore = 50
     //@ts-ignore
     const pastCheatDays = cheatDays?.filter((cd: any) => new Date(cd.cheat_date) <= today) || []
@@ -141,7 +96,8 @@ Deno.serve(async (req:Request) => {
       driftScore = avgDrift < 200 ? 80 : avgDrift < 500 ? 50 : 20
     }
 
-    await supabaseClient
+    // Upsert metrics
+    await supabase
       .from('weekly_metrics')
       .upsert({
         user_id: userId,
@@ -155,26 +111,87 @@ Deno.serve(async (req:Request) => {
         calories_reserved: caloriesReserved,
       }, { onConflict: 'user_id,weekly_period_id,calculated_date' })
 
-    console.log('✅ Metrics calculated!')
+    console.log('✅ Metrics calculated for user:', userId)
+    return { success: true }
+
+  } catch (error) {
+    console.error('❌ Error calculating metrics for user:', userId, error)
+    //@ts-ignore
+    return { success: false, error: error.message }
+  }
+}
+
+//@ts-ignore
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    console.log('🚀 Daily metrics job started at:', new Date().toISOString())
+
+    // Verify this is a cron job or authorized request
+    const authHeader = req.headers.get('Authorization')
+    
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - missing auth header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Create admin client
+    const supabase = createClient(
+      //@ts-ignore
+      Deno.env.get('SUPABASE_URL') ?? '',
+      //@ts-ignore
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Get all users with active weekly periods that include today
+    const today = new Date()
+    const calculatedDate = today.toISOString().split('T')[0]
+
+    const { data: activePeriods, error: periodsError } = await supabase
+      .from('weekly_periods')
+      .select('user_id')
+      .eq('period_type', 'active')
+      .eq('status', 'active')
+      .lte('week_start_date', calculatedDate)
+      .gte('week_end_date', calculatedDate)
+
+    if (periodsError) {
+      console.error('❌ Error fetching active periods:', periodsError)
+      throw periodsError
+    }
+
+    console.log(`📊 Found ${activePeriods?.length || 0} users with active periods`)
+
+    // Calculate metrics for each user
+    const results = []
+    for (const period of activePeriods || []) {
+      const result = await calculateMetricsForUser(supabase, period.user_id)
+      results.push({ user_id: period.user_id, ...result })
+    }
+
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
+
+    console.log(`✅ Completed: ${successCount} successful, ${failCount} failed`)
 
     return new Response(
       JSON.stringify({
         success: true,
-        data: {
-          balance_score: balanceScore,
-          consistency_score: consistencyScore,
-          drift_score: driftScore,
-          total_consumed: totalConsumed,
-          total_remaining: totalRemaining,
-          calories_reserved: caloriesReserved,
-          weekly_budget: weeklyPeriod.weekly_budget,
-        },
+        processed: results.length,
+        successful: successCount,
+        failed: failCount,
+        timestamp: new Date().toISOString(),
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Error:', error)
+    console.error('❌ Daily metrics job error:', error)
     return new Response(
       //@ts-ignore
       JSON.stringify({ error: error.message }),
