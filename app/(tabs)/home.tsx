@@ -82,16 +82,39 @@ export default function HomeScreen() {
       }
 
       const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+  .from('profiles')
+  .select('*')
+  .eq('id', user.id)
+  .single();
 
-      if (error) {
-        console.error('Error fetching profile:', error);
-        setLoading(false);
-        return;
-      }
+if (error) {
+  console.error('Error fetching profile:', error);
+  
+  // If profile doesn't exist, create it
+  if (error.code === 'PGRST116') {
+    console.log('Profile not found, creating...');
+    const { data: newProfile, error: createError } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+      })
+      .select()
+      .single();
+    
+    if (createError) {
+      console.error('Error creating profile:', createError);
+      setLoading(false);
+      return;
+    }
+    
+    setProfile(newProfile);
+    setLoading(false);
+    return;
+  }
+  
+  setLoading(false);
+  return;
+}
 
       setProfile(data);
       

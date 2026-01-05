@@ -14,7 +14,7 @@ export default function WhyWorks3Screen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={10} totalSteps={15} />
+      <ProgressBar currentStep={12} totalSteps={16} />
       
       <View style={styles.content}>
         <Text style={styles.title}>First, we learn you</Text>

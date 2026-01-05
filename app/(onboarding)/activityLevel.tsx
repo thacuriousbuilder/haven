@@ -21,7 +21,7 @@ export default function ActivityLevelScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={4} totalSteps={15} />
+      <ProgressBar currentStep={6} totalSteps={16} />
       
       <View style={styles.content}>
     

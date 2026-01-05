@@ -127,7 +127,7 @@ export default function HeightWeightScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={3} totalSteps={15} />
+      <ProgressBar currentStep={5} totalSteps={16} />
       
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>What is your height & weight?</Text>

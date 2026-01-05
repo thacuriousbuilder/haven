@@ -14,7 +14,7 @@ export default function WhyWorks1Screen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={8} totalSteps={15} />
+      <ProgressBar currentStep={10} totalSteps={16} />
       
       <View style={styles.content}>
         <Text style={styles.title}>Why HAVEN works</Text>
