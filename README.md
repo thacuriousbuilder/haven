@@ -24,4 +24,4 @@ HAVEN is a React Native mobile app that takes a  different approach to calorie t
 
 ### APIs
 - **USDA FoodData Central** - Free food database (300k+ foods)
-- **OpenAI GPT 4o- AI Estimate Image Calories
+- OpenAI GPT 4o- AI Estimate Image Calories
