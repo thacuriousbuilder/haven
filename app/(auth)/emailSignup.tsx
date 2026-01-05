@@ -44,7 +44,7 @@ export default function EmailSignup() {
 
     // Account created; proceed to onboarding regardless of confirmation state.
     if (data.user || data.session) {
-      router.replace('/(onboarding)/gender');
+      router.replace('/(onboarding)/accountType');
     }
   }
 
