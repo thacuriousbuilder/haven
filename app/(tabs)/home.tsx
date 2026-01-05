@@ -562,7 +562,9 @@ export default function HomeScreen() {
                         <View style={styles.clientActions}>
                           <TouchableOpacity 
                             style={styles.actionButton}
-                            onPress={() => {/* TODO: View details */}}
+                            onPress={() => {
+                              router.push(`/clientDetail/${client.id}`);
+                            }}
                           >
                             <Ionicons name="eye-outline" size={16} color="#3D5A5C" />
                             <Text style={styles.actionText}>View Progress</Text>
