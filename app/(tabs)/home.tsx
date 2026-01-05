@@ -9,7 +9,7 @@ import WeeklyCalendar from '@/components/weeklyCalendar';
 import StatCard from '@/components/statCard';
 import { calculateMetrics } from '@/utils/metrics';
 import { calculateWeeklyBudget } from '@/utils/weeklyBudget';
-import DailyCheckInScreen from '@/app/dailyCheckin';
+import { BaselineCompleteModal } from '@/components/baseLineCompleteModal';
 
 interface ProfileData {
   full_name: string | null;
@@ -48,11 +48,19 @@ export default function HomeScreen() {
   const [daysLogged, setDaysLogged] = useState(0);
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [cheatDates, setCheatDates] = useState<string[]>([]);
+  const [showBaselineComplete, setShowBaselineComplete] = useState(false);
+  const [baselineAverage, setBaselineAverage] = useState<number>(0);
 
   useEffect(() => {
     fetchProfile();
     fetchRecentLogs();
   }, []);
+
+  useEffect(() => {
+    if (profile && daysLogged >= 7) {
+      checkBaselineCompletion();
+    }
+  }, [profile, daysLogged]);
 
   const getMonday = (date: Date): Date => {
     const d = new Date(date);
@@ -174,6 +182,39 @@ export default function HomeScreen() {
       setRecentLogs(data || []);
     } catch (error) {
       console.error('Error in fetchRecentLogs:', error);
+    }
+  };
+
+  const checkBaselineCompletion = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+  
+      // Only check if we're currently in baseline mode
+      if (!profile?.baseline_start_date || profile?.baseline_complete) {
+        return;
+      }
+  
+      // Check if user has logged 7 days
+      if (daysLogged >= 7) {
+        // Calculate baseline average
+        const { data: summaries } = await supabase
+          .from('daily_summaries')
+          .select('calories_consumed')
+          .eq('user_id', user.id)
+          .gte('summary_date', profile.baseline_start_date)
+          .gt('calories_consumed', 0);
+  
+        if (summaries && summaries.length >= 7) {
+          const totalCalories = summaries.reduce((sum, day) => sum + day.calories_consumed, 0);
+          const average = Math.round(totalCalories / summaries.length);
+          
+          setBaselineAverage(average);
+          setShowBaselineComplete(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking baseline completion:', error);
     }
   };
 
@@ -492,6 +533,15 @@ export default function HomeScreen() {
           )}
         </View>
       </ScrollView>
+       {/* Baseline Complete Modal */}
+       <BaselineCompleteModal
+        visible={showBaselineComplete}
+        baselineAverage={baselineAverage}
+        onComplete={() => {
+          setShowBaselineComplete(false);
+          onRefresh(); // Reload everything to show active week
+        }}
+      />
     </SafeAreaView>
   );
 }
