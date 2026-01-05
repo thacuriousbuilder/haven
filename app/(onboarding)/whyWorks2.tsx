@@ -14,7 +14,7 @@ export default function WhyWorks2Screen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={9} totalSteps={15} />
+      <ProgressBar currentStep={11} totalSteps={16} />
       
       <View style={styles.content}>
         <Text style={styles.title}>Real life included</Text>

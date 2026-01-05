@@ -40,7 +40,7 @@ export default function CheckIn2Screen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={14} totalSteps={15} />
+      <ProgressBar currentStep={16} totalSteps={16} />
       
       <View style={styles.content}>
         <Text style={styles.title}>How daily check-ins work</Text>

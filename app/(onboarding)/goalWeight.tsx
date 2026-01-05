@@ -64,7 +64,7 @@ export default function GoalWeightScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={7} totalSteps={15} />
+      <ProgressBar currentStep={9} totalSteps={16} />
       
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>What is your goal weight?</Text>

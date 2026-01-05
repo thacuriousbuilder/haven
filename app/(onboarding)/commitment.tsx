@@ -19,7 +19,7 @@ export default function CommitmentScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={11} totalSteps={15} />
+      <ProgressBar currentStep={13} totalSteps={16} />
       
       <View style={styles.content}>
         <Text style={styles.title}>Your 7-Day Baseline</Text>

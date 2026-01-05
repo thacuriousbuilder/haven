@@ -15,7 +15,7 @@ export default function FoodLogScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={12} totalSteps={15} />
+      <ProgressBar currentStep={14} totalSteps={16} />
       
       <View style={styles.content}>
         <Text style={styles.title}>What did you eat today?</Text>
