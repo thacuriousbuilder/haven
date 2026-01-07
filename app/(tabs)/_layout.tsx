@@ -2,17 +2,67 @@
 
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet,Text } from 'react-native';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+
+
+function TabBarBadge({ count }: { count: number }) {
+  if (count === 0) return null;
+  
+  return (
+    <View style={styles.badge}>
+      <Text style={styles.badgeText}>{count > 99 ? '99+' : count}</Text>
+    </View>
+  );
+}
 
 export default function TabLayout() {
   const [userType, setUserType] = useState<'client' | 'trainer' | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     fetchUserType();
   }, []);
+
+  useEffect(() => {
+    if (userType !== 'trainer') return;
+  
+    fetchUnreadCount();
+  
+    // Set up real-time subscription
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+  
+    const setupSubscription = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+  
+      channel = supabase
+        .channel('unread-messages')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'messages',
+            filter: `recipient_id=eq.${user.id}`,
+          },
+          () => {
+            fetchUnreadCount();
+          }
+        )
+        .subscribe();
+    };
+  
+    setupSubscription();
+  
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [userType]);
 
   const fetchUserType = async () => {
     try {
@@ -35,6 +85,23 @@ export default function TabLayout() {
       setUserType('client'); // Default to client
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUnreadCount = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+  
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('recipient_id', user.id)
+        .eq('read', false);
+  
+      setUnreadCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
     }
   };
 
@@ -98,12 +165,15 @@ export default function TabLayout() {
           ),
         }}
         />
-        <Tabs.Screen
+       <Tabs.Screen
           name="messages"
           options={{
             title: 'Messages',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="chatbubbles" size={size} color={color} />
+              <View>
+                <Ionicons name="chatbubbles" size={size} color={color} />
+                {unreadCount > 0 && <TabBarBadge count={unreadCount} />}
+              </View>
             ),
           }}
         />
@@ -236,5 +306,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  badge: {
+    position: 'absolute',
+    right: -8,
+    top: -4,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

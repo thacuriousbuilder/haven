@@ -234,16 +234,38 @@ export default function HomeScreen() {
 
       // For each client, get their today's logs and metrics
       const today = new Date().toISOString().split('T')[0];
+      console.log('=== TRAINER DASHBOARD DEBUG ===');
+      console.log('Today date string:', today);
+      console.log('Number of clients:', clientProfiles.length);
       const clientStatuses: ClientStatus[] = [];
 
       for (const client of clientProfiles) {
+        console.log(`\n--- Checking client: ${client.full_name} (${client.id}) ---`);
+      
+        // DEBUG: Get ALL logs for this client first
+      const { data: allClientLogs } = await supabase
+      .from('food_logs')
+      .select('id, log_date, created_at')
+      .eq('user_id', client.id)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    
+      console.log('All recent logs for this client:', allClientLogs?.length);
+      if (allClientLogs) {
+        allClientLogs.forEach((log, idx) => {
+          console.log(`  Log ${idx + 1}: log_date=${log.log_date}, created_at=${log.created_at}`);
+        });
+      }
+
         // Get today's food logs
         const { data: todayLogs } = await supabase
           .from('food_logs')
           .select('created_at')
           .eq('user_id', client.id)
-          .gte('log_date', today)
+          .eq('log_date', today)
           .order('created_at', { ascending: false });
+
+          console.log('Today logs query result:', todayLogs?.length || 0);
 
         const mealsToday = todayLogs?.length || 0;
         const lastLogTime = todayLogs?.[0]?.created_at || null;
@@ -516,17 +538,21 @@ export default function HomeScreen() {
                         <View style={styles.clientActions}>
                           <TouchableOpacity 
                             style={styles.actionButton}
-                            onPress={() => {/* TODO: Open messages */}}
-                          >
+                             onPress={() => {
+                                router.push(`/messageThread/${client.id}`);
+                              }}
+                              >
                             <Ionicons name="chatbubble-outline" size={16} color="#3D5A5C" />
                             <Text style={styles.actionText}>Message</Text>
                           </TouchableOpacity>
                           <TouchableOpacity 
                             style={styles.actionButton}
-                            onPress={() => {/* TODO: View details */}}
+                            onPress={() => {
+                              router.push(`/clientDetail/${client.id}`);
+                            }}
                           >
                             <Ionicons name="eye-outline" size={16} color="#3D5A5C" />
-                            <Text style={styles.actionText}>View</Text>
+                            <Text style={styles.actionText}>View Progress</Text>
                           </TouchableOpacity>
                         </View>
                       </View>

@@ -74,7 +74,29 @@ export default function ClientDetailScreen() {
       .eq('user_id', id)
       .eq('log_date', today);
 
-    setTodayMealCount(todayLogs?.length || 0);
+      console.log('Today logs query result:', todayLogs);
+      console.log('Today logs count:', todayLogs?.length || 0);
+      setTodayMealCount(todayLogs?.length || 0);
+
+      const { data: allLogs, error: allLogsError } = await supabase
+      .from('food_logs')
+      .select('id, food_name, log_date, created_at')
+      .eq('user_id', id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    console.log('=== ALL LOGS DEBUG ===');
+    console.log('Total logs found:', allLogs?.length);
+    if (allLogs) {
+      allLogs.forEach((log, index) => {
+        console.log(`Log ${index + 1}:`, {
+          food: log.food_name,
+          log_date: log.log_date,
+          created_at: log.created_at,
+        });
+      });
+    }
+    console.log('=== END DEBUG ===');
 
       // Fetch recent food logs (last 7 days)
       const sevenDaysAgo = new Date();
@@ -82,11 +104,13 @@ export default function ClientDetailScreen() {
       const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
       const { data: logsData, error: logsError } = await supabase
-        .from('food_logs')
-        .select('*')
-        .eq('user_id', id)
-        .gte('log_date', sevenDaysAgoStr)
-        .order('created_at', { ascending: false });
+          .from('food_logs')
+          .select('*')
+          .eq('user_id', id)
+          .gte('log_date', sevenDaysAgoStr)
+          .lte('log_date', new Date().toISOString().split('T')[0])  // Add upper bound
+          .order('log_date', { ascending: false })  // Order by log_date first
+          .order('created_at', { ascending: false });
 
       if (logsError) {
         console.error('Error fetching food logs:', logsError);
@@ -201,8 +225,10 @@ export default function ClientDetailScreen() {
           )}
         </View>
         <TouchableOpacity
-          onPress={() => {/* TODO: Open messages */}}
           style={styles.messageButton}
+          onPress={() => {
+            router.push(`/messageThread/${client.id}`);
+          }}
         >
           <Ionicons name="chatbubble-outline" size={24} color="#3D5A5C" />
         </TouchableOpacity>

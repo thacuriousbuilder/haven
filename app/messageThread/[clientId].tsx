@@ -9,12 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 
 interface Message {
   id: string;
@@ -25,36 +25,34 @@ interface Message {
   created_at: string;
 }
 
-interface Profile {
-  id: string;
-  trainer_id: string | null;
-  full_name: string | null;
-}
-
-export default function MessagesScreen() {
+export default function MessageThreadScreen() {
+  const { clientId } = useLocalSearchParams<{ clientId: string }>();
+  const router = useRouter();
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [trainerId, setTrainerId] = useState<string | null>(null);
-  const [trainerName, setTrainerName] = useState<string>('Coach');
-  const [userType, setUserType] = useState<'client' | 'trainer' | null>(null);
-  const [conversations, setConversations] = useState<any[]>([]);
+  const [clientName, setClientName] = useState<string>('Client');
   const flatListRef = useRef<FlatList>(null);
-  const router = useRouter();
 
   useEffect(() => {
-    fetchUserAndMessages();
-  }, []);
+    fetchThreadData();
+  }, [clientId]);
 
+  // Real-time subscription
   useEffect(() => {
-    if (!currentUserId || !trainerId) return;
-  
-    // Subscribe to new messages
+    if (!currentUserId || !clientId) {
+      console.log('Skipping subscription - missing IDs');
+      return;
+    }
+
+    console.log('=== Setting up real-time subscription for thread ===');
+
     const channel = supabase
-      .channel('messages-channel')
+      .channel(`message-thread-${clientId}`)
       .on(
         'postgres_changes',
         {
@@ -64,55 +62,33 @@ export default function MessagesScreen() {
           filter: `recipient_id=eq.${currentUserId}`,
         },
         (payload) => {
-          const newMessage = payload.new as Message;
+          console.log('New message received in thread:', payload);
+          const newMsg = payload.new as Message;
           
-          // Add to messages list
-          setMessages(prev => [...prev, newMessage]);
-          
-          // Mark as read
-          markMessagesAsRead(currentUserId);
-          
-          // Scroll to bottom
-          setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          }, 100);
+          // Only add if it's from this client
+          if (newMsg.sender_id === clientId) {
+            setMessages(prev => [...prev, newMsg]);
+            markMessagesAsRead(currentUserId);
+            
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+          }
         }
       )
-      .subscribe();
-  
-    // Cleanup subscription on unmount
+      .subscribe((status) => {
+        console.log('Thread subscription status:', status);
+      });
+
     return () => {
+      console.log('Cleaning up thread subscription');
       supabase.removeChannel(channel);
     };
-  }, [currentUserId, trainerId]);
+  }, [currentUserId, clientId]);
 
-  useEffect(() => {
-    if (userType !== 'trainer' || !currentUserId) return;
   
-    console.log('Setting up real-time for trainer conversation list');
-  
-    const channel = supabase
-      .channel('trainer-conversations')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'messages',
-        },
-        (payload) => {
-          console.log('Message change detected, refreshing conversations');
-          fetchTrainerConversations(currentUserId);
-        }
-      )
-      .subscribe();
-  
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userType, currentUserId]);
 
-  const fetchUserAndMessages = async () => {
+  const fetchThreadData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -120,64 +96,35 @@ export default function MessagesScreen() {
         setLoading(false);
         return;
       }
-  
+
       setCurrentUserId(user.id);
-  
-      // Get user's profile to check user_type
-      const { data: profile, error: profileError } = await supabase
+
+      // Get client's name
+      const { data: clientProfile } = await supabase
         .from('profiles')
-        .select('user_type, trainer_id, full_name')
-        .eq('id', user.id)
+        .select('full_name')
+        .eq('id', clientId)
         .single();
-  
-      if (profileError) {
-        console.error('Error fetching profile:', profileError);
-        setLoading(false);
-        return;
+
+      if (clientProfile?.full_name) {
+        setClientName(clientProfile.full_name);
       }
-  
-      setUserType(profile.user_type);
-  
-      // CLIENT VIEW - fetch messages with trainer
-      if (profile.user_type === 'client') {
-        if (!profile.trainer_id) {
-          setLoading(false);
-          return;
-        }
-  
-        setTrainerId(profile.trainer_id);
-  
-        // Get trainer's name
-        const { data: trainerProfile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', profile.trainer_id)
-          .single();
-  
-        if (trainerProfile?.full_name) {
-          setTrainerName(trainerProfile.full_name);
-        }
-  
-        // Fetch messages
-        await fetchMessages(user.id, profile.trainer_id);
-      } 
-      // TRAINER VIEW - fetch conversation list
-      else if (profile.user_type === 'trainer') {
-        await fetchTrainerConversations(user.id);
-      }
-  
+
+      // Fetch messages
+      await fetchMessages(user.id, clientId);
+
       setLoading(false);
     } catch (error) {
-      console.error('Error in fetchUserAndMessages:', error);
+      console.error('Error in fetchThreadData:', error);
       setLoading(false);
     }
   };
 
-  const fetchMessages = async (userId: string, trainerId: string) => {
+  const fetchMessages = async (trainerId: string, clientId: string) => {
     const { data, error } = await supabase
       .from('messages')
       .select('*')
-      .or(`and(sender_id.eq.${userId},recipient_id.eq.${trainerId}),and(sender_id.eq.${trainerId},recipient_id.eq.${userId})`)
+      .or(`and(sender_id.eq.${trainerId},recipient_id.eq.${clientId}),and(sender_id.eq.${clientId},recipient_id.eq.${trainerId})`)
       .order('created_at', { ascending: true });
 
     if (error) {
@@ -186,85 +133,28 @@ export default function MessagesScreen() {
     }
 
     setMessages(data || []);
-
-    // Mark messages as read
-    markMessagesAsRead(userId);
+    markMessagesAsRead(trainerId);
   };
 
-  const fetchTrainerConversations = async (trainerId: string) => {
-    try {
-      // Get all clients
-      const { data: clients, error: clientsError } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('trainer_id', trainerId);
-  
-      if (clientsError || !clients) {
-        console.error('Error fetching clients:', clientsError);
-        return;
-      }
-  
-      // For each client, get last message and unread count
-      const conversationsData = await Promise.all(
-        clients.map(async (client) => {
-          // Get last message
-          const { data: lastMessage } = await supabase
-            .from('messages')
-            .select('*')
-            .or(`and(sender_id.eq.${trainerId},recipient_id.eq.${client.id}),and(sender_id.eq.${client.id},recipient_id.eq.${trainerId})`)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-  
-          // Get unread count (messages sent TO trainer from this client)
-          const { count: unreadCount } = await supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('sender_id', client.id)
-            .eq('recipient_id', trainerId)
-            .eq('read', false);
-  
-          return {
-            clientId: client.id,
-            clientName: client.full_name || 'Client',
-            lastMessage: lastMessage?.message_text || 'No messages yet',
-            lastMessageTime: lastMessage?.created_at || null,
-            unreadCount: unreadCount || 0,
-          };
-        })
-      );
-  
-      // Sort by most recent message
-      conversationsData.sort((a, b) => {
-        if (!a.lastMessageTime) return 1;
-        if (!b.lastMessageTime) return -1;
-        return new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime();
-      });
-  
-      setConversations(conversationsData);
-    } catch (error) {
-      console.error('Error in fetchTrainerConversations:', error);
-    }
-  };
-
-  const markMessagesAsRead = async (userId: string) => {
+  const markMessagesAsRead = async (trainerId: string) => {
     await supabase
       .from('messages')
       .update({ read: true })
-      .eq('recipient_id', userId)
+      .eq('recipient_id', trainerId)
+      .eq('sender_id', clientId)
       .eq('read', false);
   };
 
   const onRefresh = async () => {
-    if (!currentUserId || !trainerId) return;
+    if (!currentUserId) return;
     
     setRefreshing(true);
-    await fetchMessages(currentUserId, trainerId);
+    await fetchMessages(currentUserId, clientId);
     setRefreshing(false);
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !currentUserId || !trainerId || sending) {
+    if (!newMessage.trim() || !currentUserId || sending) {
       return;
     }
 
@@ -275,7 +165,7 @@ export default function MessagesScreen() {
         .from('messages')
         .insert({
           sender_id: currentUserId,
-          recipient_id: trainerId,
+          recipient_id: clientId,
           message_text: newMessage.trim(),
         })
         .select()
@@ -287,11 +177,9 @@ export default function MessagesScreen() {
         return;
       }
 
-      // Add message to local state
       setMessages(prev => [...prev, data]);
       setNewMessage('');
 
-      // Scroll to bottom
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
@@ -310,7 +198,6 @@ export default function MessagesScreen() {
       hour12: true,
     });
   };
-
 
   const formatDateSeparator = (timestamp: string) => {
     const messageDate = new Date(timestamp);
@@ -336,7 +223,6 @@ export default function MessagesScreen() {
     }
   };
 
-  //function to check if we need a date separator
   const shouldShowDateSeparator = (currentMessage: Message, previousMessage: Message | null) => {
     if (!previousMessage) return true;
     
@@ -350,7 +236,7 @@ export default function MessagesScreen() {
     const isFromMe = item.sender_id === currentUserId;
     const previousMessage = index > 0 ? messages[index - 1] : null;
     const showDateSeparator = shouldShowDateSeparator(item, previousMessage);
-  
+
     return (
       <>
         {showDateSeparator && (
@@ -378,7 +264,7 @@ export default function MessagesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#3D5A5C" />
         </View>
@@ -386,82 +272,8 @@ export default function MessagesScreen() {
     );
   }
 
-  // TRAINER VIEW - Conversation List
-  if (userType === 'trainer') {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Messages</Text>
-        </View>
-  
-        {conversations.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="chatbubbles-outline" size={64} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No Conversations</Text>
-            <Text style={styles.emptyDescription}>
-              Your clients will appear here once they send you a message
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={conversations}
-            keyExtractor={(item) => item.clientId}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.conversationCard}
-                onPress={() => {
-                  console.log('Navigate to thread with:', item.clientId);
-                  router.push(`/messageThread/${item.clientId}`);
-                }}
-              >
-                <View style={styles.conversationLeft}>
-                  <View style={styles.avatarCircle}>
-                    <Ionicons name="person" size={20} color="#3D5A5C" />
-                  </View>
-                  <View style={styles.conversationInfo}>
-                    <Text style={styles.conversationName}>{item.clientName}</Text>
-                    <Text style={styles.conversationPreview} numberOfLines={1}>
-                      {item.lastMessage}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.conversationRight}>
-                  {item.lastMessageTime && (
-                    <Text style={styles.conversationTime}>
-                      {formatTime(item.lastMessageTime)}
-                    </Text>
-                  )}
-                  {item.unreadCount > 0 && (
-                    <View style={styles.unreadBadge}>
-                      <Text style={styles.unreadText}>{item.unreadCount}</Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={styles.conversationList}
-          />
-        )}
-      </SafeAreaView>
-    );
-  }
-
-  if (!trainerId) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubbles-outline" size={64} color="#D1D5DB" />
-          <Text style={styles.emptyTitle}>No Trainer Assigned</Text>
-          <Text style={styles.emptyDescription}>
-            You need to be assigned to a trainer to send messages
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView 
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -469,12 +281,19 @@ export default function MessagesScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#3D5A5C" />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
             <View style={styles.avatarCircle}>
               <Ionicons name="person" size={20} color="#3D5A5C" />
             </View>
-            <Text style={styles.headerTitle}>{trainerName}</Text>
+            <Text style={styles.headerTitle}>{clientName}</Text>
           </View>
+          <View style={styles.headerRight} />
         </View>
 
         {/* Messages List */}
@@ -483,7 +302,7 @@ export default function MessagesScreen() {
             <Ionicons name="chatbubble-outline" size={48} color="#D1D5DB" />
             <Text style={styles.emptyMessagesText}>No messages yet</Text>
             <Text style={styles.emptyMessagesSubtext}>
-              Start a conversation with your trainer
+              Start a conversation with {clientName}
             </Text>
           </View>
         ) : (
@@ -544,20 +363,27 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  headerLeft: {
+  backButton: {
+    padding: 8,
+  },
+  headerCenter: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    marginLeft: 8,
+  },
+  headerRight: {
+    width: 40,
   },
   avatarCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#F5F1E8',
     alignItems: 'center',
     justifyContent: 'center',
@@ -646,25 +472,6 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     opacity: 0.4,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#3D5A5C',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
   emptyMessagesContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -700,59 +507,5 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  conversationList: {
-    paddingVertical: 8,
-  },
-  conversationCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  conversationLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-  },
-  conversationInfo: {
-    flex: 1,
-  },
-  conversationName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3D5A5C',
-    marginBottom: 4,
-  },
-  conversationPreview: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  conversationRight: {
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  conversationTime: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  unreadBadge: {
-    backgroundColor: '#3D5A5C',
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  unreadText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 });
