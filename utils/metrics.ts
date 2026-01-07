@@ -1,9 +1,17 @@
-
 import { supabase } from '@/lib/supabase';
+import { getLocalDateString } from './timezone';
 
 export async function calculateMetrics() {
   try {
-    const { data, error } = await supabase.functions.invoke('calculateMetrics');
+    const calculationDate = getLocalDateString();
+    
+    console.log('🔢 Calling calculateMetrics with date:', calculationDate);
+    
+    const { data, error } = await supabase.functions.invoke('calculateMetrics', {
+      body: {
+        calculation_date: calculationDate,
+      },
+    });
 
     if (error) {
       console.error('Edge Function error:', error);
