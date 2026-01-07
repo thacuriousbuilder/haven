@@ -1,5 +1,3 @@
-
-
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -24,34 +22,41 @@ function getSunday(monday: Date): Date {
   return sunday
 }
 
+function formatDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 async function createPeriodForUser(supabase: any, userId: string) {
   try {
     console.log('📅 Creating weekly period for user:', userId)
 
     const today = new Date()
-    const todayStr = today.toISOString().split('T')[0]
+    const todayStr = formatDate(today)
     const thisMonday = getMonday(today)
     const thisSunday = getSunday(thisMonday)
-    const weekStartDate = thisMonday.toISOString().split('T')[0]
-    const weekEndDate = thisSunday.toISOString().split('T')[0]
+    const weekStartDate = formatDate(thisMonday)
+    const weekEndDate = formatDate(thisSunday)
 
-    // Check if an active period already contains today's date
-    const { data: existingPeriod } = await supabase
+    console.log('  Week dates:', weekStartDate, 'to', weekEndDate)
+
+    // Check if any period overlaps with the new week we want to create
+    const { data: existingPeriods } = await supabase
       .from('weekly_periods')
       .select('*')
       .eq('user_id', userId)
-      .eq('period_type', 'active')
-      .eq('status', 'active')
-      .lte('week_start_date', todayStr)
-      .gte('week_end_date', todayStr)
-      .single()
+      .or(`and(week_start_date.lte.${weekEndDate},week_end_date.gte.${weekStartDate})`)
 
-    if (existingPeriod) {
-      console.log('⏭️  Active period already exists for this week:', userId)
+    if (existingPeriods && existingPeriods.length > 0) {
+      console.log('⏭️  Period already exists that overlaps this week:', userId)
+      console.log('    Existing:', existingPeriods[0].week_start_date, 'to', existingPeriods[0].week_end_date)
+      console.log('    Attempted:', weekStartDate, 'to', weekEndDate)
       return { success: true, reason: 'already_exists' }
     }
 
-    // Get the user's most recent period to copy settings
+    // Get the user's most recent period to copy settings, or use profile data
     const { data: lastPeriod } = await supabase
       .from('weekly_periods')
       .select('*')
@@ -59,21 +64,43 @@ async function createPeriodForUser(supabase: any, userId: string) {
       .eq('period_type', 'active')
       .order('week_start_date', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
+
+    let weeklyBudget
+    let baselineAvg
 
     if (!lastPeriod) {
-      console.log('⏭️  No previous period found for user:', userId)
-      return { success: false, reason: 'no_previous_period' }
-    }
-
-    // Mark last week's period as completed if it's still active and ended before today
-    if (lastPeriod.status === 'active' && lastPeriod.week_end_date < todayStr) {
-      await supabase
-        .from('weekly_periods')
-        .update({ status: 'completed' })
-        .eq('id', lastPeriod.id)
+      console.log('⏭️  No previous period found, using profile baseline data')
       
-      console.log('✅ Marked previous period as completed:', lastPeriod.id)
+      // Get baseline data from profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('baseline_avg_daily_calories')
+        .eq('id', userId)
+        .single()
+      
+      if (profileError || !profile?.baseline_avg_daily_calories) {
+        console.error('❌ Cannot create period: no baseline data for user:', userId)
+        return { success: false, reason: 'no_baseline_data' }
+      }
+      
+      baselineAvg = profile.baseline_avg_daily_calories
+      weeklyBudget = baselineAvg * 7
+      
+      console.log('  Using baseline avg:', baselineAvg, '→ weekly budget:', weeklyBudget)
+    } else {
+      weeklyBudget = lastPeriod.weekly_budget
+      baselineAvg = lastPeriod.baseline_average_daily
+      
+      // Mark last week's period as completed if it's still active and ended before today
+      if (lastPeriod.status === 'active' && lastPeriod.week_end_date < todayStr) {
+        await supabase
+          .from('weekly_periods')
+          .update({ status: 'completed' })
+          .eq('id', lastPeriod.id)
+        
+        console.log('✅ Marked previous period as completed:', lastPeriod.id)
+      }
     }
 
     // Create new period for this week
@@ -85,13 +112,19 @@ async function createPeriodForUser(supabase: any, userId: string) {
         week_end_date: weekEndDate,
         period_type: 'active',
         status: 'active',
-        weekly_budget: lastPeriod.weekly_budget,
-        baseline_average_daily: lastPeriod.baseline_average_daily,
+        weekly_budget: weeklyBudget,
+        baseline_average_daily: baselineAvg,
       })
       .select()
       .single()
 
     if (insertError) {
+      // If it's a duplicate key error, treat as "already exists"
+      if (insertError.code === '23505') {
+        console.log('⏭️  Period already exists (duplicate key):', userId)
+        return { success: true, reason: 'already_exists' }
+      }
+      
       console.error('❌ Failed to create period:', insertError)
       throw insertError
     }

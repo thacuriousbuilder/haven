@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { getLocalDateString, formatDateDisplay } from '@/utils/timezone';
 
 interface ClientProfile {
   id: string;
@@ -65,7 +66,7 @@ export default function ClientDetailScreen() {
 
       setClient(profileData);
       // Get today's date
-    const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
 
     // Fetch today's logs specifically
     const { data: todayLogs } = await supabase
@@ -74,8 +75,7 @@ export default function ClientDetailScreen() {
       .eq('user_id', id)
       .eq('log_date', today);
 
-      console.log('Today logs query result:', todayLogs);
-      console.log('Today logs count:', todayLogs?.length || 0);
+      
       setTodayMealCount(todayLogs?.length || 0);
 
       const { data: allLogs, error: allLogsError } = await supabase
@@ -85,8 +85,6 @@ export default function ClientDetailScreen() {
       .order('created_at', { ascending: false })
       .limit(20);
 
-    console.log('=== ALL LOGS DEBUG ===');
-    console.log('Total logs found:', allLogs?.length);
     if (allLogs) {
       allLogs.forEach((log, index) => {
         console.log(`Log ${index + 1}:`, {
@@ -101,7 +99,10 @@ export default function ClientDetailScreen() {
       // Fetch recent food logs (last 7 days)
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+      const year = sevenDaysAgo.getFullYear();
+      const month = String(sevenDaysAgo.getMonth() + 1).padStart(2, '0');
+      const day = String(sevenDaysAgo.getDate()).padStart(2, '0');
+      const sevenDaysAgoStr = `${year}-${month}-${day}`;
 
       const { data: logsData, error: logsError } = await supabase
           .from('food_logs')
@@ -132,23 +133,8 @@ export default function ClientDetailScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const logDate = new Date(date);
-    logDate.setHours(0, 0, 0, 0);
-
-    if (logDate.getTime() === today.getTime()) {
-      return 'Today';
-    }
-
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (logDate.getTime() === yesterday.getTime()) {
-      return 'Yesterday';
-    }
-
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const result = formatDateDisplay(dateString);
+    return result;
   };
 
   const formatTime = (timestamp: string) => {

@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { searchFoods, getFoodDetails, getRecentFoods } from '@/utils/foodSearch';
 import * as ImagePicker from 'expo-image-picker';
+import { getLocalDateString } from '@/utils/timezone';
 
 interface FoodLogSheetProps {
   onSuccess: () => void;
@@ -168,7 +169,7 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
           protein_grams: selectedFood?.protein || null,
           carbs_grams: selectedFood?.carbs || null,
           fat_grams: selectedFood?.fat || null,
-          log_date: new Date().toISOString().split('T')[0],
+          log_date:  getLocalDateString(),
           meal_type: mealType,
           entry_method: selectedMethod === 'search' 
                                   ? 'database' 
@@ -188,7 +189,7 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
 
       // Update daily summary
       if (calories > 0) {
-        const today = new Date().toISOString().split('T')[0];
+        const today =  getLocalDateString();
         
         const { data: existingSummary } = await supabase
           .from('daily_summaries')

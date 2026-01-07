@@ -10,6 +10,7 @@ import StatCard from '@/components/statCard';
 import { calculateMetrics } from '@/utils/metrics';
 import { calculateWeeklyBudget } from '@/utils/weeklyBudget';
 import { BaselineCompleteModal } from '@/components/baseLineCompleteModal';
+import { getLocalDateString } from '@/utils/timezone';
 
 interface ProfileData {
   full_name: string | null;
@@ -151,10 +152,11 @@ export default function HomeScreen() {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .gte('summary_date', data.baseline_start_date);
-
+      
         setDaysLogged(count || 0);
-
-        const startDate = new Date(data.baseline_start_date);
+      
+        // Calculate days using local dates
+        const startDate = new Date(data.baseline_start_date + 'T00:00:00');
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const diffTime = today.getTime() - startDate.getTime();
@@ -167,7 +169,10 @@ export default function HomeScreen() {
         try {
           const today = new Date();
           const monday = getMonday(today);
-          const weekStartDate = monday.toISOString().split('T')[0];
+          const year = monday.getFullYear();
+          const month = String(monday.getMonth() + 1).padStart(2, '0');
+          const day = String(monday.getDate()).padStart(2, '0');
+          const weekStartDate = `${year}-${month}-${day}`;
 
           const { data: weeklyPeriod } = await supabase
             .from('weekly_periods')
@@ -185,13 +190,17 @@ export default function HomeScreen() {
 
           const sunday = new Date(monday);
           sunday.setDate(monday.getDate() + 6);
-
+          const sundayYear = sunday.getFullYear();
+          const sundayMonth = String(sunday.getMonth() + 1).padStart(2, '0');
+          const sundayDay = String(sunday.getDate()).padStart(2, '0');
+          const sundayDateStr = `${sundayYear}-${sundayMonth}-${sundayDay}`; 
+          
           const { data: cheatDays } = await supabase
             .from('planned_cheat_days')
             .select('cheat_date')
             .eq('user_id', user.id)
             .gte('cheat_date', weekStartDate)
-            .lte('cheat_date', sunday.toISOString().split('T')[0]);
+            .lte('cheat_date', sundayDateStr);
 
           if (cheatDays) {
             setCheatDates(cheatDays.map(cd => cd.cheat_date));
@@ -233,7 +242,7 @@ export default function HomeScreen() {
       }
 
       // For each client, get their today's logs and metrics
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       console.log('=== TRAINER DASHBOARD DEBUG ===');
       console.log('Today date string:', today);
       console.log('Number of clients:', clientProfiles.length);

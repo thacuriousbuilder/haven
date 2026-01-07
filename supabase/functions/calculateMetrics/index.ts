@@ -1,5 +1,3 @@
-
-
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -49,8 +47,12 @@ Deno.serve(async (req:Request) => {
     console.log('✅ User:', user.id)
 
     const userId = user.id
-    const today = new Date()
-    const calculatedDate = today.toISOString().split('T')[0]
+
+    // Get calculation date from request body, or use server UTC as fallback
+    const requestBody = await req.json().catch(() => ({}))
+    const calculatedDate = requestBody.calculation_date || new Date().toISOString().split('T')[0]
+    
+    console.log('📅 Calculation date:', calculatedDate)
 
     // Find the active weekly period that contains today's date
     const { data: weeklyPeriod, error: periodError } = await supabaseClient
@@ -59,8 +61,8 @@ Deno.serve(async (req:Request) => {
       .eq('user_id', userId)
       .eq('period_type', 'active')
       .eq('status', 'active')
-      .lte('week_start_date', calculatedDate)  // Period started on or before today
-      .gte('week_end_date', calculatedDate)    // Period ends on or after today
+      .lte('week_start_date', calculatedDate)
+      .gte('week_end_date', calculatedDate)
       .single()
 
     console.log('Period error:', periodError)
@@ -102,14 +104,15 @@ Deno.serve(async (req:Request) => {
       .lte('cheat_date', weekEndDate)
 
     //@ts-ignore
-    const upcomingCheatDays = cheatDays?.filter((cd: any) => new Date(cd.cheat_date) > today) || []
+    const upcomingCheatDays = cheatDays?.filter((cd: any) => cd.cheat_date > calculatedDate) || []
     //@ts-ignore
     const caloriesReserved = upcomingCheatDays.reduce((sum: any, cd: any) => sum + (cd.planned_calories || 0), 0)
     const totalRemaining = weeklyPeriod.weekly_budget - totalConsumed
 
     // Calculate days left using the period's end date
-    const sunday = new Date(weekEndDate)
-    const daysLeftInWeek = Math.max(1, Math.ceil((sunday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+    const todayDate = new Date(calculatedDate + 'T00:00:00')
+    const sunday = new Date(weekEndDate + 'T23:59:59')
+    const daysLeftInWeek = Math.max(1, Math.ceil((sunday.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
     const dailyBudgetRemaining = totalRemaining / daysLeftInWeek
     const baselineAvg = weeklyPeriod.baseline_average_daily
 
@@ -129,7 +132,7 @@ Deno.serve(async (req:Request) => {
 
     let driftScore = 50
     //@ts-ignore
-    const pastCheatDays = cheatDays?.filter((cd: any) => new Date(cd.cheat_date) <= today) || []
+    const pastCheatDays = cheatDays?.filter((cd: any) => cd.cheat_date <= calculatedDate) || []
     if (pastCheatDays.length > 0) {
       let totalDrift = 0
       for (const cheatDay of pastCheatDays) {
