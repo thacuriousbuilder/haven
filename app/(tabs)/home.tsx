@@ -266,7 +266,7 @@ export default function HomeScreen() {
           .order('created_at', { ascending: false });
 
           console.log('Today logs query result:', todayLogs?.length || 0);
-          
+
         const mealsToday = todayLogs?.length || 0;
         const lastLogTime = todayLogs?.[0]?.created_at || null;
 
@@ -538,17 +538,21 @@ export default function HomeScreen() {
                         <View style={styles.clientActions}>
                           <TouchableOpacity 
                             style={styles.actionButton}
-                            onPress={() => {/* TODO: Open messages */}}
-                          >
+                             onPress={() => {
+                                router.push(`/messageThread/${client.id}`);
+                              }}
+                              >
                             <Ionicons name="chatbubble-outline" size={16} color="#3D5A5C" />
                             <Text style={styles.actionText}>Message</Text>
                           </TouchableOpacity>
                           <TouchableOpacity 
                             style={styles.actionButton}
-                            onPress={() => {/* TODO: View details */}}
+                            onPress={() => {
+                              router.push(`/clientDetail/${client.id}`);
+                            }}
                           >
                             <Ionicons name="eye-outline" size={16} color="#3D5A5C" />
-                            <Text style={styles.actionText}>View</Text>
+                            <Text style={styles.actionText}>View Progress</Text>
                           </TouchableOpacity>
                         </View>
                       </View>

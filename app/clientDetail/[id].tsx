@@ -225,8 +225,10 @@ export default function ClientDetailScreen() {
           )}
         </View>
         <TouchableOpacity
-          onPress={() => {/* TODO: Open messages */}}
           style={styles.messageButton}
+          onPress={() => {
+            router.push(`/messageThread/${client.id}`);
+          }}
         >
           <Ionicons name="chatbubble-outline" size={24} color="#3D5A5C" />
         </TouchableOpacity>
