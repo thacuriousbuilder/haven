@@ -1,4 +1,3 @@
-// utils/metrics.ts (REPLACE ENTIRE FILE)
 
 import { supabase } from '@/lib/supabase';
 
