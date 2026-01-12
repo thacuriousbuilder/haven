@@ -1,3 +1,4 @@
+
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -14,7 +15,6 @@ export default function Signup() {
       const session = await signInWithGoogle();
       
       if (session) {
-        // TODO: Check if profile exists, if not go to onboarding
         router.replace('/(tabs)/home');
       }
     } catch (error: any) {
@@ -26,46 +26,60 @@ export default function Signup() {
 
   return (
     <View style={styles.container}>
-     <BackButton/>
+      <BackButton />
+      
       <View style={styles.content}>
-        <Text style={styles.headline}>
-          No spam. No judgment.{'\n'}Just your data, your pace.
-        </Text>
+        <View style={styles.textContainer}>
+          <Text style={styles.title}>Create your account</Text>
+          
+          <Text style={styles.headline}>
+            Your goals shouldn't ruin your{' '}
+            <Text style={styles.highlightText}>Saturday night.</Text>
+          </Text>
+          
+          <Text style={styles.bodyText}>
+            That's why HAVEN plans calories weekly
+          </Text>
+        </View>
 
         <View style={styles.buttonsContainer}>
+       
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => router.push('/(auth)/emailSignup')}
+            activeOpacity={0.8}
           >
             <Text style={styles.primaryButtonText}>Continue</Text>
           </TouchableOpacity>
 
           <Text style={styles.divider}>OR</Text>
 
+         
           <TouchableOpacity
-            style={styles.secondaryButton}
+            style={styles.socialButton}
             onPress={handleGoogleSignIn}
-            disabled={googleLoading}
+            disabled
+            activeOpacity={0.8}
           >
             {googleLoading ? (
-              <ActivityIndicator color="#2C4A52" />
+              <ActivityIndicator color="#fff" />
             ) : (
               <View style={styles.buttonContent}>
-                <Ionicons name="logo-google" size={20} color="#2C4A52" />
-                <Text style={styles.secondaryButtonText}>Continue with Google</Text>
+                <Ionicons name="logo-google" size={20} color="#fff" />
+                <Text style={styles.socialButtonText}>Continue with Google</Text>
               </View>
             )}
           </TouchableOpacity>
 
+ 
           <TouchableOpacity
-            style={[styles.secondaryButton]}
+            style={styles.socialButton}
             disabled
+            activeOpacity={1}
           >
             <View style={styles.buttonContent}>
-              <Ionicons name="logo-apple" size={20} color="#2C4A52" />
-              <Text style={[styles.secondaryButtonText]}>
-                Continue with Apple
-              </Text>
+              <Ionicons name="logo-apple" size={20} color="#fff" />
+              <Text style={styles.socialButtonText}>Continue with Apple</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -81,7 +95,7 @@ export default function Signup() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 40,
@@ -90,68 +104,101 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
+    gap: 48,
+  },
+  
+
+  textContainer: {
+    gap: 16,
+    alignItems:"center"
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '400',
+    color: '#000',
+    marginBottom: 8,
   },
   headline: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#2C4A52',
-    marginBottom: 48,
+    color: '#000',
     lineHeight: 36,
   },
+  highlightText: {
+    color: '#206E6B', 
+  },
+  bodyText: {
+    fontSize: 16,
+    color: '#000',
+    lineHeight: 24,
+    marginTop: 8,
+    alignItems:"center"
+  },
+  
+
   buttonsContainer: {
     gap: 16,
   },
+  
+  
   primaryButton: {
-    backgroundColor: '#000',
-    paddingVertical: 16,
+    backgroundColor: '#206E6B', 
+    paddingVertical: 18,
     borderRadius: 50,
     alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  divider: {
-    textAlign: 'center',
-    fontSize: 14,
-    color: '#2C4A52',
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    backgroundColor: '#fff',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 50,
-    alignItems: 'stretch',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  
+  // OR divider
+  divider: {
+    textAlign: 'center',
+    fontSize: 14,
+    color: '#000',
+    fontWeight: '600',
+    marginVertical: 4,
+  },
+  
+  
+  socialButton: {
+    backgroundColor: '#000',
+    paddingVertical: 18,
+    borderRadius: 50,
+    alignItems: 'center',
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
   },
-  secondaryButtonText: {
-    color: '#2C4A52',
-    fontSize: 16,
+  socialButtonText: {
+    color: '#fff',
+    fontSize: 17,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
+  
+
   disabledButton: {
     opacity: 0.5,
   },
-  disabledText: {
-    opacity: 0.7,
-  },
+  
+ 
   disclaimer: {
     fontSize: 11,
-    color: '#2C4A52',
+    color: '#666',
     textAlign: 'center',
     lineHeight: 16,
-    opacity: 0.7,
+    opacity: 0.8,
   },
 });

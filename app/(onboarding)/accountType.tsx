@@ -1,6 +1,13 @@
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ActivityIndicator, 
+  TouchableOpacity,
+  Alert 
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -13,79 +20,90 @@ export default function AccountTypeScreen() {
   const [loading, setLoading] = useState(false);
   const [selectedType, setSelectedType] = useState<'client' | 'trainer' | null>(null);
 
-  const selectAccountType = async (type: 'client' | 'trainer') => {
+  const handleSelectType = (type: 'client' | 'trainer') => {
+    if (!loading) {
+      setSelectedType(type);
+    }
+  };
+
+  const handleContinue = async () => {
+    if (!selectedType) {
+      Alert.alert('Selection Required', 'Please select an account type to continue');
+      return;
+    }
+
     setLoading(true);
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        throw new Error('No user found');
+        throw new Error('No user found. Please log in again.');
       }
   
-      console.log('Setting user type:', type, 'for user:', user.id);
+      console.log('Setting user type:', selectedType, 'for user:', user.id);
   
-      // First, check if profile exists
-      const { data: existingProfile, error: fetchError } = await supabase
+     
+      const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', user.id)
-        .maybeSingle(); // Use maybeSingle instead of single to avoid error if not found
+        .maybeSingle();
   
       if (!existingProfile) {
-        // Create profile if it doesn't exist
+        
         console.log('Creating profile for user:', user.id);
         const { error: insertError } = await supabase
           .from('profiles')
           .insert({
             id: user.id,
-            user_type: type,
-            gender:'other',
+            user_type: selectedType,
+            gender: 'other',
             unit_system: 'imperial',
-            goal:'lose'
+            goal: 'lose'
           });
   
         if (insertError) {
           console.error('Error creating profile:', insertError);
-          throw insertError;
+          throw new Error('Failed to create profile. Please try again.');
         }
         
-        console.log('✅ Profile created with user type:', type);
+        console.log('✅ Profile created with user type:', selectedType);
       } else {
-        // Update existing profile
+       
         console.log('Updating existing profile');
         const { error: updateError } = await supabase
           .from('profiles')
-          .update({ user_type: type })
+          .update({ user_type: selectedType })
           .eq('id', user.id);
   
         if (updateError) {
           console.error('Error updating profile:', updateError);
-          throw updateError;
+          throw new Error('Failed to update profile. Please try again.');
         }
         
-        console.log('✅ Profile updated with user type:', type);
+        console.log('✅ Profile updated with user type:', selectedType);
       }
   
-      // Generate invite code for trainers
-      if (type === 'trainer') {
+     
+      if (selectedType === 'trainer') {
         await generateTrainerInviteCode(user.id);
         router.replace('/(tabs)/home');
       } else {
-        // Clients continue to trainer code screen
         router.push('/(onboarding)/trainerCode');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error setting account type:', error);
-      alert('Failed to set account type. Please try again.');
-    } finally {
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to set account type. Please try again.'
+      );
       setLoading(false);
     }
   };
 
   const generateTrainerInviteCode = async (trainerId: string) => {
     try {
-      // Generate a random code
       const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const inviteCode = `COACH-${randomCode}`;
 
@@ -98,45 +116,68 @@ export default function AccountTypeScreen() {
 
       if (error) {
         console.error('Error creating invite code:', error);
+        throw new Error('Failed to generate trainer invite code');
       } else {
         console.log('✅ Trainer invite code created:', inviteCode);
       }
     } catch (error) {
       console.error('Error generating invite code:', error);
+      
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <BackButton />
-      <ProgressBar currentStep={1} totalSteps={16} />
+      <BackButton/>
+      <ProgressBar currentStep={1} totalSteps={14} />
       
       <View style={styles.content}>
-        <Text style={styles.title}>Choose Your Account Type</Text>
-        <Text style={styles.description}>
-          How will you be using HAVEN?
-        </Text>
+        <View style={styles.topSection}>
+          <Text style={styles.title}>Choose your account type</Text>
+          <Text style={styles.description}>
+            How will you be using HAVEN?
+          </Text>
 
-        <View style={styles.options}>
-          <OptionCard
-            title="I'm a Client"
-            description="Track my nutrition and work with a coach"
-            selected={selectedType === 'client'}
-            onPress={() => selectAccountType('client')}
-          />
-          <OptionCard
-            title="I'm a Coach"
-            description="Manage my clients' nutrition tracking"
-            selected={selectedType === 'trainer'}
-            onPress={() => selectAccountType('trainer')}
-          />
+          <View style={styles.options}>
+            <OptionCard
+              title="I'm here for myself"
+              description="Track my nutrition and get optional coaching"
+              selected={selectedType === 'client'}
+              onPress={() => handleSelectType('client')}
+            />
+            <OptionCard
+              title="I'm a Coach"
+              description="Manage my clients' nutrition tracking"
+              selected={selectedType === 'trainer'}
+              onPress={() => handleSelectType('trainer')}
+            />
+          </View>
+
+          {loading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#206E6B" />
+              <Text style={styles.loadingText}>Setting up your account...</Text>
+            </View>
+          )}
         </View>
 
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#3D5A5C" />
-          </View>
-        )}
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.continueButton,
+              (!selectedType || loading) && styles.continueButtonDisabled
+            ]}
+            onPress={handleContinue}
+            disabled={!selectedType || loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.continueButtonText}>Continue</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -145,17 +186,21 @@ export default function AccountTypeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: '#fff',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     paddingTop: 32,
+    justifyContent: 'space-between',
+  },
+  topSection: {
+    flex: 1,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: '#000',
     marginBottom: 8,
   },
   description: {
@@ -165,9 +210,39 @@ const styles = StyleSheet.create({
   },
   options: {
     marginTop: 8,
+    gap: 16,
   },
   loadingContainer: {
-    marginTop: 24,
+    marginTop: 32,
     alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#206E6B',
+    fontWeight: '500',
+  },
+  buttonContainer: {
+    paddingBottom: 24,
+  },
+  continueButton: {
+    backgroundColor: '#206E6B',
+    paddingVertical: 18,
+    borderRadius: 50,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  continueButtonDisabled: {
+    opacity: 0.5,
+  },
+  continueButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });

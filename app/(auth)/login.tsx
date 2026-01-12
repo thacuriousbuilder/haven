@@ -1,4 +1,16 @@
-import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator } from 'react-native';
+
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  Alert, 
+  StyleSheet, 
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView
+} from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,172 +23,236 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   async function signInWithEmail() {
+  
+    if (!email || !password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
     setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email,
       password: password,
     });
 
+    setLoading(false);
+
     if (error) {
       Alert.alert('Error', error.message);
     } else if (data.session) {
       router.replace('/(tabs)/home');
     }
-    
-    setLoading(false);
   }
 
   return (
-    <View style={styles.container}>
-    <BackButton/>
-      <View style={styles.content}>
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Email Address</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholderTextColor="#999"
-          />
-        </View>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <BackButton />
+        
+        <View style={styles.content}>
+          <Text style={styles.title}>Login into your account</Text>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholderTextColor="#999"
-          />
-        </View>
+          <View style={styles.formContainer}>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholder="Email Address"
+              placeholderTextColor="#999"
+              editable={!loading}
+            />
 
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={signInWithEmail}
-          disabled={loading}
-        >
-          <Text style={styles.primaryButtonText}>
-            {loading ? 'Signing in...' : 'Login'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
-          <Text style={styles.forgotPassword}>Forgot password?</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.divider}>OR</Text>
-
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          disabled
-        >
-          <View style={styles.buttonContent}>
-            <Ionicons name="logo-google" size={20} color="#000" />
-            <Text style={styles.secondaryButtonText}>Continue with Google</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholder="Password"
+              placeholderTextColor="#999"
+              editable={!loading}
+            />
           </View>
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.secondaryButton}
+          <TouchableOpacity
+            style={[styles.primaryButton, loading && styles.buttonDisabled]}
+            onPress={signInWithEmail}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Login</Text>
+            )}
+          </TouchableOpacity>
 
-        >
-          <View style={styles.buttonContent}>
-            <Ionicons name="logo-apple" size={20} color="#000" />
-            <Text style={styles.secondaryButtonText}>Continue with Apple</Text>
+          <TouchableOpacity 
+            onPress={() => !loading && router.push('/(auth)/forgot-password')}
+            disabled={loading}
+          >
+            <Text style={styles.forgotPassword}>Forgot password?</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.divider}>OR</Text>
+
+          <View style={styles.socialButtonsContainer}>
+            <TouchableOpacity
+              style={styles.socialButton}
+              disabled
+            >
+              <View style={styles.buttonContent}>
+                <Ionicons name="logo-google" size={20} color="#fff" />
+                <Text style={styles.socialButtonText}>Continue with Google</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.socialButton}
+              disabled
+            >
+              <View style={styles.buttonContent}>
+                <Ionicons name="logo-apple" size={20} color="#fff" />
+                <Text style={styles.socialButtonText}>Continue with Apple</Text>
+              </View>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      </View>
-    </View>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Don't have an account?{' '}
+              <Text 
+                style={styles.footerLink}
+                onPress={() => !loading && router.push('/(auth)/signup')}
+              >
+                Sign up
+              </Text>
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: '#ffff',
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop:60,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    paddingBottom: 60,
   },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
+  title: {
+    fontSize: 28,
     fontWeight: '600',
-    color: '#2C4A52',
-    marginBottom: 8,
-    paddingLeft: 20,
+    color: '#000',
+    marginBottom: 40,
+    textAlign: 'center',
+  },
+  formContainer: {
+    gap: 16,
+    marginBottom: 24,
   },
   input: {
     backgroundColor: '#fff',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 50,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    borderRadius: 16,
     fontSize: 16,
-    color: '#2C4A52',
+    color: '#000',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 1,
   },
   primaryButton: {
-    backgroundColor: '#000',
-    paddingVertical: 16,
-    borderRadius: 50,
+    backgroundColor: '#206E6B',
+    paddingVertical: 18,
+    borderRadius: 16,
     alignItems: 'center',
-    marginTop: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   primaryButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   forgotPassword: {
     textAlign: 'center',
     fontSize: 14,
-    color: '#2C4A52',
-    fontWeight: '600',
+    color: '#000',
+    fontWeight: '500',
     marginTop: 16,
   },
   divider: {
     textAlign: 'center',
     fontSize: 14,
-    color: '#2C4A52',
+    color: '#000',
     fontWeight: '600',
     marginVertical: 24,
   },
-  secondaryButton: {
-    backgroundColor: '#fff',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 50,
-    alignItems: 'stretch',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+  socialButtonsContainer: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  socialButton: {
+    backgroundColor: '#000',
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  socialButtonDisabled: {
+    opacity: 0.5,
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
   },
-  secondaryButtonText: {
-    textAlign: 'center',
-    color: '#2C4A52',
-    fontSize: 16,
+  socialButtonText: {
+    color: '#fff',
+    fontSize: 17,
     fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  footer: {
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  footerLink: {
+    fontWeight: '600',
+    color: '#206E6B',
   },
 });

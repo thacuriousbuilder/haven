@@ -2,6 +2,7 @@
   "expo": {
     "name": "haven",
     "slug": "haven",
+    "scheme": "haven",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,7 +11,10 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#ffffff",
+      "plugins": [
+        "@react-native-google-signin/google-signin"
+      ]
     },
     "ios": {
       "supportsTablet": true
@@ -21,9 +25,10 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.thacuriousbuilder.haven"
     },
-      "package": "com.haven.app",
+    "package": "com.haven.app",
     "web": {
       "favicon": "./assets/favicon.png"
     },

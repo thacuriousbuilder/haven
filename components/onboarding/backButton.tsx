@@ -10,7 +10,7 @@ export function BackButton() {
       onPress={() => router.back()}
       activeOpacity={0.7}
     >
-      <Ionicons name="arrow-back" size={24} color="#3D5A5C" />
+      <Ionicons name="arrow-back" size={24} color="#ffff" />
     </TouchableOpacity>
   );
 }
@@ -20,7 +20,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#fff',
+    backgroundColor: '#206E6B',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 20,
