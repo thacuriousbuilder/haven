@@ -58,7 +58,7 @@ export default function Signup() {
           <TouchableOpacity
             style={styles.socialButton}
             onPress={handleGoogleSignIn}
-            disabled={googleLoading}
+            disabled
             activeOpacity={0.8}
           >
             {googleLoading ? (

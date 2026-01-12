@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
   },
   fill: {
     height: '100%',
-    backgroundColor: '#3D5A5C', // Dark teal from your designs
+    backgroundColor: '#206E6B', // Dark teal from your designs
     borderRadius: 4,
   },
 });

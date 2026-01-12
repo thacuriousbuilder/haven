@@ -1,21 +1,27 @@
+
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useOnboarding } from '@/contexts/onboardingContext';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { OptionCard } from '@/components/onboarding/optionCard';
-import { ContinueButton } from '@/components/onboarding/continueButton';
 import { BackButton } from '@/components/onboarding/backButton';
 import { Gender } from '@/types/onboarding';
 
 export default function GenderScreen() {
   const { data, updateData } = useOnboarding();
 
+  const handleSelectGender = (gender: Gender) => {
+    updateData({ gender });
+  };
+
   const handleContinue = () => {
-    if (data.gender) {
-      router.push('/(onboarding)/birthDate');
+    if (!data.gender) {
+      Alert.alert('Selection Required', 'Please select your gender to continue');
+      return;
     }
+    router.push('/(onboarding)/birthDate');
   };
 
   return (
@@ -24,36 +30,48 @@ export default function GenderScreen() {
       <ProgressBar currentStep={3} totalSteps={16} />
       
       <View style={styles.content}>
-        <Text style={styles.subtitle}>We'll use this later —</Text>
-        <Text style={styles.subtitle}>after we understand</Text>
-        <Text style={styles.subtitle}>how you actually eat.</Text>
-        
-        <Text style={styles.title}>Choose your Gender</Text>
-        <Text style={styles.description}>This will be use to tailor your plan.</Text>
+        <View style={styles.topSection}>
+          <Text style={styles.title}>Choose your Gender</Text>
+          <Text style={styles.description}>
+            This will be use to tailor your plan.
+          </Text>
 
-        <View style={styles.options}>
-          <OptionCard
-            title="Male"
-            selected={data.gender === 'male'}
-            onPress={() => updateData({ gender: 'male' })}
-          />
-          <OptionCard
-            title="Female"
-            selected={data.gender === 'female'}
-            onPress={() => updateData({ gender: 'female' })}
-          />
-          <OptionCard
-            title="Other"
-            selected={data.gender === 'other'}
-            onPress={() => updateData({ gender: 'other' })}
-          />
+          <View style={styles.options}>
+            <OptionCard
+              title="Male"
+              description=""
+              selected={data.gender === 'male'}
+              onPress={() => handleSelectGender('male')}
+            />
+            <OptionCard
+              title="Female"
+              description=""
+              selected={data.gender === 'female'}
+              onPress={() => handleSelectGender('female')}
+            />
+            <OptionCard
+              title="Other"
+              description=""
+              selected={data.gender === 'other'}
+              onPress={() => handleSelectGender('other')}
+            />
+          </View>
+        </View>
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.continueButton,
+              !data.gender && styles.continueButtonDisabled
+            ]}
+            onPress={handleContinue}
+            disabled={!data.gender}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.continueButtonText}>Continue</Text>
+          </TouchableOpacity>
         </View>
       </View>
-
-      <ContinueButton
-        onPress={handleContinue}
-        disabled={!data.gender}
-      />
     </SafeAreaView>
   );
 }
@@ -61,32 +79,55 @@ export default function GenderScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: '#ffff',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     paddingTop: 32,
+    justifyContent: 'space-between',
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#3D5A5C',
-    fontWeight: '600',
-    lineHeight: 24,
+  topSection: {
+    flex: 1,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#3D5A5C',
-    marginTop: 32,
+    color: '#000',
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
     color: '#6B7280',
-    marginBottom: 24,
+    marginBottom: 32,
+    lineHeight: 20,
   },
   options: {
-    marginTop: 8,
+    gap: 16,
+  },
+  buttonContainer: {
+    paddingBottom: 24,
+  },
+  continueButton: {
+    backgroundColor: '#206E6B',
+    paddingVertical: 18,
+    borderRadius: 50,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  continueButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  continueButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });

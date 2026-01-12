@@ -1,10 +1,10 @@
+
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useOnboarding } from '@/contexts/onboardingContext';
 import { ProgressBar } from '@/components/onboarding/progressBar';
-import { ContinueButton } from '@/components/onboarding/continueButton';
 import { BackButton } from '@/components/onboarding/backButton';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,7 +12,6 @@ import { Ionicons } from '@expo/vector-icons';
 export default function BirthdateScreen() {
   const { data, updateData } = useOnboarding();
   
-  // Initialize with existing birthdate or default to 25 years ago
   const getInitialDate = () => {
     if (data.birthMonth && data.birthDay && data.birthYear) {
       return new Date(data.birthYear, data.birthMonth - 1, data.birthDay);
@@ -23,7 +22,7 @@ export default function BirthdateScreen() {
   };
 
   const [selectedDate, setSelectedDate] = useState(getInitialDate());
-  const [showPicker, setShowPicker] = useState(Platform.OS === 'ios');
+  const [showPicker, setShowPicker] = useState(false);
 
   const formatDate = (date: Date) => {
     const months = [
@@ -61,11 +60,26 @@ export default function BirthdateScreen() {
   };
 
   const handleContinue = () => {
+    const age = calculateAge(selectedDate);
+    
+   
+    if (age < 13) {
+      Alert.alert('Age Requirement', 'You must be at least 13 years old to use HAVEN.');
+      return;
+    }
+
+   
+    if (age > 120) {
+      Alert.alert('Invalid Date', 'Please select a valid birth date.');
+      return;
+    }
+
     updateData({ 
       birthMonth: selectedDate.getMonth() + 1,
       birthDay: selectedDate.getDate(),
       birthYear: selectedDate.getFullYear(),
     });
+    
     router.push('/(onboarding)/heightWeight');
   };
 
@@ -74,56 +88,58 @@ export default function BirthdateScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={4} totalSteps={16} />
+      <ProgressBar currentStep={4} totalSteps={14} />
       
       <View style={styles.content}>
-        <Text style={styles.subtitle}>We'll use this later —</Text>
-        <Text style={styles.subtitle}>after we understand</Text>
-        <Text style={styles.subtitle}>how you actually eat.</Text>
-        
-        <Text style={styles.title}>When were you born?</Text>
-        <Text style={styles.description}>
-          This will be used to tailor your plan.
-        </Text>
+        <View style={styles.topSection}>
+          <Text style={styles.title}>When were you born?</Text>
+          <Text style={styles.description}>
+            This will be use to tailor your plan.
+          </Text>
 
-          {/* Age Display */}
-        <View style={styles.ageCard}>
-          <Text style={styles.ageLabel}>Your age</Text>
-          <Text style={styles.ageValue}>{age} years old</Text>
-        </View>
+         
+          <View style={styles.ageCard}>
+            <Text style={styles.ageLabel}>Your age</Text>
+            <Text style={styles.ageValue}>{age} years old</Text>
+          </View>
 
-        {/* Date Display / Picker Trigger (Android) */}
-        {Platform.OS === 'android' && (
           <TouchableOpacity
             style={styles.dateButton}
             onPress={() => setShowPicker(true)}
+            activeOpacity={0.7}
           >
             <View style={styles.dateButtonContent}>
-              <Ionicons name="calendar-outline" size={24} color="#3D5A5C" />
+              <Ionicons name="calendar-outline" size={24} color="#000" />
               <Text style={styles.dateButtonText}>{formatDate(selectedDate)}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
-        )}
 
-        {/* iOS: Always show picker */}
-        {/* Android: Show when triggered */}
-        {showPicker && (
-          <View style={styles.pickerContainer}>
+          
+          {showPicker && (
             <DateTimePicker
               value={selectedDate}
               mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              display="spinner"
               onChange={handleDateChange}
               maximumDate={new Date()}
               minimumDate={new Date(1924, 0, 1)}
-              textColor="#3D5A5C"
-              style={styles.picker}
+              textColor="#000"
             />
-          </View>
-        )}
+          )}
+        </View>
+
+      
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={styles.continueButton}
+            onPress={handleContinue}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.continueButtonText}>Continue</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <ContinueButton onPress={handleContinue} />
     </SafeAreaView>
   );
 }
@@ -131,42 +147,69 @@ export default function BirthdateScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: '#fff',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     paddingTop: 32,
+    justifyContent: 'space-between',
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#3D5A5C',
-    fontWeight: '600',
-    lineHeight: 24,
+  topSection: {
+    flex: 1,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#3D5A5C',
-    marginTop: 32,
+    color: '#000',
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
     color: '#6B7280',
+    marginBottom: 32,
+    lineHeight: 20,
+  },
+  ageCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
     marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    borderColor:"#E5E5E5",
+    borderWidth:1,
+  },
+  ageLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  ageValue: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#000',
   },
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 20,
-    marginTop: 16,
     marginBottom: 24,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   dateButtonContent: {
     flexDirection: 'row',
@@ -174,50 +217,28 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   dateButtonText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: '#000',
   },
-  pickerContainer: {
-    marginTop: 16,
-    marginBottom: 24,
+  buttonContainer: {
+    paddingBottom: 24,
+  },
+  continueButton: {
+    backgroundColor: '#206E6B',
+    paddingVertical: 18,
+    borderRadius: 50,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  picker: {
-    width: '100%',
-    height: Platform.OS === 'ios' ? 200 : undefined,
-  },
-  ageCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  ageLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  ageValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#3D5A5C',
-  },
-  infoCard: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'flex-start',
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 20,
+  continueButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });
