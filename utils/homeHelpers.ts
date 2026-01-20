@@ -1,0 +1,173 @@
+
+
+import { Colors } from '@/constants/colors';
+
+
+/**
+ * Map meal type to appropriate Ionicons name
+ */
+export function getMealIcon(mealType: string): string {
+  const iconMap: Record<string, string> = {
+    breakfast: 'sunny-outline',      // Morning sun
+    lunch: 'partly-sunny-outline',   // Afternoon sun
+    dinner: 'moon-outline',          // Evening moon
+    snack: 'cafe-outline',           // Coffee/snack
+  };
+  
+  return iconMap[mealType.toLowerCase()] || 'restaurant-outline';
+}
+
+/**
+ * Get meal icon based on time of day (for "not logged yet" placeholders)
+ * @param hour - Hour in 24h format (0-23)
+ */
+export function getTimeBasedMealIcon(hour: number): string {
+  if (hour >= 5 && hour < 11) return 'sunny-outline';        // Morning
+  if (hour >= 11 && hour < 15) return 'partly-sunny-outline'; // Afternoon
+  if (hour >= 15 && hour < 20) return 'restaurant-outline';   // Evening
+  return 'moon-outline';                                       // Night
+}
+
+/**
+ * Format timestamp to display time (e.g., "8:30 AM")
+ */
+export function formatMealTime(timestamp: string): string {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    hour12: true 
+  });
+}
+
+/**
+ * Format date to display format (e.g., "Mon, Jan 20")
+ */
+export function formatDisplayDate(dateString: string): string {
+  const date = new Date(dateString + 'T00:00:00');
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Get time since last log in human-readable format
+ */
+export function getTimeSinceLog(timestamp: string | null): string {
+  if (!timestamp) return 'No logs today';
+  
+  const now = new Date();
+  const logTime = new Date(timestamp);
+  const diffMs = now.getTime() - logTime.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  return `${diffDays}d ago`;
+}
+
+/**
+ * Get color for macro type
+ */
+export function getMacroColor(macroType: 'protein' | 'carbs' | 'fat'): string {
+  const colorMap = {
+    protein: Colors.proteinOrange,
+    carbs: Colors.carbsTeal,
+    fat: Colors.fatSteel,
+  };
+  
+  return colorMap[macroType];
+}
+
+/**
+ * Get background color for macro circle (lighter tint)
+ */
+export function getMacroBackgroundColor(macroType: 'protein' | 'carbs' | 'fat'): string {
+  const colorMap = {
+    protein: Colors.orangeOverlay,
+    carbs: Colors.tealOverlay,
+    fat: 'rgba(104, 124, 136, 0.1)',
+  };
+  
+  return colorMap[macroType];
+}
+
+/**
+ * Get icon name for macro type
+ */
+export function getMacroIcon(macroType: 'protein' | 'carbs' | 'fat'): string {
+  const iconMap = {
+    protein: 'fitness-outline',      // Muscle/strength
+    carbs: 'nutrition-outline',      // Grain/food
+    fat: 'water-outline',            // Droplet
+  };
+  
+  return iconMap[macroType];
+}
+
+/**
+ * Capitalize first letter of string
+ */
+export function capitalizeFirst(str: string): string {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+/**
+ * Format number with commas (e.g., 1823 → "1,823")
+ */
+export function formatNumber(num: number): string {
+  return num.toLocaleString('en-US');
+}
+
+/**
+ * Get status color based on progress
+ */
+export function getStatusColor(status: 'on_track' | 'needs_attention' | 'over_budget'): string {
+  const colorMap = {
+    on_track: Colors.success,
+    needs_attention: Colors.warning,
+    over_budget: Colors.error,
+  };
+  
+  return colorMap[status];
+}
+
+/**
+ * Get day abbreviation (M, T, W, T, F, S, S)
+ */
+export function getDayAbbreviation(dayIndex: number): string {
+  const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  return days[dayIndex];
+}
+
+/**
+ * Get day name abbreviation starting from Monday (M, T, W, T, F, S, S)
+ */
+export function getWeekdayAbbreviation(dayIndex: number): string {
+  // dayIndex: 0 = Monday, 6 = Sunday
+  const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  return days[dayIndex];
+}
+
+/**
+ * Calculate percentage (used for progress rings)
+ */
+export function calculatePercentage(value: number, max: number): number {
+  if (max === 0) return 0;
+  return Math.min(Math.round((value / max) * 100), 100);
+}
+
+/**
+ * Truncate text with ellipsis
+ */
+export function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 3) + '...';
+}

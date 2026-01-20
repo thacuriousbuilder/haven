@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter} from 'expo-router';
 import { FoodLogSheet } from '@/components/foodLogSheet';
-
 export default function LogScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
 
   const handleSuccess = () => {
     // Navigate back to home after successful log
@@ -19,7 +19,11 @@ export default function LogScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.content}>
-          <FoodLogSheet onSuccess={handleSuccess} />
+          <FoodLogSheet 
+            onSuccess={handleSuccess}
+            initialMethod={params.method as 'camera' | 'photo' | 'search' | 'manual' | null}
+            initialImageBase64={params.imageBase64 as string | null}
+          />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

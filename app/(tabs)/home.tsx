@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +13,15 @@ import { calculateMetrics } from '@/utils/metrics';
 import { calculateWeeklyBudget } from '@/utils/weeklyBudget';
 import { BaselineCompleteModal } from '@/components/baseLineCompleteModal';
 import { getLocalDateString } from '@/utils/timezone';
+import { BaselineProgressCard } from '@/components/homebaseline/cards/baselineProgressCard';
+import { SummaryStatsCard } from '@/components/homebaseline/cards/summaryStatsCard';
+import { QuickLogCard } from '@/components/homebaseline/cards/quickLogCard';
+import { TodayMealsCard } from '@/components/homebaseline/cards/todayMealsCard';
+import * as ImagePicker from 'expo-image-picker';
+
+// Type imports
+import type { MealLogItem, MacroData } from '@/types/home';
+import { Colors } from '@/constants/colors';
 
 interface ProfileData {
   full_name: string | null;
@@ -28,6 +39,9 @@ interface FoodLog {
   meal_type: string;
   log_date: string;
   created_at: string;
+  protein_grams?: number | null;
+  carbs_grams?: number | null;
+  fat_grams?: number | null;
 }
 
 interface MetricsData {
@@ -90,6 +104,43 @@ export default function HomeScreen() {
     }
   }, [profile, daysLogged]);
 
+  // Find your existing baseline debug useEffect and add this
+// useEffect(() => {
+//   if (profile?.user_type !== 'trainer' && profile?.baseline_start_date && !profile?.baseline_complete && recentLogs.length > 0) {
+//     console.log('=== BASELINE DEBUG ===');
+//     console.log('Baseline start date:', profile?.baseline_start_date);
+//     console.log('Current day:', currentDay);
+//     console.log('Days logged:', daysLogged);
+//     console.log('Recent logs count:', recentLogs.length);
+    
+//     // ADD THIS - Show ALL food logs
+//     console.log('\n=== ALL FOOD LOGS ===');
+//     recentLogs.forEach((log, index) => {
+//       console.log(`${index + 1}. ${log.food_name}:`, {
+//         log_date: log.log_date,
+//         created_at: log.created_at,
+//         calories: log.calories,
+//       });
+//     });
+    
+//     // Show which dates have logs
+//     const startDate = new Date(profile.baseline_start_date + 'T00:00:00');
+//     console.log('\n=== DAYS BREAKDOWN ===');
+//     for (let i = 0; i < 7; i++) {
+//       const checkDate = new Date(startDate);
+//       checkDate.setDate(startDate.getDate() + i);
+//       const dateStr = checkDate.toISOString().split('T')[0];
+//       const logsForDay = recentLogs.filter(log => log.log_date === dateStr);
+//       console.log(`Day ${i + 1} (${dateStr}):`, logsForDay.length, 'logs');
+//       logsForDay.forEach(log => {
+//         console.log(`  - ${log.food_name} (${log.calories} cal)`);
+//       });
+//     }
+//   }
+// }, [profile, recentLogs, currentDay, daysLogged]);
+
+  // ============= HELPER FUNCTIONS =============
+
   const getMonday = (date: Date): Date => {
     const d = new Date(date);
     const day = d.getDay();
@@ -99,6 +150,79 @@ export default function HomeScreen() {
     monday.setHours(0, 0, 0, 0);
     return monday;
   };
+
+  // Transform FoodLog to MealLogItem format
+  const transformMealsData = (logs: FoodLog[]): MealLogItem[] => {
+    return logs.map(log => ({
+      id: log.id,
+      name: log.food_name,
+      time: formatTime(log.created_at),
+      calories: log.calories || 0,
+      mealType: log.meal_type as 'breakfast' | 'lunch' | 'dinner' | 'snack',
+      loggedAt: log.created_at,
+      macros: log.protein_grams || log.carbs_grams || log.fat_grams ? {
+        protein: log.protein_grams || 0,
+        carbs: log.carbs_grams || 0,
+        fat: log.fat_grams || 0,
+      } : undefined,
+    }));
+  };
+
+  // Calculate total macros from food logs
+  const calculateTotalMacros = (logs: FoodLog[]): MacroData => {
+    return logs.reduce(
+      (acc, log) => ({
+        protein: acc.protein + (log.protein_grams || 0),
+        carbs: acc.carbs + (log.carbs_grams || 0),
+        fat: acc.fat + (log.fat_grams || 0),
+      }),
+      { protein: 0, carbs: 0, fat: 0 }
+    );
+  };
+
+  // Calculate today's macros
+  const calculateTodayMacros = (): MacroData => {
+    const today = getLocalDateString();
+    const todayLogs = recentLogs.filter(log => log.log_date === today);
+    return calculateTotalMacros(todayLogs);
+  };
+
+  // Calculate today's total calories
+  const calculateTodayCalories = (): number => {
+    const today = getLocalDateString();
+    const todayLogs = recentLogs.filter(log => log.log_date === today);
+    return todayLogs.reduce((sum, log) => sum + (log.calories || 0), 0);
+  };
+
+  // Get baseline logs (all logs from baseline start date)
+  const getBaselineLogs = (): FoodLog[] => {
+    if (!profile?.baseline_start_date) return [];
+    return recentLogs.filter(log => log.log_date >= profile.baseline_start_date!);
+  };
+
+  const getCompletedBaselineDays = (): boolean[] => {
+    if (!profile?.baseline_start_date) {
+      return [false, false, false, false, false, false, false];
+    }
+  
+    const startDate = new Date(profile.baseline_start_date + 'T00:00:00');
+    const completedDays = [false, false, false, false, false, false, false];
+  
+    // Check each day from baseline start
+    for (let i = 0; i < 7; i++) {
+      const checkDate = new Date(startDate);
+      checkDate.setDate(startDate.getDate() + i);
+      const dateStr = checkDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+  
+      // Check if this date has logs
+      const hasLogs = recentLogs.some(log => log.log_date === dateStr);
+      completedDays[i] = hasLogs;
+    }
+  
+    return completedDays;
+  };
+
+  // ============= DATA FETCHING FUNCTIONS =============
 
   const fetchProfile = async () => {
     try {
@@ -224,7 +348,6 @@ export default function HomeScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get all clients for this trainer
       const { data: clientProfiles, error } = await supabase
         .from('profiles')
         .select('id, full_name, current_streak, baseline_start_date, baseline_complete')
@@ -241,32 +364,10 @@ export default function HomeScreen() {
         return;
       }
 
-      // For each client, get their today's logs and metrics
       const today = getLocalDateString();
-      console.log('=== TRAINER DASHBOARD DEBUG ===');
-      console.log('Today date string:', today);
-      console.log('Number of clients:', clientProfiles.length);
       const clientStatuses: ClientStatus[] = [];
 
       for (const client of clientProfiles) {
-        console.log(`\n--- Checking client: ${client.full_name} (${client.id}) ---`);
-      
-        // DEBUG: Get ALL logs for this client first
-      const { data: allClientLogs } = await supabase
-      .from('food_logs')
-      .select('id, log_date, created_at')
-      .eq('user_id', client.id)
-      .order('created_at', { ascending: false })
-      .limit(10);
-    
-      console.log('All recent logs for this client:', allClientLogs?.length);
-      if (allClientLogs) {
-        allClientLogs.forEach((log, idx) => {
-          console.log(`  Log ${idx + 1}: log_date=${log.log_date}, created_at=${log.created_at}`);
-        });
-      }
-
-        // Get today's food logs
         const { data: todayLogs } = await supabase
           .from('food_logs')
           .select('created_at')
@@ -274,17 +375,13 @@ export default function HomeScreen() {
           .eq('log_date', today)
           .order('created_at', { ascending: false });
 
-          console.log('Today logs query result:', todayLogs?.length || 0);
-
         const mealsToday = todayLogs?.length || 0;
         const lastLogTime = todayLogs?.[0]?.created_at || null;
 
-        // Determine status
         let status: 'needs_attention' | 'on_track' | 'baseline' = 'on_track';
         let baselineDay = null;
 
         if (!client.baseline_complete && client.baseline_start_date) {
-          // Client is in baseline
           status = 'baseline';
           const startDate = new Date(client.baseline_start_date);
           const todayDate = new Date();
@@ -302,7 +399,7 @@ export default function HomeScreen() {
           last_log_time: lastLogTime,
           meals_today: mealsToday,
           current_streak: client.current_streak || 0,
-          balance_score: null, // TODO: Fetch actual balance score
+          balance_score: null,
           status,
           baseline_day: baselineDay,
         });
@@ -310,7 +407,6 @@ export default function HomeScreen() {
 
       setClients(clientStatuses);
 
-      // Calculate stats
       const stats = {
         total: clientStatuses.length,
         needsAttention: clientStatuses.filter(c => c.status === 'needs_attention').length,
@@ -332,15 +428,27 @@ export default function HomeScreen() {
 
       const { data, error } = await supabase
         .from('food_logs')
-        .select('id, food_name, calories, meal_type, log_date, created_at')
+        .select('id, food_name, calories, meal_type, log_date, created_at, protein_grams, carbs_grams, fat_grams')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(100);
 
       if (error) {
         console.error('Error fetching recent logs:', error);
         return;
       }
+
+    //    // ADD THIS DEBUG
+    // console.log('=== ALL FOOD LOGS ===');
+    // console.log('Total logs fetched:', data?.length || 0);
+    // data?.forEach((log, index) => {
+    //   console.log(`Log ${index + 1}:`, {
+    //     food_name: log.food_name,
+    //     log_date: log.log_date,
+    //     created_at: log.created_at,
+    //     calories: log.calories,
+    //   });
+    // });
 
       setRecentLogs(data || []);
     } catch (error) {
@@ -378,13 +486,76 @@ export default function HomeScreen() {
     }
   };
 
+  // ============= EVENT HANDLERS =============
+
   const handleLogFood = () => {
     router.push('/log');
   };
 
-  const handleCheckIn = () => {
-    router.push('/dailyCheckin');
+  const handleCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Camera access is required to scan food.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      // Navigate to log screen with camera method and image
+      router.push({
+        pathname: '/log',
+        params: { method: 'camera', imageBase64: result.assets[0].base64 }
+      });
+    }
   };
+
+  const handleSearch = () => {
+    // Navigate to log screen with search method pre-selected
+    router.push({
+      pathname: '/log',
+      params: { method: 'search' }
+    });
+  };
+
+  const handlePhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Photo library access is required.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      // Navigate to log screen with photo method and image
+      router.push({
+        pathname: '/log',
+        params: { method: 'photo', imageBase64: result.assets[0].base64 }
+      });
+    }
+  };
+
+  const handleRecipe = () => {
+    // Navigate to log screen with manual method (or create recipe-specific flow)
+    router.push({
+      pathname: '/log',
+      params: { method: 'manual' }
+    });
+  };
+
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -395,6 +566,8 @@ export default function HomeScreen() {
       fetchRecentLogs();
     }
   };
+
+  // ============= FORMATTING FUNCTIONS =============
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -445,11 +618,13 @@ export default function HomeScreen() {
 
   const displayedLogs = showAllLogs ? recentLogs : recentLogs.slice(0, 3);
 
+  // ============= LOADING & ERROR STATES =============
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3D5A5C" />
+          <ActivityIndicator size="large" color={Colors.vividTeal} />
         </View>
       </SafeAreaView>
     );
@@ -465,7 +640,8 @@ export default function HomeScreen() {
     );
   }
 
-  // TRAINER VIEW
+  // ============= TRAINER VIEW =============
+  
   if (profile.user_type === 'trainer') {
     const needsAttentionClients = clients.filter(c => c.status === 'needs_attention');
     const baselineClients = clients.filter(c => c.status === 'baseline');
@@ -480,13 +656,16 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <ScrollView 
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
+          <ScrollView 
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}  // Add this
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
+              bounces={true}                    // Add this for iOS bounce
+              overScrollMode="always"           // Add this for Android
+            >
           <View style={styles.content}>
             <View style={styles.greetingSection}>
               <Text style={styles.greeting}>Coach Dashboard</Text>
@@ -499,7 +678,6 @@ export default function HomeScreen() {
 
             {clientStats.total > 0 && (
               <>
-                {/* Overview Stats */}
                 <View style={styles.statsGrid}>
                   <View style={styles.statCard}>
                     <Text style={styles.statNumber}>{clientStats.total}</Text>
@@ -519,7 +697,6 @@ export default function HomeScreen() {
                   </View>
                 </View>
 
-                {/* Needs Attention Section */}
                 {needsAttentionClients.length > 0 && (
                   <View style={styles.section}>
                     <View style={styles.sectionHeader}>
@@ -547,18 +724,14 @@ export default function HomeScreen() {
                         <View style={styles.clientActions}>
                           <TouchableOpacity 
                             style={styles.actionButton}
-                             onPress={() => {
-                                router.push(`/messageThread/${client.id}`);
-                              }}
-                              >
+                            onPress={() => router.push(`/messageThread/${client.id}`)}
+                          >
                             <Ionicons name="chatbubble-outline" size={16} color="#3D5A5C" />
                             <Text style={styles.actionText}>Message</Text>
                           </TouchableOpacity>
                           <TouchableOpacity 
                             style={styles.actionButton}
-                            onPress={() => {
-                              router.push(`/clientDetail/${client.id}`);
-                            }}
+                            onPress={() => router.push(`/clientDetail/${client.id}`)}
                           >
                             <Ionicons name="eye-outline" size={16} color="#3D5A5C" />
                             <Text style={styles.actionText}>View Progress</Text>
@@ -569,7 +742,6 @@ export default function HomeScreen() {
                   </View>
                 )}
 
-                {/* Baseline Section */}
                 {baselineClients.length > 0 && (
                   <View style={styles.section}>
                     <View style={styles.sectionHeader}>
@@ -597,9 +769,7 @@ export default function HomeScreen() {
                         <View style={styles.clientActions}>
                           <TouchableOpacity 
                             style={styles.actionButton}
-                            onPress={() => {
-                              router.push(`/clientDetail/${client.id}`);
-                            }}
+                            onPress={() => router.push(`/clientDetail/${client.id}`)}
                           >
                             <Ionicons name="eye-outline" size={16} color="#3D5A5C" />
                             <Text style={styles.actionText}>View Progress</Text>
@@ -610,7 +780,6 @@ export default function HomeScreen() {
                   </View>
                 )}
 
-                {/* On Track Section */}
                 {onTrackClients.length > 0 && (
                   <View style={styles.section}>
                     <View style={styles.sectionHeader}>
@@ -653,7 +822,6 @@ export default function HomeScreen() {
               </>
             )}
 
-            {/* Empty State */}
             {clientStats.total === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="people-outline" size={64} color="#D1D5DB" />
@@ -675,149 +843,110 @@ export default function HomeScreen() {
     );
   }
 
-  // CLIENT VIEW 
+  // ============= CLIENT VIEW =============
+  
   const isBaselineActive = profile.baseline_start_date && !profile.baseline_complete;
   const firstName = profile.full_name ? profile.full_name.split(' ')[0] : 'there';
   const nextCheatDay = getNextCheatDay();
+
+  const baselineLogs = getBaselineLogs();
+  const baselineTotalCalories = baselineLogs.reduce((sum, log) => sum + (log.calories || 0), 0);
+  const baselineAvgCalories = daysLogged > 0 ? Math.round(baselineTotalCalories / daysLogged) : 0;
+  const baselineMacros = calculateTotalMacros(baselineLogs);
+
+  const todayCalories = calculateTodayCalories();
+  const todayMacros = calculateTodayMacros();
+  const todayGoal = 2000; // TODO: Calculate from profile or weekly budget
+  const todayRemaining = todayGoal - todayCalories;
+
+  const todayLogs = recentLogs.filter(log => log.log_date === getLocalDateString());
+
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.logoContainer}>
-          <View style={styles.logoCircle} />
           <Text style={styles.logo}>HAVEN</Text>
         </View>
         <View style={styles.streakBadge}>
-          <Ionicons name="flash" size={16} color="#E09B7B" />
+          <Ionicons name="flash" size={16} color={Colors.energyOrange} />
           <Text style={styles.streakText}>{profile.current_streak}</Text>
         </View>
       </View>
 
       <ScrollView 
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}  // Add this
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          bounces={true}                    // Add this for iOS bounce
+          overScrollMode="always"           // Add this for Android
+        >
         <View style={styles.content}>
           {isBaselineActive ? (
             <>
-              {/*baseline UI */}
+              {/* NEW BASELINE UI */}
               <View style={styles.greetingSection}>
-                <Text style={styles.greeting}>Building your baseline</Text>
+                <Text style={styles.greeting}>
+                  Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {firstName}
+                </Text>
                 <Text style={styles.subGreeting}>
-                  Just eat normally. We're learning your patterns.
+                  Let's keep building your baseline
                 </Text>
               </View>
 
-              <View style={styles.dayCard}>
-                <View style={styles.dayCircle}>
-                  <Text style={styles.dayNumber}>{daysLogged}</Text>
-                  <Text style={styles.dayLabel}>of 7</Text>
+              {/* Baseline Progress Card */}
+              <View style={styles.cardSpacing}>
+                  <BaselineProgressCard
+                    progress={{
+                      currentDay: currentDay,
+                      daysLogged: daysLogged,
+                      totalDays: 7,
+                      isComplete: false,
+                    }}
+                    completedDays={getCompletedBaselineDays()}
+                    currentDayIndex={daysLogged}
+                  />
                 </View>
-                <View style={styles.dayInfo}>
-                  <Text style={styles.dayTitle}>
-                    {daysLogged === 7 ? 'Baseline Complete!' : `Day ${currentDay}`}
-                  </Text>
-                  <Text style={styles.dayDescription}>
-                    {daysLogged === 7
-                      ? 'Great work! Pull to refresh.'
-                      : `${daysLogged} days logged, ${7 - daysLogged} to go`}
-                  </Text>
-                </View>
-              </View>
 
-              <View style={styles.progressContainer}>
-                <View style={styles.progressDots}>
-                  {Array.from({ length: 7 }).map((_, index) => (
-                    <View key={index} style={styles.dotWrapper}>
-                      <View
-                        style={[
-                          styles.progressDot,
-                          index < daysLogged && styles.progressDotActive
-                        ]}
-                      />
-                      <Text style={styles.dotLabel}>{index + 1}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-
-              <TouchableOpacity 
-                style={styles.logFoodButton}
-                onPress={handleLogFood}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="restaurant" size={28} color="#FFFFFF" />
-                <Text style={styles.logFoodText}>Log Today's Food</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.checkInButton}
-                onPress={handleCheckIn}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="checkmark-circle-outline" size={24} color="#3D5A5C" />
-                <Text style={styles.checkInText}>Daily Check-in</Text>
-              </TouchableOpacity>
-
-              {recentLogs.length > 0 && (
-                <View style={styles.recentSection}>
-                  <Text style={styles.recentTitle}>Recently logged</Text>
-                  {displayedLogs.map((log) => (
-                    <View key={log.id} style={styles.logCard}>
-                      <View style={styles.logHeader}>
-                        <View style={styles.logHeaderLeft}>
-                          <Ionicons 
-                            name={getMealIcon(log.meal_type) as any} 
-                            size={20} 
-                            color="#3D5A5C" 
-                          />
-                          <Text style={styles.logFood}>{log.food_name}</Text>
-                        </View>
-                        <Text style={styles.logTime}>{formatTime(log.created_at)}</Text>
-                      </View>
-                      <View style={styles.logFooter}>
-                        <Text style={styles.mealTypeLabel}>{capitalizeFirst(log.meal_type)}</Text>
-                        {log.calories && (
-                          <View style={styles.logCalories}>
-                            <Text style={styles.caloriesNumber}>{log.calories}</Text>
-                            <Text style={styles.caloriesLabel}>cal</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-
-                  {recentLogs.length > 3 && (
-                    <TouchableOpacity
-                      style={styles.showMoreButton}
-                      onPress={() => setShowAllLogs(!showAllLogs)}
-                    >
-                      <Text style={styles.showMoreText}>
-                        {showAllLogs ? 'Show less' : `Show more (${recentLogs.length - 3})`}
-                      </Text>
-                      <Ionicons 
-                        name={showAllLogs ? 'chevron-up' : 'chevron-down'} 
-                        size={16} 
-                        color="#3D5A5C" 
-                      />
-                    </TouchableOpacity>
-                  )}
+              {/* Summary Stats Card */}
+              {daysLogged > 0 && (
+                <View style={styles.cardSpacing}>
+                  <SummaryStatsCard
+                    totalCalories={baselineTotalCalories}
+                    daysLogged={daysLogged}
+                    avgPerDay={baselineAvgCalories}
+                    macros={baselineMacros}
+                  />
                 </View>
               )}
 
-              <View style={styles.infoCard}>
-                <Ionicons name="information-circle-outline" size={24} color="#3D5A5C" />
-                <Text style={styles.infoText}>
-                  No judgment. No restrictions. We're just learning how you normally eat so we can build a realistic plan.
-                </Text>
+              {/* Today's Meals Card */}
+              <View style={styles.cardSpacing}>
+                <TodayMealsCard
+                  meals={transformMealsData(todayLogs)}
+                  onAddMeal={handleLogFood}
+                  onMealPress={(meal) => {
+                    console.log('Meal pressed:', meal.name);
+                  }}
+                />
+              </View>
+
+              {/* Quick Log Card */}
+              <View style={styles.cardSpacing}>
+                 <QuickLogCard
+                  onCamera={handleCamera}
+                  onSearch={handleSearch}
+                  onPhoto={handlePhoto}
+                  onRecipe={handleRecipe}
+                   />
               </View>
             </>
           ) : (
             <>
-              {/* Active UI */}
+              {/* Active UI - Keep existing for now */}
               <View style={styles.greetingSection}>
                 <Text style={styles.greeting}>Welcome, {firstName}</Text>
                 <Text style={styles.subGreeting}>You're doing great today!</Text>
@@ -835,7 +964,7 @@ export default function HomeScreen() {
                 </View>
               ) : (
                 <View style={styles.metricsContainer}>
-                  <ActivityIndicator size="small" color="#3D5A5C" />
+                  <ActivityIndicator size="small" color={Colors.vividTeal} />
                 </View>
               )}
 
@@ -919,15 +1048,18 @@ export default function HomeScreen() {
   );
 }
 
-// Add new styles for trainer view
+// ============= STYLES =============
+
 const styles = StyleSheet.create({
-  // ... keep all your existing styles ...
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: Colors.lightCream,
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -947,11 +1079,12 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 24,
+    paddingTop: 8,
+    paddingBottom: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: Colors.lightCream,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -963,18 +1096,18 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     borderWidth: 3,
-    borderColor: '#3D5A5C',
+    borderColor: Colors.vividTeal,
     backgroundColor: 'transparent',
   },
   logo: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.vividTeal,
   },
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -982,26 +1115,32 @@ const styles = StyleSheet.create({
   streakText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: Colors.graphite,
     marginLeft: 4,
   },
   content: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingTop: 8,
+    paddingBottom: 100,
   },
   greetingSection: {
-    marginBottom: 32,
+    marginBottom: 20,
   },
   greeting: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.graphite,
     marginBottom: 8,
   },
   subGreeting: {
     fontSize: 16,
-    color: '#6B7280',
+    color: Colors.steelBlue,
     lineHeight: 24,
+  },
+  
+  // New card spacing
+  cardSpacing: {
+    marginBottom: 16,
   },
   
   // Trainer-specific styles
@@ -1012,7 +1151,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   statCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 20,
     flex: 1,
@@ -1027,12 +1166,12 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.graphite,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors.steelBlue,
     textAlign: 'center',
   },
   section: {
@@ -1047,10 +1186,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.graphite,
   },
   clientCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 20,
     marginBottom: 12,
@@ -1069,7 +1208,7 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: Colors.graphite,
     flex: 1,
   },
   statusBadge: {
@@ -1083,7 +1222,7 @@ const styles = StyleSheet.create({
   },
   clientTime: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors.steelBlue,
     marginBottom: 12,
   },
   clientActions: {
@@ -1096,13 +1235,13 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: Colors.lightCream,
     borderRadius: 12,
   },
   actionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: Colors.graphite,
   },
   emptyState: {
     alignItems: 'center',
@@ -1112,19 +1251,19 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.graphite,
     marginTop: 16,
     marginBottom: 8,
   },
   emptyDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors.steelBlue,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,
   },
   emptyButton: {
-    backgroundColor: '#3D5A5C',
+    backgroundColor: Colors.vividTeal,
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 20,
@@ -1132,12 +1271,12 @@ const styles = StyleSheet.create({
   emptyButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
 
-  // Keep all your existing client styles
+  // Keep existing styles for active UI
   dayCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderRadius: 24,
     padding: 24,
     flexDirection: 'row',
@@ -1161,11 +1300,11 @@ const styles = StyleSheet.create({
   dayNumber: {
     fontSize: 36,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
   dayLabel: {
     fontSize: 14,
-    color: '#FFFFFF',
+    color: Colors.white,
     fontWeight: '600',
   },
   dayInfo: {
@@ -1174,12 +1313,12 @@ const styles = StyleSheet.create({
   dayTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.graphite,
     marginBottom: 4,
   },
   dayDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors.steelBlue,
     lineHeight: 20,
   },
   progressContainer: {
@@ -1208,7 +1347,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   logFoodButton: {
-    backgroundColor: '#3D5A5C',
+    backgroundColor: Colors.vividTeal,
     borderRadius: 20,
     paddingVertical: 20,
     paddingHorizontal: 24,
@@ -1226,10 +1365,10 @@ const styles = StyleSheet.create({
   logFoodText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.white,
   },
   checkInButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderRadius: 20,
     paddingVertical: 16,
     paddingHorizontal: 24,
@@ -1239,7 +1378,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 24,
     borderWidth: 2,
-    borderColor: '#3D5A5C',
+    borderColor: Colors.vividTeal,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1249,7 +1388,7 @@ const styles = StyleSheet.create({
   checkInText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.vividTeal,
   },
   recentSection: {
     marginBottom: 24,
@@ -1257,11 +1396,11 @@ const styles = StyleSheet.create({
   recentTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.graphite,
     marginBottom: 16,
   },
   logCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 20,
     marginBottom: 12,
@@ -1286,7 +1425,7 @@ const styles = StyleSheet.create({
   logFood: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: Colors.graphite,
     flex: 1,
   },
   logTime: {
@@ -1300,8 +1439,8 @@ const styles = StyleSheet.create({
   },
   mealTypeLabel: {
     fontSize: 12,
-    color: '#6B7280',
-    backgroundColor: '#F5F1E8',
+    color: Colors.steelBlue,
+    backgroundColor: Colors.lightCream,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1314,11 +1453,11 @@ const styles = StyleSheet.create({
   caloriesNumber: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.graphite,
   },
   caloriesLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: Colors.steelBlue,
   },
   showMoreButton: {
     flexDirection: 'row',
@@ -1331,10 +1470,10 @@ const styles = StyleSheet.create({
   showMoreText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: Colors.graphite,
   },
   infoCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderRadius: 16,
     padding: 20,
     flexDirection: 'row',
@@ -1344,13 +1483,13 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors.steelBlue,
     lineHeight: 22,
   },
   metricsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,

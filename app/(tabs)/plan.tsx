@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -7,40 +8,71 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { PlannedCheatDay } from '@/types/database';
+import { Colors, Shadows, Spacing, BorderRadius, Typography } from '@/constants/colors';
 
 export default function PlanScreen() {
   const router = useRouter();
   const [cheatDays, setCheatDays] = useState<PlannedCheatDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [weeklyBudget, setWeeklyBudget] = useState(0);
   const [totalReserved, setTotalReserved] = useState(0);
+  const [isInBaseline, setIsInBaseline] = useState(false);
+  const [baselineProgress, setBaselineProgress] = useState({ daysLogged: 0, daysNeeded: 7 });
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  // Check if user is in baseline
+  useEffect(() => {
+    checkBaselineStatus();
+  }, []);
+
+  const checkBaselineStatus = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Load weekly budget
+      // Check profile for baseline status
       const { data: profile } = await supabase
         .from('profiles')
-        .select('weekly_calorie_bank')
+        .select('baseline_complete, baseline_start_date')
         .eq('id', user.id)
         .single();
 
-      if (profile) {
-        setWeeklyBudget(profile.weekly_calorie_bank || 0);
+      if (profile && !profile.baseline_complete) {
+        setIsInBaseline(true);
+
+        // Get baseline progress
+        const baselineStartDate = profile.baseline_start_date;
+        const { data: dailySummaries } = await supabase
+          .from('daily_summaries')
+          .select('summary_date')
+          .eq('user_id', user.id)
+          .gte('summary_date', baselineStartDate)
+          .order('summary_date', { ascending: true });
+
+        const daysLogged = dailySummaries?.length || 0;
+        setBaselineProgress({ daysLogged, daysNeeded: 7 });
+      } else {
+        setIsInBaseline(false);
       }
+    } catch (error) {
+      console.error('Error checking baseline status:', error);
+    }
+  };
+
+  const loadData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
       // Load upcoming cheat days
       const today = new Date().toISOString().split('T')[0];
@@ -75,48 +107,79 @@ export default function PlanScreen() {
     loadData();
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
-  };
-
-  const getDaysUntil = (dateString: string) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const targetDate = new Date(dateString);
-    targetDate.setHours(0, 0, 0, 0);
-    
-    const diffTime = targetDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    return `In ${diffDays} days`;
-  };
-
-  const getNextCheatDay = () => {
-    if (cheatDays.length === 0) return null;
-    return cheatDays[0];
-  };
-
-  const nextCheatDay = getNextCheatDay();
-
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2C4A52" />
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color={Colors.vividTeal} />
       </SafeAreaView>
     );
   }
 
+  const formatCheatDayDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const dayName = days[date.getDay()];
+    const month = months[date.getMonth()];
+    const dayNum = date.getDate();
+    
+    return {
+      dayName,
+      dateStr: `${month} ${dayNum}`,
+    };
+  };
+
+  const handleDeleteCheatDay = async (cheatDayId: string) => {
+    Alert.alert(
+      'Delete Cheat Day',
+      'Are you sure you want to delete this planned cheat day?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('planned_cheat_days')
+                .delete()
+                .eq('id', cheatDayId);
+
+              if (error) throw error;
+
+              // Reload data
+              loadData();
+            } catch (error) {
+              console.error('Error deleting cheat day:', error);
+              Alert.alert('Error', 'Failed to delete cheat day. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEditCheatDay = (cheatDay: PlannedCheatDay) => {
+    router.push({
+      pathname: '/editCheatDay',
+      params: {
+        id: cheatDay.id,
+        date: cheatDay.cheat_date,
+        calories: cheatDay.planned_calories.toString(),
+        notes: cheatDay.notes || '',
+      },
+    });
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -127,120 +190,150 @@ export default function PlanScreen() {
           <Text style={styles.subtitle}>Manage your weekly cheat days</Text>
         </View>
 
-        {/* Quick Stats */}
-        <View style={styles.statsContainer}>
+        {/* Baseline Banner */}
+        {isInBaseline && (
+          <View style={styles.baselineBanner}>
+            <View style={styles.bannerContent}>
+              <Ionicons name="lock-closed" size={24} color={Colors.energyOrange} />
+              <View style={styles.bannerText}>
+                <Text style={styles.bannerTitle}>Complete your baseline week first</Text>
+                <Text style={styles.bannerSubtitle}>
+                  Track {baselineProgress.daysNeeded - baselineProgress.daysLogged} more {baselineProgress.daysNeeded - baselineProgress.daysLogged === 1 ? 'day' : 'days'} to unlock cheat day planning
+                </Text>
+              </View>
+            </View>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { width: `${(baselineProgress.daysLogged / baselineProgress.daysNeeded) * 100}%` }
+                ]} 
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Stat Cards Row */}
+        <View style={styles.statCardsRow}>
+          {/* Planned Days Card */}
           <View style={styles.statCard}>
-            <Ionicons name="calendar-outline" size={24} color="#FF6B35" />
-            <Text style={styles.statValue}>{cheatDays.length}</Text>
+            <View style={[styles.iconCircle, { backgroundColor: Colors.tealOverlay }]}>
+              <Ionicons name="calendar" size={24} color={Colors.vividTeal} />
+            </View>
+            <Text style={styles.statNumber}>{cheatDays.length}</Text>
             <Text style={styles.statLabel}>Planned Days</Text>
           </View>
-          
+
+          {/* Reserved Cal Card */}
           <View style={styles.statCard}>
-            <Ionicons name="flame-outline" size={24} color="#FF6B35" />
-            <Text style={styles.statValue}>{totalReserved.toLocaleString()}</Text>
+            <View style={[styles.iconCircle, { backgroundColor: Colors.orangeOverlay }]}>
+              <Ionicons name="flame" size={24} color={Colors.energyOrange} />
+            </View>
+            <Text style={styles.statNumber}>{totalReserved.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Reserved Cal</Text>
           </View>
         </View>
 
-        {/* Next Cheat Day Card */}
-        {nextCheatDay ? (
-          <View style={styles.nextCheatCard}>
-            <View style={styles.nextCheatHeader}>
-              <Text style={styles.nextCheatTitle}>Next Cheat Day</Text>
-              <Text style={styles.nextCheatBadge}>{getDaysUntil(nextCheatDay.cheat_date)}</Text>
+       {/* Empty State or Cheat Days List */}
+       {cheatDays.length === 0 ? (
+          <View style={styles.emptyStateCard}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="calendar-outline" size={40} color={Colors.steelBlue} />
             </View>
-            
-            <Text style={styles.nextCheatDate}>{formatDate(nextCheatDay.cheat_date)}</Text>
-            
-            <View style={styles.nextCheatDetails}>
-              <View style={styles.nextCheatDetailRow}>
-                <Ionicons name="flame" size={16} color="#666" />
-                <Text style={styles.nextCheatDetailText}>
-                  {nextCheatDay.planned_calories} calories
-                </Text>
-              </View>
-              
-              {nextCheatDay.notes && (
-                <View style={styles.nextCheatDetailRow}>
-                  <Ionicons name="document-text" size={16} color="#666" />
-                  <Text style={styles.nextCheatDetailText} numberOfLines={2}>
-                    {nextCheatDay.notes}
-                  </Text>
-                </View>
-              )}
-            </View>
+            <Text style={styles.emptyStateText}>No cheat days planned yet</Text>
           </View>
         ) : (
-          <View style={styles.noCheatCard}>
-            <Ionicons name="calendar-outline" size={48} color="#CCC" />
-            <Text style={styles.noCheatText}>No cheat days planned yet</Text>
+          <View style={styles.cheatDaysList}>
+            {cheatDays.map((cheatDay) => {
+              const { dayName, dateStr } = formatCheatDayDate(cheatDay.cheat_date);
+              
+              return (
+                <View key={cheatDay.id} style={styles.cheatDayCard}>
+                  <View style={styles.cheatDayLeft}>
+                    <View style={styles.partyIconCircle}>
+                      <Ionicons name="pizza" size={24} color={Colors.energyOrange} />
+                    </View>
+                    <View style={styles.cheatDayInfo}>
+                      <Text style={styles.cheatDayName}>{dayName}</Text>
+                      <Text style={styles.cheatDayDetails}>
+                        {dateStr} • {cheatDay.planned_calories.toLocaleString()} cal budget
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.cheatDayActions}>
+                    <TouchableOpacity
+                      onPress={() => handleEditCheatDay(cheatDay)}
+                      style={styles.actionButton}
+                      activeOpacity={0.6}
+                    >
+                      <Ionicons name="pencil" size={20} color={Colors.steelBlue} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteCheatDay(cheatDay.id)}
+                      style={styles.actionButton}
+                      activeOpacity={0.6}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         )}
 
         {/* Action Buttons */}
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => router.push('/planCheatDay')}
-          >
-            <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-            <Text style={styles.primaryButtonText}>Plan Cheat Day</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => router.push('/manageCheatDay')}
-          >
-            <Ionicons name="list" size={20} color="#2C4A52" />
-            <Text style={styles.secondaryButtonText}>Manage All ({cheatDays.length})</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[styles.primaryButton, isInBaseline && styles.primaryButtonDisabled]}
+          onPress={() => {
+            if (isInBaseline) {
+              Alert.alert(
+                'Complete Baseline First',
+                'Finish tracking your baseline week to unlock cheat day planning.'
+              );
+            } else {
+              router.push('/planCheatDay');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={24} color={Colors.white} />
+          <Text style={styles.primaryButtonText}>Plan Cheat Day</Text>
+        </TouchableOpacity>
 
-        {/* Upcoming Cheat Days List */}
-        {cheatDays.length > 1 && (
-          <View style={styles.upcomingSection}>
-            <Text style={styles.sectionTitle}>All Upcoming</Text>
-            {cheatDays.map((cheatDay, index) => (
-              <TouchableOpacity
-                key={cheatDay.id}
-                style={styles.cheatDayItem}
-                onPress={() => router.push({
-                  pathname: '/editCheatDay',
-                  params: {
-                    id: cheatDay.id,
-                    date: cheatDay.cheat_date,
-                    calories: cheatDay.planned_calories.toString(),
-                    notes: cheatDay.notes || '',
-                  },
-                })}
-              >
-                <View style={styles.cheatDayLeft}>
-                  <Text style={styles.cheatDayDate}>{formatDate(cheatDay.cheat_date)}</Text>
-                  <Text style={styles.cheatDayCalories}>
-                    {cheatDay.planned_calories} cal
-                  </Text>
-                </View>
-                
-                <View style={styles.cheatDayRight}>
-                  <Text style={styles.cheatDayBadge}>{getDaysUntil(cheatDay.cheat_date)}</Text>
-                  <Ionicons name="chevron-forward" size={20} color="#999" />
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        <TouchableOpacity
+          style={[styles.secondaryButton, isInBaseline && styles.secondaryButtonDisabled]}
+          onPress={() => {
+            if (isInBaseline) {
+              Alert.alert(
+                'Complete Baseline First',
+                'Finish tracking your baseline week to unlock cheat day planning.'
+              );
+            } else {
+              router.push('/manageCheatDay');
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="list" size={20} color={Colors.vividTeal} />
+          <Text style={styles.secondaryButtonText}>Manage All ({cheatDays.length})</Text>
+        </TouchableOpacity>
 
-        {/* Tips Card */}
+        {/* Planning Tips Card */}
         <View style={styles.tipsCard}>
           <View style={styles.tipsHeader}>
-            <Ionicons name="bulb" size={20} color="#FF6B35" />
+            <Ionicons name="bulb" size={20} color={Colors.energyOrange} />
             <Text style={styles.tipsTitle}>Planning Tips</Text>
           </View>
-          <Text style={styles.tipsText}>
-            • Plan cheat days in advance to help HAVEN adjust your weekly budget{'\n'}
-            • Be realistic with calorie estimates{'\n'}
-            • Don't feel guilty - cheat days are part of the plan!
-          </Text>
+          <View style={styles.tipsList}>
+            <Text style={styles.tipText}>
+              • Plan cheat days in advance to help HAVEN adjust your weekly budget
+            </Text>
+            <Text style={styles.tipText}>
+              • Don't feel guilty - cheat days are part of the plan!
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -250,211 +343,244 @@ export default function PlanScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: Colors.lightCream,
   },
-  loadingContainer: {
+  scrollView: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F1E8',
   },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
+  scrollContent: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xxxl,
   },
+  
+  // Header
   header: {
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#2C4A52',
-    marginBottom: 4,
+    fontSize: Typography.fontSize.xxxl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.graphite,
+    marginBottom: Spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: Typography.fontSize.base,
+    color: Colors.steelBlue,
   },
-  statsContainer: {
+
+  // Stat Cards
+  statCardsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
     alignItems: 'center',
+    ...Shadows.small,
   },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#2C4A52',
-    marginTop: 8,
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  statNumber: {
+    fontSize: Typography.fontSize.xxxl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.graphite,
+    marginBottom: Spacing.xs,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.steelBlue,
   },
-  nextCheatCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderColor: '#FF6B35',
-  },
-  nextCheatHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+
+  // Empty State
+  emptyStateCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xxxl,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.lg,
+    ...Shadows.small,
   },
-  nextCheatTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF6B35',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  nextCheatBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FF6B35',
-    backgroundColor: '#FFF5F0',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  nextCheatDate: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2C4A52',
-    marginBottom: 12,
-  },
-  nextCheatDetails: {
-    gap: 8,
-  },
-  nextCheatDetailRow: {
-    flexDirection: 'row',
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.lightCream,
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
   },
-  nextCheatDetailText: {
-    fontSize: 14,
-    color: '#666',
-    flex: 1,
+  emptyStateText: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.steelBlue,
+    textAlign: 'center',
   },
-  noCheatCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 40,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  noCheatText: {
-    fontSize: 16,
-    color: '#999',
-    marginTop: 12,
-  },
-  actions: {
-    gap: 12,
-    marginBottom: 24,
-  },
+
+// Cheat Day Cards
+cheatDaysList: {
+  marginBottom: Spacing.lg,
+},
+cheatDayCard: {
+  backgroundColor: Colors.orangeOverlay,
+  borderRadius: BorderRadius.lg,
+  padding: Spacing.lg,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: Spacing.md,
+  borderWidth: 1,
+  borderColor: Colors.energyOrange + '20',
+},
+cheatDayLeft: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  flex: 1,
+},
+partyIconCircle: {
+  width: 48,
+  height: 48,
+  borderRadius: 24,
+  backgroundColor: Colors.white,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginRight: Spacing.md,
+},
+cheatDayInfo: {
+  flex: 1,
+},
+cheatDayName: {
+  fontSize: Typography.fontSize.base,
+  fontWeight: Typography.fontWeight.semibold,
+  color: Colors.graphite,
+  marginBottom: Spacing.xs / 2,
+},
+cheatDayDetails: {
+  fontSize: Typography.fontSize.sm,
+  color: Colors.steelBlue,
+},
+cheatDayActions: {
+  flexDirection: 'row',
+  gap: Spacing.sm,
+},
+actionButton: {
+  padding: Spacing.sm,
+},
+
+  // Buttons
   primaryButton: {
+    backgroundColor: Colors.vividTeal,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2C4A52',
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
+    marginBottom: Spacing.md,
+    ...Shadows.small,
   },
   primaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    color: Colors.white,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    marginLeft: Spacing.sm,
   },
   secondaryButton: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: '#2C4A52',
+    marginBottom: Spacing.xl,
   },
   secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2C4A52',
+    color: Colors.vividTeal,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+    marginLeft: Spacing.sm,
   },
-  upcomingSection: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2C4A52',
-    marginBottom: 12,
-  },
-  cheatDayItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-  },
-  cheatDayLeft: {
-    flex: 1,
-  },
-  cheatDayDate: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2C4A52',
-    marginBottom: 4,
-  },
-  cheatDayCalories: {
-    fontSize: 14,
-    color: '#666',
-  },
-  cheatDayRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  cheatDayBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FF6B35',
-  },
+
+  // Tips Card
   tipsCard: {
-    backgroundColor: '#FFF5F0',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.orangeOverlay,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#FFE0CC',
+    borderColor: Colors.energyOrange + '20',
   },
   tipsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+    marginBottom: Spacing.md,
   },
   tipsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2C4A52',
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.graphite,
+    marginLeft: Spacing.sm,
   },
-  tipsText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+  tipsList: {
+    gap: Spacing.sm,
+  },
+  tipText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.graphite,
+    lineHeight: Typography.fontSize.sm * Typography.lineHeight.relaxed,
+  },
+  // Baseline Banner
+  baselineBanner: {
+    backgroundColor: Colors.orangeOverlay,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.energyOrange + '40',
+  },
+  bannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  bannerText: {
+    flex: 1,
+    marginLeft: Spacing.md,
+  },
+  bannerTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.graphite,
+    marginBottom: Spacing.xs / 2,
+  },
+  bannerSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.steelBlue,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: Colors.white,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: Colors.energyOrange,
+    borderRadius: 3,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: Colors.steelBlue,
+    opacity: 0.6,
+  },
+  secondaryButtonDisabled: {
+    opacity: 0.5,
   },
 });

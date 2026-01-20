@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet,Text } from 'react-native';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { Colors } from '@/constants/colors';
 
 
 function TabBarBadge({ count }: { count: number }) {
@@ -115,7 +116,7 @@ export default function TabLayout() {
     return (
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: '#FF6B35',
+          tabBarActiveTintColor: Colors.vividTeal,
           tabBarInactiveTintColor: '#999',
           tabBarStyle: {
             backgroundColor: '#FFFFFF',
@@ -207,7 +208,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#FF6B35',
+        tabBarActiveTintColor: Colors.vividTeal,
         tabBarInactiveTintColor: '#999',
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
@@ -215,7 +216,11 @@ export default function TabLayout() {
           borderTopColor: '#E0E0E0',
           height: 90,
           paddingBottom: 30,
-          paddingTop: 10,
+          paddingTop: 15,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
         },
         tabBarLabelStyle: {
           fontSize: 12,
@@ -297,10 +302,9 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#FF6B35',
+    backgroundColor: Colors.energyOrange,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -20,
     shadowColor: '#FF6B35',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
