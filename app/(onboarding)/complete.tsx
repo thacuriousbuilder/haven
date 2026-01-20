@@ -48,7 +48,7 @@ export default function CompleteScreen() {
           goal: data.goal,
           workouts_per_week: data.workoutFrequency,
           activity_level: data.activityLevel,
-          baseline_start_date: new Date().toISOString().split('T')[0],
+          baseline_start_date: null,
           baseline_complete: false,
           onboarding_completed: true,
           updated_at: new Date().toISOString(),

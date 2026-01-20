@@ -2,6 +2,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
+import { Colors, Spacing, BorderRadius } from '@/constants/colors';
 
 export default function Index() {
   const [loading, setLoading] = useState(true);
@@ -43,6 +44,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#ffff',
   },
 });

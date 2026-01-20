@@ -18,6 +18,8 @@ import { getLocalDateString } from '@/utils/timezone';
 
 interface FoodLogSheetProps {
   onSuccess: () => void;
+  initialMethod?: 'camera' | 'photo' | 'search' | 'manual' | null;
+  initialImageBase64?: string | null;
 }
 
 type LogMethod = 'manual' | 'search' | 'image' | null;
@@ -40,13 +42,19 @@ interface RecentFood {
   meal_type: string;
 }
 
-export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
-  const [selectedMethod, setSelectedMethod] = useState<LogMethod>(null);
+export function FoodLogSheet({ 
+  onSuccess, 
+  initialMethod = null,
+  initialImageBase64 = null 
+}: FoodLogSheetProps) {
+  const [selectedMethod, setSelectedMethod] = useState<LogMethod>(
+    initialMethod === 'camera' || initialMethod === 'photo' ? 'image' : initialMethod || null
+  );
   const [foodDescription, setFoodDescription] = useState('');
   const [estimatedCalories, setEstimatedCalories] = useState('');
   const [mealType, setMealType] = useState<MealType>('breakfast');
   const [saving, setSaving] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(initialImageBase64 || null);
   const [processingImage, setProcessingImage] = useState(false);
 
   
@@ -69,7 +77,16 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
 
   useEffect(() => {
     loadRecentFoods();
-  }, []);
+    // Set initial method and image if provided
+    if (initialMethod === 'search') {
+      setSelectedMethod('search');
+    } else if (initialMethod === 'manual') {
+      setSelectedMethod('manual');
+    } else if (initialImageBase64) {
+      setSelectedImage(initialImageBase64);
+      setSelectedMethod('image');
+    }
+  }, [initialMethod,initialImageBase64]);
 
   useEffect(() => {
     if (selectedMethod === 'image' && selectedImage && !processingImage) {
@@ -181,11 +198,28 @@ export function FoodLogSheet({ onSuccess }: FoodLogSheetProps) {
         });
 
       if (error) {
-        console.error('Error saving food log:', error);
-        Alert.alert('Error', 'Failed to save food log');
-        setSaving(false);
-        return;
-      }
+            console.error('Error saving food log:', error);
+            Alert.alert('Error', 'Failed to save food log');
+            setSaving(false);
+            return;
+          }
+          const { data: profile } = await supabase
+      .from('profiles')
+      .select('baseline_start_date, baseline_complete')
+      .eq('id', user.id)
+      .single();
+
+    if (profile && !profile.baseline_complete && !profile.baseline_start_date) {
+      // This is the first food log - set baseline start date to today
+      const today = getLocalDateString();
+      await supabase
+        .from('profiles')
+        .update({ baseline_start_date: today })
+        .eq('id', user.id);
+      
+      console.log('✅ Baseline started on:', today);
+    }
+
 
       // Update daily summary
       if (calories > 0) {
