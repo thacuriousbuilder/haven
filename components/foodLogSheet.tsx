@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 import { searchFoods, getFoodDetails, getRecentFoods } from '@/utils/foodSearch';
 import * as ImagePicker from 'expo-image-picker';
 import { getLocalDateString } from '@/utils/timezone';
+import { Colors } from '@/constants/colors';
 
 interface FoodLogSheetProps {
   onSuccess: () => void;
@@ -468,198 +469,275 @@ export function FoodLogSheet({
   // Method selection screen
   if (!selectedMethod) {
     return (
-      <ScrollView 
-        style={styles.methodSelection}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.methodContent}
-      >
-        <Text style={styles.sectionTitle}>How would you like to log?</Text>
-        
-        {/* Recent Foods */}
-        {recentFoods.length > 0 && (
-          <View style={styles.recentSection}>
-            <Text style={styles.recentTitle}>Recent Foods</Text>
-            {(showAllRecent ? recentFoods : recentFoods.slice(0, RECENT_DISPLAY_LIMIT)).map((food, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.recentCard}
-                onPress={() => handleSelectRecent(food)}
-              >
-                <View style={styles.recentInfo}>
-                  <Text style={styles.recentName}>{food.food_name}</Text>
-                  <Text style={styles.recentCalories}>{food.calories} cal</Text>
-                </View>
-                <Ionicons name="add-circle-outline" size={24} color="#3D5A5C" />
-              </TouchableOpacity>
-            ))}
-            {recentFoods.length > RECENT_DISPLAY_LIMIT && (
-              <TouchableOpacity
-                style={styles.showMoreButton}
-                onPress={() => setShowAllRecent(!showAllRecent)}
-              >
-                <Text style={styles.showMoreText}>
-                  {showAllRecent ? 'Show Less' : `Show More (${recentFoods.length - RECENT_DISPLAY_LIMIT} more)`}
-                </Text>
-                <Ionicons 
-                  name={showAllRecent ? 'chevron-up' : 'chevron-down'} 
-                  size={16} 
-                  color="#3D5A5C" 
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-        
-        <TouchableOpacity
-          style={styles.methodCard}
-          onPress={() => setSelectedMethod('search')}
-        >
-          <View style={styles.methodIcon}>
-            <Ionicons name="search-outline" size={28} color="#3D5A5C" />
-          </View>
-          <View style={styles.methodInfo}>
-            <Text style={styles.methodTitle}>Search Database</Text>
-            <Text style={styles.methodDescription}>
-              Find foods with nutrition info
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.methodCard}
-          onPress={() => setSelectedMethod('manual')}
-        >
-          <View style={styles.methodIcon}>
-            <Ionicons name="create-outline" size={28} color="#3D5A5C" />
-          </View>
-          <View style={styles.methodInfo}>
-            <Text style={styles.methodTitle}>Manual Input</Text>
-            <Text style={styles.methodDescription}>
-              Quickly type what you ate
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-        </TouchableOpacity>    
-
-      <TouchableOpacity
-            style={styles.methodCard}
-            onPress={handleTakePhoto}
->
-           <View style={styles.methodIcon}>
-             <Ionicons name="camera-outline" size={28} color="#3D5A5C" />
-           </View>
-           <View style={styles.methodInfo}>
-             <Text style={styles.methodTitle}>Take Photo</Text>
-             <Text style={styles.methodDescription}>
-              Take a photo of your food for AI recognition
-             </Text>
-             </View>
-                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-         </TouchableOpacity>   
-         <TouchableOpacity
-            style={styles.methodCard}
-            onPress={handlePickImage}
->
-         <View style={styles.methodIcon}>
-            <Ionicons name="images-outline" size={28} color="#3D5A5C" />
-         </View>
-         <View style={styles.methodInfo}>
-           <Text style={styles.methodTitle}>Select Photo</Text>
-           <Text style={styles.methodDescription}>
-            Select a photo from your gallery for AI recognition
-        </Text>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>How would you like to log?</Text>
+          <Text style={styles.headerSubtitle}>Choose a method below</Text>
         </View>
-             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-        </TouchableOpacity>
-      </ScrollView>
+
+        <ScrollView 
+          style={styles.methodSelection}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.methodContent}
+        >
+          {/* Logging Method Cards */}
+          <View style={styles.methodsSection}>
+            {/* Take Photo - AI Badge */}
+            <TouchableOpacity
+              style={styles.methodCard}
+              onPress={handleTakePhoto}
+            >
+              <View style={[styles.methodIcon, styles.methodIconTeal]}>
+                <Ionicons name="camera" size={24} color="#206E6B" />
+              </View>
+              <View style={styles.methodInfo}>
+                <View style={styles.methodTitleRow}>
+                  <Text style={styles.methodTitle}>Take Photo</Text>
+                  <View style={styles.aiBadge}>
+                    <Text style={styles.aiBadgeText}>AI</Text>
+                  </View>
+                </View>
+                <Text style={styles.methodDescription}>
+                  AI-powered food recognition
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            </TouchableOpacity>
+
+            {/* Search Database */}
+            <TouchableOpacity
+              style={styles.methodCard}
+              onPress={() => setSelectedMethod('search')}
+            >
+              <View style={[styles.methodIcon, styles.methodIconTeal]}>
+                <Ionicons name="search" size={24} color="#206E6B" />
+              </View>
+              <View style={styles.methodInfo}>
+                <Text style={styles.methodTitle}>Search Database</Text>
+                <Text style={styles.methodDescription}>
+                  Find foods with nutrition info
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            </TouchableOpacity>
+
+            {/* Select Photo */}
+            <TouchableOpacity
+              style={styles.methodCard}
+              onPress={handlePickImage}
+            >
+              <View style={[styles.methodIcon, styles.methodIconTeal]}>
+                <Ionicons name="images" size={24} color="#206E6B" />
+              </View>
+              <View style={styles.methodInfo}>
+                <Text style={styles.methodTitle}>Select Photo</Text>
+                <Text style={styles.methodDescription}>
+                  Choose from your gallery
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            </TouchableOpacity>
+
+            {/* Manual Input */}
+            <TouchableOpacity
+              style={styles.methodCard}
+              onPress={() => setSelectedMethod('manual')}
+            >
+              <View style={[styles.methodIcon, styles.methodIconTeal]}>
+                <Ionicons name="create-outline" size={24} color="#206E6B" />
+              </View>
+              <View style={styles.methodInfo}>
+                <Text style={styles.methodTitle}>Recipe</Text>
+                <Text style={styles.methodDescription}>
+                 Add a recipe
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Recent Foods Section */}
+          {recentFoods.length > 0 && (
+            <View style={styles.recentSection}>
+              <Text style={styles.recentSectionTitle}>RECENT FOODS</Text>
+              
+              <View style={styles.recentCard}>
+                {(showAllRecent ? recentFoods : recentFoods.slice(0, RECENT_DISPLAY_LIMIT)).map((food, index) => (
+                  <View key={index}>
+                    <TouchableOpacity
+                      style={styles.recentItem}
+                      onPress={() => handleSelectRecent(food)}
+                    >
+                      <View style={styles.recentInfo}>
+                        <Text style={styles.recentName} numberOfLines={1}>
+                          {food.food_name}
+                        </Text>
+                        <Text style={styles.recentCalories}>
+                          {food.calories} cal
+                        </Text>
+                      </View>
+                      <View style={styles.recentAddButton}>
+                        <Ionicons name="add" size={20} color="#206E6B" />
+                      </View>
+                    </TouchableOpacity>
+                    {index < (showAllRecent ? recentFoods.length - 1 : RECENT_DISPLAY_LIMIT - 1) && (
+                      <View style={styles.recentDivider} />
+                    )}
+                  </View>
+                ))}
+              </View>
+
+              {recentFoods.length > RECENT_DISPLAY_LIMIT && (
+                <TouchableOpacity
+                  style={styles.showMoreButton}
+                  onPress={() => setShowAllRecent(!showAllRecent)}
+                >
+                  <Text style={styles.showMoreText}>
+                    {showAllRecent 
+                      ? 'Show Less' 
+                      : `Show More (${recentFoods.length - RECENT_DISPLAY_LIMIT} more)`
+                    }
+                  </Text>
+                  <Ionicons 
+                    name={showAllRecent ? "chevron-up" : "chevron-down"} 
+                    size={16} 
+                    color="#206E6B" 
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {loadingRecent && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#206E6B" />
+            </View>
+          )}
+        </ScrollView>
+      </View>
     );
   }
 
   // Search screen
   if (selectedMethod === 'search') {
     return (
-      <ScrollView 
-        style={styles.formContainer}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.formContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => {
-            setSelectedMethod(null);
-            setSearchQuery('');
-            setSearchResults([]);
-            setHasSearched(false);
-          }}
-        >
-          <Ionicons name="arrow-back" size={20} color="#3D5A5C" />
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.formTitle}>Search for food</Text>
-
-        {/* Search Input */}
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search foods..."
-            placeholderTextColor="#9CA3AF"
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-          />
-          <TouchableOpacity 
-            style={styles.searchButton}
-            onPress={handleSearch}
-            disabled={searching}
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.searchHeader}>
+          <TouchableOpacity
+            onPress={() => {
+              setSelectedMethod(null);
+              setSearchQuery('');
+              setSearchResults([]);
+              setHasSearched(false);
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            {searching ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons name="search" size={20} color="#FFFFFF" />
-            )}
+            <Ionicons name="arrow-back" size={24} color="#504D47" />
           </TouchableOpacity>
+          <Text style={styles.searchHeaderTitle}>Search Foods</Text>
+          <View style={{ width: 24 }} />
         </View>
 
-        {/* Search Results */}
-        {searchResults.length > 0 && (
-          <View style={styles.resultsContainer}>
-            <Text style={styles.resultsTitle}>Results</Text>
-            {searchResults.map((result) => (
-              <TouchableOpacity
-                key={result.food_id}
-                style={styles.resultCard}
-                onPress={() => {
-                  handleSelectFood(result);
-                  setSelectedMethod('manual');
-                }}
-              >
-                <View style={styles.resultInfo}>
-                  <Text style={styles.resultName}>{result.food_name}</Text>
-                  {result.brand_name && (
-                    <Text style={styles.resultBrand}>{result.brand_name}</Text>
-                  )}
-                  <Text style={styles.resultDescription} numberOfLines={2}>
-                    {result.food_description}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-            ))}
+        <View style={styles.searchContent}>
+          {/* Search Input */}
+          <View style={styles.searchInputContainer}>
+            <Ionicons 
+              name="search" 
+              size={20} 
+              color="#9CA3AF" 
+              style={styles.searchIcon}
+            />
+            <TextInput
+              style={styles.searchInputField}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search for a food..."
+              placeholderTextColor="#9CA3AF"
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+              autoFocus
+            />
           </View>
-        )}
 
-        {hasSearched && searchQuery && searchResults.length === 0 && !searching && (
-          <View style={styles.noResults}>
-            <Ionicons name="search-outline" size={48} color="#9CA3AF" />
-            <Text style={styles.noResultsText}>No foods found</Text>
-            <Text style={styles.noResultsSubtext}>Try a different search term</Text>
-          </View>
-        )}
-      </ScrollView>
+          <ScrollView 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.searchScrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+         
+
+            {/* Search Results */}
+            {searchResults.length > 0 && (
+              <View style={styles.searchResultsSection}>
+                <View style={styles.searchResultsHeader}>
+                  <Ionicons name="time-outline" size={18} color="#9CA3AF" />
+                  <Text style={styles.searchResultsTitle}>Recent</Text>
+                </View>
+            
+                {searchResults.map((result) => (
+                  <TouchableOpacity
+                    key={result.food_id}
+                    style={styles.searchResultCard}
+                    onPress={() => {
+                      handleSelectFood(result);
+                      setSelectedMethod('manual');
+                    }}
+                  >
+                    <View style={styles.searchResultInfo}>
+                      <Text style={styles.searchResultName} numberOfLines={2}>
+                        {result.food_name}
+                      </Text>
+                      {result.brand_name && (
+                        <Text style={styles.searchResultBrand} numberOfLines={1}>
+                          {result.brand_name}
+                        </Text>
+                      )}
+                      <Text style={styles.searchResultCalories} numberOfLines={1}>
+                        {result.food_description}
+                      </Text>
+                    </View>
+                    <View style={styles.searchResultAddButton}>
+                      <Ionicons name="add" size={20} color="#206E6B" />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* No Results */}
+            {hasSearched && searchQuery && searchResults.length === 0 && !searching && (
+              <View style={styles.noResults}>
+                <Ionicons name="search-outline" size={48} color="#D1D5DB" />
+                <Text style={styles.noResultsText}>No foods found</Text>
+                <Text style={styles.noResultsSubtext}>
+                  Try a different search term or add it manually
+                </Text>
+              </View>
+            )}
+
+            {/* Loading */}
+            {searching && (
+              <View style={styles.searchLoadingContainer}>
+                <ActivityIndicator size="large" color="#206E6B" />
+                <Text style={styles.searchLoadingText}>Searching...</Text>
+              </View>
+            )}
+
+            {/* Initial State - No Search Yet */}
+            {!hasSearched && !searching && (
+              <View style={styles.searchEmptyState}>
+                <Ionicons name="search" size={64} color="#E5E7EB" />
+                <Text style={styles.searchEmptyTitle}>Search for foods</Text>
+                <Text style={styles.searchEmptySubtext}>
+                  Find nutrition info for thousands of foods
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
     );
   }
   // Image processing screen
@@ -716,8 +794,6 @@ export function FoodLogSheet({
   );
 }
 
-
-
   return (
     <ScrollView 
       style={styles.formContainer} 
@@ -735,8 +811,6 @@ export function FoodLogSheet({
         <Ionicons name="arrow-back" size={20} color="#3D5A5C" />
         <Text style={styles.backText}>Back</Text>
       </TouchableOpacity>
-
-      <Text style={styles.formTitle}>What did you eat?</Text>
       
       {selectedFood && (
         <View style={styles.selectedFoodBanner}>
@@ -856,18 +930,39 @@ export function FoodLogSheet({
     </ScrollView>
   );
 }
+
+
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.lightCream,
+  },
+  header: {
+    backgroundColor:  Colors.lightCream ,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#504D47',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
   methodSelection: {
     flex: 1,
   },
   methodContent: {
+    paddingHorizontal: 20,
     paddingBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#3D5A5C',
-    marginBottom: 20,
+  methodsSection: {
+    marginTop: 24,
+    gap: 12,
   },
   methodCard: {
     backgroundColor: '#FFFFFF',
@@ -875,45 +970,128 @@ const styles = StyleSheet.create({
     padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 2,
-  },
-  methodCardDisabled: {
-    opacity: 0.6,
   },
   methodIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F5F1E8',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
   },
+  methodIconTeal: {
+    backgroundColor: 'rgba(32, 110, 107, 0.1)',
+  },
   methodInfo: {
     flex: 1,
+  },
+  methodTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   methodTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3D5A5C',
-    marginBottom: 4,
+    color: '#504D47',
+    marginRight: 8,
+  },
+  aiBadge: {
+    backgroundColor: '#EF7828',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  aiBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   methodDescription: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#6B7280',
   },
-  disabledText: {
+  recentSection: {
+    marginTop: 32,
+  },
+  recentSectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#9CA3AF',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  recentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  recentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  recentInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  recentName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#504D47',
+    marginBottom: 4,
+  },
+  recentCalories: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  recentAddButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(32, 110, 107, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginLeft: 16,
+  },
+  showMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginTop: 12,
+    gap: 4,
+  },
+  showMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#206E6B',
+  },
+  loadingContainer: {
+    paddingVertical: 32,
+    alignItems: 'center',
   },
   formContainer: {
     flex: 1,
+    backgroundColor: Colors.lightCream,
   },
   formContent: {
+    paddingHorizontal: 20,
     paddingBottom: 20,
   },
   backButton: {
@@ -921,16 +1099,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 20,
+    marginTop: 16,
   },
   backText: {
     fontSize: 16,
-    color: '#3D5A5C',
+    color: '#504D47',
     fontWeight: '600',
   },
   formTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: '#504D47',
     marginBottom: 8,
   },
   formSubtitle: {
@@ -945,7 +1124,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: '#504D47',
     marginBottom: 8,
   },
   mealTypeGrid: {
@@ -965,13 +1144,13 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   mealTypeCardActive: {
-    backgroundColor: '#3D5A5C',
-    borderColor: '#3D5A5C',
+    backgroundColor: '#206E6B',
+    borderColor: '#206E6B',
   },
   mealTypeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: '#504D47',
   },
   mealTypeTextActive: {
     color: '#FFFFFF',
@@ -981,7 +1160,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#3D5A5C',
+    color: '#504D47',
     minHeight: 100,
   },
   input: {
@@ -989,7 +1168,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#3D5A5C',
+    color: '#504D47',
   },
   hint: {
     fontSize: 12,
@@ -997,7 +1176,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   saveButton: {
-    backgroundColor: '#3D5A5C',
+    backgroundColor: '#206E6B',
     borderRadius: 12,
     padding: 18,
     alignItems: 'center',
@@ -1015,53 +1194,6 @@ const styles = StyleSheet.create({
   bottomPadding: {
     height: 300,
   },
-  recentSection: {
-    marginBottom: 24,
-  },
-  recentTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  recentCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  recentInfo: {
-    flex: 1,
-  },
-  recentName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3D5A5C',
-    marginBottom: 4,
-  },
-  recentCalories: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  showMoreButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginTop: 8,
-    gap: 6,
-  },
-  showMoreText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3D5A5C',
-  },
   searchContainer: {
     flexDirection: 'row',
     gap: 8,
@@ -1073,10 +1205,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#3D5A5C',
+    color: '#504D47',
   },
   searchButton: {
-    backgroundColor: '#3D5A5C',
+    backgroundColor: '#206E6B',
     borderRadius: 12,
     width: 52,
     justifyContent: 'center',
@@ -1107,7 +1239,7 @@ const styles = StyleSheet.create({
   resultName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: '#504D47',
     marginBottom: 4,
   },
   resultBrand: {
@@ -1157,7 +1289,7 @@ const styles = StyleSheet.create({
   nutritionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: '#504D47',
     marginBottom: 12,
   },
   nutritionGrid: {
@@ -1170,7 +1302,7 @@ const styles = StyleSheet.create({
   nutritionValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: '#504D47',
     marginBottom: 4,
   },
   nutritionLabel: {
@@ -1179,6 +1311,8 @@ const styles = StyleSheet.create({
   },
   imageProcessingContainer: {
     flex: 1,
+    backgroundColor: '#FAF9F6',
+    paddingHorizontal: 20,
     paddingBottom: 24,
   },
   imagePreview: {
@@ -1199,7 +1333,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(61, 90, 92, 0.8)',
+    backgroundColor: 'rgba(32, 110, 107, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 16,
@@ -1210,7 +1344,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   retryButton: {
-    backgroundColor: '#3D5A5C',
+    backgroundColor: '#206E6B',
     borderRadius: 12,
     padding: 18,
     alignItems: 'center',
@@ -1227,12 +1361,12 @@ const styles = StyleSheet.create({
     padding: 18,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#3D5A5C',
+    borderColor: '#206E6B',
   },
   skipButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: '#206E6B',
   },
   estimateButton: {
     flexDirection: 'row',
@@ -1245,7 +1379,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F1E8',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#3D5A5C',
+    borderColor: '#206E6B',
     borderStyle: 'dashed',
   },
   estimateButtonDisabled: {
@@ -1254,7 +1388,7 @@ const styles = StyleSheet.create({
   estimateButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: '#206E6B',
   },
   aiEstimateBadge: {
     flexDirection: 'row',
@@ -1271,5 +1405,133 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#065F46',
+  },
+  // Search Screen Styles
+  searchHeader: {
+    backgroundColor: Colors.lightCream,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  searchHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.graphite,
+  },
+  searchContent: {
+    flex: 1,
+    backgroundColor: Colors.lightCream,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInputField: {
+    flex: 1,
+    fontSize: 16,
+    color: '#504D47',
+  },
+  searchScrollContent: {
+    paddingBottom: 24,
+  },
+  searchResultsSection: {
+    paddingHorizontal: 20,
+  },
+  searchResultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  searchResultsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  searchResultCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  searchResultInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  searchResultName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#504D47',
+    marginBottom: 4,
+  },
+  searchResultBrand: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  searchResultCalories: {
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  searchResultAddButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(32, 110, 107, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchLoadingContainer: {
+    paddingVertical: 64,
+    alignItems: 'center',
+    gap: 16,
+  },
+  searchLoadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  searchEmptyState: {
+    paddingVertical: 80,
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  searchEmptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#504D47',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  searchEmptySubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

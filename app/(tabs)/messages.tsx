@@ -9,12 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  Keyboard
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView ,useSafeAreaInsets} from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { Colors } from '@/constants/colors';
 
 interface Message {
   id: string;
@@ -32,6 +34,8 @@ interface Profile {
 }
 
 export default function MessagesScreen() {
+  const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -45,9 +49,36 @@ export default function MessagesScreen() {
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
 
+  const getInitials = (name: string): string => {
+    const names = name.trim().split(' ');
+    if (names.length >= 2) {
+      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  
+
   useEffect(() => {
     fetchUserAndMessages();
   }, []);
+
+    // Add keyboard listeners
+    useEffect(() => {
+      const keyboardWillShow = Keyboard.addListener(
+        Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+        () => setKeyboardVisible(true)
+      );
+      const keyboardWillHide = Keyboard.addListener(
+        Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+        () => setKeyboardVisible(false)
+      );
+
+      return () => {
+        keyboardWillShow.remove();
+        keyboardWillHide.remove();
+      };
+    }, []);
 
   useEffect(() => {
     if (!currentUserId || !trainerId) return;
@@ -336,6 +367,36 @@ export default function MessagesScreen() {
     }
   };
 
+
+      const formatConversationTime = (timestamp: string) => {
+        const messageDate = new Date(timestamp);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        const messageDay = new Date(messageDate);
+        messageDay.setHours(0, 0, 0, 0);
+        
+        if (messageDay.getTime() === today.getTime()) {
+          // Today - show time
+          return messageDate.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          });
+        } else if (messageDay.getTime() === yesterday.getTime()) {
+          return 'Yesterday';
+        } else {
+          // Older - show date
+          return messageDate.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric',
+          });
+        }
+      };
+
   //function to check if we need a date separator
   const shouldShowDateSeparator = (currentMessage: Message, previousMessage: Message | null) => {
     if (!previousMessage) return true;
@@ -346,35 +407,47 @@ export default function MessagesScreen() {
     return currentDate !== previousDate;
   };
 
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-    const isFromMe = item.sender_id === currentUserId;
-    const previousMessage = index > 0 ? messages[index - 1] : null;
-    const showDateSeparator = shouldShowDateSeparator(item, previousMessage);
-  
-    return (
-      <>
-        {showDateSeparator && (
-          <View style={styles.dateSeparatorContainer}>
-            <View style={styles.dateSeparatorLine} />
-            <Text style={styles.dateSeparatorText}>
-              {formatDateSeparator(item.created_at)}
-            </Text>
-            <View style={styles.dateSeparatorLine} />
-          </View>
-        )}
-        <View style={[styles.messageContainer, isFromMe ? styles.myMessage : styles.theirMessage]}>
-          <View style={[styles.messageBubble, isFromMe ? styles.myBubble : styles.theirBubble]}>
-            <Text style={[styles.messageText, isFromMe ? styles.myMessageText : styles.theirMessageText]}>
-              {item.message_text}
-            </Text>
-            <Text style={[styles.messageTime, isFromMe ? styles.myMessageTime : styles.theirMessageTime]}>
-              {formatTime(item.created_at)}
-            </Text>
-          </View>
+ 
+
+const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+  const isFromMe = item.sender_id === currentUserId;
+  const previousMessage = index > 0 ? messages[index - 1] : null;
+  const showDateSeparator = shouldShowDateSeparator(item, previousMessage);
+
+  return (
+    <>
+      {showDateSeparator && (
+        <View style={styles.dateSeparatorContainer}>
+          <Text style={styles.dateSeparatorText}>
+            {formatDateSeparator(item.created_at)}
+          </Text>
         </View>
-      </>
-    );
-  };
+      )}
+      <View style={[
+        styles.messageContainer, 
+        isFromMe ? styles.myMessage : styles.theirMessage
+      ]}>
+        <View style={[
+          styles.messageBubble, 
+          isFromMe ? styles.myBubble : styles.theirBubble
+        ]}>
+          <Text style={[
+            styles.messageText, 
+            isFromMe ? styles.myMessageText : styles.theirMessageText
+          ]}>
+            {item.message_text}
+          </Text>
+          <Text style={[
+            styles.messageTime, 
+            isFromMe ? styles.myMessageTime : styles.theirMessageTime
+          ]}>
+            {formatTime(item.created_at)}
+          </Text>
+        </View>
+      </View>
+    </>
+  );
+};
 
   if (loading) {
     return (
@@ -386,65 +459,90 @@ export default function MessagesScreen() {
     );
   }
 
-  // TRAINER VIEW - Conversation List
-  if (userType === 'trainer') {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Messages</Text>
-        </View>
-  
-        {conversations.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="chatbubbles-outline" size={64} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No Conversations</Text>
-            <Text style={styles.emptyDescription}>
-              Your clients will appear here once they send you a message
+
+// TRAINER VIEW - Conversation List
+if (userType === 'trainer') {
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Updated Header */}
+      <View style={styles.trainerHeaderWrapper}>
+        <View style={styles.trainerHeaderTop}>
+          <Text style={styles.trainerHeaderTitle}>Messages</Text>
+          <View style={styles.unreadCountContainer}>
+            <Text style={styles.unreadCountText}>
+              {conversations.filter(c => c.unreadCount > 0).length} unread conversations
             </Text>
           </View>
-        ) : (
-          <FlatList
-            data={conversations}
-            keyExtractor={(item) => item.clientId}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.conversationCard}
-                onPress={() => {
-                  console.log('Navigate to thread with:', item.clientId);
-                  router.push(`/messageThread/${item.clientId}`);
-                }}
-              >
-                <View style={styles.conversationLeft}>
-                  <View style={styles.avatarCircle}>
-                    <Ionicons name="person" size={20} color="#3D5A5C" />
-                  </View>
-                  <View style={styles.conversationInfo}>
-                    <Text style={styles.conversationName}>{item.clientName}</Text>
-                    <Text style={styles.conversationPreview} numberOfLines={1}>
-                      {item.lastMessage}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.conversationRight}>
-                  {item.lastMessageTime && (
-                    <Text style={styles.conversationTime}>
-                      {formatTime(item.lastMessageTime)}
-                    </Text>
-                  )}
-                  {item.unreadCount > 0 && (
-                    <View style={styles.unreadBadge}>
-                      <Text style={styles.unreadText}>{item.unreadCount}</Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={styles.conversationList}
+        </View>
+        
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color="#6B7280" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search conversations..."
+            placeholderTextColor="#9CA3AF"
           />
-        )}
-      </SafeAreaView>
-    );
-  }
+        </View>
+      </View>
+
+      {conversations.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="chatbubbles-outline" size={64} color="#D1D5DB" />
+          <Text style={styles.emptyTitle}>No Conversations</Text>
+          <Text style={styles.emptyDescription}>
+            Your clients will appear here once they send you a message
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={conversations}
+          keyExtractor={(item) => item.clientId}
+          renderItem={({ item }) => (
+       
+            <TouchableOpacity
+              style={styles.conversationCard}
+              onPress={() => {
+                router.push(`/messageThread/${item.clientId}`);
+              }}
+            >
+              <View style={styles.conversationLeft}>
+                <View style={styles.conversationAvatar}>
+                  <Text style={styles.conversationAvatarText}>
+                    {getInitials(item.clientName)}
+                  </Text>
+                </View>
+                <View style={styles.conversationInfo}>
+                  <View style={styles.conversationHeader}>
+                    <Text style={styles.conversationName}>{item.clientName}</Text>
+                    {item.lastMessageTime && (
+                      <Text style={styles.conversationTime}>
+                        {formatConversationTime(item.lastMessageTime)}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.conversationPreview} numberOfLines={1}>
+                    {item.lastMessage}
+                  </Text>
+            
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusBadgeText}>In Baseline</Text>
+                  </View>
+                </View>
+              </View>
+              {item.unreadCount > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadText}>{item.unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+                      )}
+          contentContainerStyle={styles.conversationList}
+        />
+      )}
+    </SafeAreaView>
+  );
+}
 
   if (!trainerId) {
     return (
@@ -461,81 +559,109 @@ export default function MessagesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView 
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.avatarCircle}>
-              <Ionicons name="person" size={20} color="#3D5A5C" />
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <KeyboardAvoidingView 
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
+          {/* Header */}
+          <View style={styles.headerWrapper}>
+            <View style={styles.headerContent}>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => router.back()}
+              >
+                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+              
+              <View style={styles.headerCenter}>
+                <View style={styles.headerAvatar}>
+                  <Text style={styles.headerAvatarText}>{getInitials(trainerName)}</Text>
+                </View>
+                <View style={styles.headerTextContainer}>
+                  <Text style={styles.headerName}>{trainerName}</Text>
+                </View>
+              </View>
+    
+              <TouchableOpacity style={styles.menuButton}>
+                <Ionicons name="ellipsis-vertical" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.headerTitle}>{trainerName}</Text>
           </View>
-        </View>
+    
+          {/* Messages List */}
+          {messages.length === 0 ? (
+            <View style={styles.emptyMessagesContainer}>
+              <Ionicons name="chatbubble-outline" size={48} color="#D1D5DB" />
+              <Text style={styles.emptyMessagesText}>No messages yet</Text>
+              <Text style={styles.emptyMessagesSubtext}>
+                Start a conversation with your trainer
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              renderItem={renderMessage}
+              keyExtractor={item => item.id}
+              contentContainerStyle={styles.messagesList}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#3D5A5C"
+                />
+              }
+            />
+          )}
+    
+      
 
-        {/* Messages List */}
-        {messages.length === 0 ? (
-          <View style={styles.emptyMessagesContainer}>
-            <Ionicons name="chatbubble-outline" size={48} color="#D1D5DB" />
-            <Text style={styles.emptyMessagesText}>No messages yet</Text>
-            <Text style={styles.emptyMessagesSubtext}>
-              Start a conversation with your trainer
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            renderItem={renderMessage}
-            keyExtractor={item => item.id}
-            contentContainerStyle={styles.messagesList}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor="#3D5A5C"
-              />
-            }
-          />
-        )}
-
-        {/* Input Area */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            value={newMessage}
-            onChangeText={setNewMessage}
-            placeholder="Type a message..."
-            placeholderTextColor="#9CA3AF"
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled]}
-            onPress={sendMessage}
-            disabled={!newMessage.trim() || sending}
-          >
-            {sending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons name="send" size={20} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
+<View style={[
+  styles.inputContainerWrapper, 
+  { 
+    paddingBottom: keyboardVisible 
+      ? 0 
+      : Platform.OS === 'ios' 
+        ? insets.bottom + 55
+        : 16 
+  }
+]}>
+  <View style={styles.inputContainer}>
+    <TextInput
+      style={styles.input}
+      value={newMessage}
+      onChangeText={setNewMessage}
+      placeholder="Type a message."
+      placeholderTextColor="#9CA3AF"
+      multiline
+      maxLength={500}
+    />
+    
+    <TouchableOpacity
+      style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled]}
+      onPress={sendMessage}
+      disabled={!newMessage.trim() || sending}
+    >
+      {sending ? (
+        <ActivityIndicator size="small" color="#FFFFFF" />
+      ) : (
+        <Ionicons name="send" size={20} color="#FFFFFF" />
+      )}
+    </TouchableOpacity>
+  </View>
+</View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: Colors.lightCream,
   },
   loadingContainer: {
     flex: 1,
@@ -554,6 +680,58 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+ //client message
+headerWrapper: {
+  backgroundColor: '#206E6B',
+  paddingTop: 8,
+},
+headerContent: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+},
+backButton: {
+  width: 40,
+  height: 40,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+headerCenter: {
+  flex: 1,
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+  marginLeft: 8,
+},
+headerAvatar: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#2D8B87',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+headerAvatarText: {
+  fontSize: 16,
+  fontWeight: '700',
+  color: '#FFFFFF',
+},
+headerTextContainer: {
+  flex: 1,
+},
+headerName: {
+  fontSize: 18,
+  fontWeight: '600',
+  color: '#FFFFFF',
+},
+menuButton: {
+  width: 40,
+  height: 40,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
   avatarCircle: {
     width: 40,
     height: 40,
@@ -568,11 +746,13 @@ const styles = StyleSheet.create({
     color: '#3D5A5C',
   },
   messagesList: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
     paddingVertical: 20,
+    paddingBottom:20,
   },
   messageContainer: {
-    marginBottom: 12,
+    marginBottom: 8,
+    paddingHorizontal: 16,
   },
   myMessage: {
     alignItems: 'flex-end',
@@ -581,65 +761,77 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   messageBubble: {
-    maxWidth: '75%',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+    maxWidth: '80%',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 8,
+    borderRadius: 18,
   },
   myBubble: {
-    backgroundColor: '#3D5A5C',
+    backgroundColor: Colors.vividTeal,
     borderBottomRightRadius: 4,
   },
   theirBubble: {
     backgroundColor: '#FFFFFF',
     borderBottomLeftRadius: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   messageText: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
     marginBottom: 4,
   },
   myMessageText: {
     color: '#FFFFFF',
   },
   theirMessageText: {
-    color: '#3D5A5C',
+    color: '#1F2937',
   },
   messageTime: {
     fontSize: 11,
+    marginTop: 2,
   },
   myMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.75)',
     textAlign: 'right',
   },
   theirMessageTime: {
     color: '#9CA3AF',
+    textAlign: 'right',
+  },
+  inputContainerWrapper: {
+    paddingBottom: Platform.OS === 'ios' ? 20 : 0, 
   },
   inputContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    alignItems: 'flex-end',
+    borderTopColor: '#F3F4F6',
+    alignItems: 'center',
     gap: 12,
   },
   input: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: '#F9FAFB',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    fontSize: 16,
-    color: '#3D5A5C',
+    fontSize: 15,
+    color: '#1F2937',
     maxHeight: 100,
+    minHeight: 40,
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#3D5A5C',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#206E6B',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -683,10 +875,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   dateSeparatorContainer: {
-    flexDirection: 'row',
     alignItems: 'center',
     marginVertical: 16,
-    paddingHorizontal: 16,
   },
   dateSeparatorLine: {
     flex: 1,
@@ -694,65 +884,156 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   dateSeparatorText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
     color: '#9CA3AF',
-    marginHorizontal: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  conversationList: {
-    paddingVertical: 8,
-  },
-  conversationCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  conversationLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-  },
-  conversationInfo: {
-    flex: 1,
-  },
-  conversationName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3D5A5C',
-    marginBottom: 4,
-  },
-  conversationPreview: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  conversationRight: {
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  conversationTime: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  unreadBadge: {
-    backgroundColor: '#3D5A5C',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
     borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
   },
-  unreadText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
+trainerHeaderWrapper: {
+  backgroundColor: '#206E6B',
+  paddingTop: 8,
+  paddingBottom: 16,
+},
+trainerHeaderTop: {
+  paddingHorizontal: 24,
+  paddingTop: 8,
+  paddingBottom: 12,
+},
+trainerHeaderTitle: {
+  fontSize: 32,
+  fontWeight: '700',
+  color: '#FFFFFF',
+  marginBottom: 4,
+},
+unreadCountContainer: {
+  marginTop: 4,
+},
+unreadCountText: {
+  fontSize: 14,
+  color: 'rgba(255, 255, 255, 0.8)',
+},
+searchContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  backgroundColor: Colors.white,
+  marginHorizontal: 24,
+  paddingHorizontal: 16,
+  paddingVertical: 10,
+  borderRadius: 12,
+  gap: 10,
+},
+searchInput: {
+  flex: 1,
+  fontSize: 16,
+  color: '#FFFFFF',
+},
+conversationList: {
+  paddingVertical: 8,
+},
+conversationCard: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  backgroundColor: '#FFFFFF',
+  paddingHorizontal: 20,
+  paddingVertical: 16,
+  marginHorizontal: 16,
+  marginVertical: 6,
+  borderRadius: 16,
+  // iOS shadow
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.05,
+  shadowRadius: 2,
+  // Android shadow
+  elevation: 2,
+  // Remove any default borders
+  borderWidth: 0,
+},
+conversationLeft: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  flex: 1,
+  gap: 12,
+},
+conversationAvatarContainer: {
+  position: 'relative',
+},
+conversationAvatar: {
+  width: 56,
+  height: 56,
+  borderRadius: 28,
+  backgroundColor: '#EF7828',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+conversationAvatarText: {
+  fontSize: 20,
+  fontWeight: '700',
+  color: '#FFFFFF',
+},
+onlineIndicator: {
+  position: 'absolute',
+  bottom: 2,
+  right: 2,
+  width: 14,
+  height: 14,
+  borderRadius: 7,
+  backgroundColor: '#10B981',
+  borderWidth: 2,
+  borderColor: '#FFFFFF',
+},
+conversationInfo: {
+  flex: 1,
+  gap: 4,
+},
+conversationHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+},
+conversationName: {
+  fontSize: 17,
+  fontWeight: '600',
+  color: '#1F2937',
+},
+conversationTime: {
+  fontSize: 13,
+  color: '#6B7280',
+},
+conversationPreview: {
+  fontSize: 15,
+  color: '#6B7280',
+  lineHeight: 20,
+},
+statusBadge: {
+  alignSelf: 'flex-start',
+  backgroundColor: '#FEF3C7',
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  borderRadius: 12,
+  marginTop: 4,
+},
+statusBadgeText: {
+  fontSize: 12,
+  fontWeight: '600',
+  color: '#F59E0B',
+},
+unreadBadge: {
+  backgroundColor: '#EF7828',
+  borderRadius: 12,
+  minWidth: 28,
+  height: 28,
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 10,
+},
+unreadText: {
+  fontSize: 13,
+  fontWeight: '700',
+  color: '#FFFFFF',
+},
 });
