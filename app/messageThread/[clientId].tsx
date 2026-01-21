@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '@/constants/colors';
 
 interface Message {
   id: string;
@@ -24,6 +25,14 @@ interface Message {
   read: boolean;
   created_at: string;
 }
+
+const getInitials = (name: string): string => {
+  const names = name.trim().split(' ');
+  if (names.length >= 2) {
+    return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+};
 
 export default function MessageThreadScreen() {
   const { clientId } = useLocalSearchParams<{ clientId: string }>();
@@ -232,35 +241,46 @@ export default function MessageThreadScreen() {
     return currentDate !== previousDate;
   };
 
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-    const isFromMe = item.sender_id === currentUserId;
-    const previousMessage = index > 0 ? messages[index - 1] : null;
-    const showDateSeparator = shouldShowDateSeparator(item, previousMessage);
+  
+const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+  const isFromMe = item.sender_id === currentUserId;
+  const previousMessage = index > 0 ? messages[index - 1] : null;
+  const showDateSeparator = shouldShowDateSeparator(item, previousMessage);
 
-    return (
-      <>
-        {showDateSeparator && (
-          <View style={styles.dateSeparatorContainer}>
-            <View style={styles.dateSeparatorLine} />
-            <Text style={styles.dateSeparatorText}>
-              {formatDateSeparator(item.created_at)}
-            </Text>
-            <View style={styles.dateSeparatorLine} />
-          </View>
-        )}
-        <View style={[styles.messageContainer, isFromMe ? styles.myMessage : styles.theirMessage]}>
-          <View style={[styles.messageBubble, isFromMe ? styles.myBubble : styles.theirBubble]}>
-            <Text style={[styles.messageText, isFromMe ? styles.myMessageText : styles.theirMessageText]}>
-              {item.message_text}
-            </Text>
-            <Text style={[styles.messageTime, isFromMe ? styles.myMessageTime : styles.theirMessageTime]}>
-              {formatTime(item.created_at)}
-            </Text>
-          </View>
+  return (
+    <>
+      {showDateSeparator && (
+        <View style={styles.dateSeparatorContainer}>
+          <Text style={styles.dateSeparatorText}>
+            {formatDateSeparator(item.created_at)}
+          </Text>
         </View>
-      </>
-    );
-  };
+      )}
+      <View style={[
+        styles.messageContainer, 
+        isFromMe ? styles.myMessage : styles.theirMessage
+      ]}>
+        <View style={[
+          styles.messageBubble, 
+          isFromMe ? styles.myBubble : styles.theirBubble
+        ]}>
+          <Text style={[
+            styles.messageText, 
+            isFromMe ? styles.myMessageText : styles.theirMessageText
+          ]}>
+            {item.message_text}
+          </Text>
+          <Text style={[
+            styles.messageTime, 
+            isFromMe ? styles.myMessageTime : styles.theirMessageTime
+          ]}>
+            {formatTime(item.created_at)}
+          </Text>
+        </View>
+      </View>
+    </>
+  );
+};
 
   if (loading) {
     return (
@@ -273,28 +293,36 @@ export default function MessageThreadScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <KeyboardAvoidingView 
+           style={styles.container}
+           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
         {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#3D5A5C" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <View style={styles.avatarCircle}>
-              <Ionicons name="person" size={20} color="#3D5A5C" />
+        <View style={styles.headerWrapper}>
+              <View style={styles.headerContent}>
+                <TouchableOpacity 
+                  style={styles.backButton}
+                  onPress={() => router.back()}
+                >
+                  <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+                
+                <View style={styles.headerCenter}>
+                  <View style={styles.headerAvatar}>
+                    <Text style={styles.headerAvatarText}>{getInitials(clientName)}</Text>
+                  </View>
+                  <View style={styles.headerTextContainer}>
+                    <Text style={styles.headerName}>{clientName}</Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity style={styles.menuButton}>
+                  <Ionicons name="ellipsis-vertical" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text style={styles.headerTitle}>{clientName}</Text>
-          </View>
-          <View style={styles.headerRight} />
-        </View>
 
         {/* Messages List */}
         {messages.length === 0 ? (
@@ -313,6 +341,7 @@ export default function MessageThreadScreen() {
             keyExtractor={item => item.id}
             contentContainerStyle={styles.messagesList}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -329,11 +358,12 @@ export default function MessageThreadScreen() {
             style={styles.input}
             value={newMessage}
             onChangeText={setNewMessage}
-            placeholder="Type a message..."
+            placeholder="Type a message."
             placeholderTextColor="#9CA3AF"
             multiline
             maxLength={500}
           />
+          
           <TouchableOpacity
             style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled]}
             onPress={sendMessage}
@@ -346,29 +376,38 @@ export default function MessageThreadScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
-}
+              </KeyboardAvoidingView>
+            </SafeAreaView>
+          );
+        }
+
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: Colors.lightCream,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
+  headerWrapper: {
+    backgroundColor: '#206E6B',
+    paddingTop: 8,
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerCenter: {
     flex: 1,
@@ -377,28 +416,54 @@ const styles = StyleSheet.create({
     gap: 12,
     marginLeft: 8,
   },
-  headerRight: {
+  headerAvatar: {
     width: 40,
-  },
-  avatarCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F5F1E8',
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2D8B87',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: {
-    fontSize: 18,
+  headerAvatarText: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: '#FFFFFF',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  menuButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   messagesList: {
+    paddingHorizontal: 0,
+    paddingVertical: 12,
+    paddingBottom: 20,
+  },
+  dateSeparatorContainer: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dateSeparatorText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    backgroundColor: '#F3F4F6',
     paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
   messageContainer: {
-    marginBottom: 12,
+    marginBottom: 8,
+    paddingHorizontal: 16,
   },
   myMessage: {
     alignItems: 'flex-end',
@@ -407,65 +472,74 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   messageBubble: {
-    maxWidth: '75%',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+    maxWidth: '80%',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 8,
+    borderRadius: 18,
   },
   myBubble: {
-    backgroundColor: '#3D5A5C',
+    backgroundColor: '#206E6B',
     borderBottomRightRadius: 4,
   },
   theirBubble: {
     backgroundColor: '#FFFFFF',
     borderBottomLeftRadius: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   messageText: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
     marginBottom: 4,
   },
   myMessageText: {
     color: '#FFFFFF',
   },
   theirMessageText: {
-    color: '#3D5A5C',
+    color: '#1F2937',
   },
   messageTime: {
     fontSize: 11,
+    marginTop: 2,
   },
   myMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.75)',
     textAlign: 'right',
   },
   theirMessageTime: {
     color: '#9CA3AF',
+    textAlign: 'right',
   },
   inputContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    alignItems: 'flex-end',
-    gap: 12,
+    borderTopColor: '#F3F4F6',
+    alignItems: 'center',
+    gap: 8,
   },
   input: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: '#F9FAFB',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    fontSize: 16,
-    color: '#3D5A5C',
+    fontSize: 15,
+    color: '#1F2937',
     maxHeight: 100,
+    minHeight: 40,
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#3D5A5C',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#206E6B',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -488,24 +562,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     marginTop: 4,
-  },
-  dateSeparatorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 16,
-    paddingHorizontal: 16,
-  },
-  dateSeparatorLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E5E7EB',
-  },
-  dateSeparatorText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#9CA3AF',
-    marginHorizontal: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
 });
