@@ -26,6 +26,17 @@ export interface UserProfile {
   current_streak: number;
   longest_streak: number;
   last_activity_date: string | null; // ISO date
+  avatar_url: string | null;
+  push_notifications_enabled: boolean;
+  meal_reminders_enabled: boolean;
+
+}
+
+export interface CoachInfo {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  // Add trainer-specific fields like title/specialty when we have them
 }
 
 // FOOD LOGS

@@ -1,221 +1,463 @@
-// app/(tabs)/profile.tsx (NEW FILE)
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  TouchableOpacity,
   ScrollView,
+  StyleSheet,
   Alert,
+  ActivityIndicator,
+  TouchableOpacity,
+  Linking,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { ProfileHeader } from '@/components/profile/profileHeader';
+import { MyCoachCard } from '@/components/profile/myCoachCard';
+import { Card } from '@/components/profile/ui/card';
+import { SectionHeader } from '@/components/profile/ui/sectionHeader';
+import { ToggleRow } from '@/components/profile/ui/toggleRow';
+import { SettingsRow } from '@/components/profile/ui/settingsRow';
+import { Ionicons } from '@expo/vector-icons'; 
+import { Colors } from '@/constants/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
+
+
+interface UserProfile {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  current_streak: number;
+  push_notifications_enabled: boolean;
+  meal_reminders_enabled: boolean;
+  created_at: string;
+  trainer_id: string | null;
+  weight_kg: number | null;
+  weight_lbs: number | null;
+  target_weight_kg: number | null;
+  target_weight_lbs: number | null;
+  unit_system: 'imperial' | 'metric';
+  goal: 'lose' | 'maintain' | 'gain' | null;
+}
+
+interface CoachData {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+}
 
 export default function ProfileScreen() {
-  const router = useRouter();
-  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [coach, setCoach] = useState<CoachData | null>(null);
+  const [userEmail, setUserEmail] = useState('');
+  const [currentWeight, setCurrentWeight] = useState<number | null>(null);
+  const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>('lbs');
+  const [targetWeight, setTargetWeight] = useState<number | null>(null);
+  const [userGoal, setUserGoal] = useState<'lose' | 'maintain' | 'gain' | null>(null);
 
   useEffect(() => {
-    loadProfile();
+    fetchProfileData();
   }, []);
 
-  const loadProfile = async () => {
+
+  const fetchProfileData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) throw new Error('No user found');
 
-      const { data } = await supabase
+      setUserEmail(user.email || '');
+
+      // Fetch user profile
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
 
-      setProfile(data);
+      if (profileError) throw profileError;
+      setProfile(profileData);
+
+      // Calculate current weight based on unit system
+      if (profileData.unit_system === 'imperial' && profileData.weight_lbs) {
+        setCurrentWeight(profileData.weight_lbs);
+        setWeightUnit('lbs');
+      } else if (profileData.unit_system === 'metric' && profileData.weight_kg) {
+        setCurrentWeight(profileData.weight_kg);
+        setWeightUnit('kg');
+      } else {
+        setCurrentWeight(null);
+      }
+
+      // Calculate target weight based on unit system
+      if (profileData.unit_system === 'imperial' && profileData.target_weight_lbs) {
+        setTargetWeight(profileData.target_weight_lbs);
+      } else if (profileData.unit_system === 'metric' && profileData.target_weight_kg) {
+        setTargetWeight(profileData.target_weight_kg);
+      } else {
+        setTargetWeight(null);
+      }
+
+      // Set user goal
+      setUserGoal(profileData.goal || null);
+
+      // Fetch coach data if trainer_id exists
+      // Coach is also in profiles, just with account_type = 'trainer'
+      if (profileData.trainer_id) {
+        const { data: coachData, error: coachError } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .eq('id', profileData.trainer_id)
+          .single();
+
+        if (!coachError && coachData) {
+          setCoach(coachData);
+        }
+      }
     } catch (error) {
-      console.error('Error loading profile:', error);
+      console.error('Error fetching profile:', error);
+      Alert.alert('Error', 'Failed to load profile data');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSignOut = async () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.auth.signOut();
-            router.replace('/login');
+    //handlers
+
+    //avatar commented out for now
+    // const handleAvatarPress = async () => {
+    //   console.log('Starting avatar upload for user:', profile!.id);
+    //   const result = await uploadAvatar(profile!.id);
+      
+    //   console.log('Upload result:', result);
+      
+    //   if (result.success && result.avatarUrl) {
+    //     console.log('New avatar URL:', result.avatarUrl);
+        
+    //     // Update local state to show new avatar immediately
+    //     setProfile(prev => {
+    //       const updated = prev ? { ...prev, avatar_url: result.avatarUrl! } : null;
+    //       console.log('Updated profile state:', updated);
+    //       return updated;
+    //     });
+        
+    //     Alert.alert('Success', 'Profile photo updated!');
+    //   } else if (result.error) {
+    //     console.log('Upload error:', result.error);
+    //     Alert.alert('Error', result.error);
+    //   }
+    // };
+    //notifications
+    const handleTogglePushNotifications = async (value: boolean) => {
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ push_notifications_enabled: value })
+          .eq('id', profile!.id);
+    
+        if (error) throw error;
+        
+        setProfile(prev => prev ? { ...prev, push_notifications_enabled: value } : null);
+      } catch (error) {
+        console.error('Error updating push notifications:', error);
+        Alert.alert('Error', 'Failed to update notification settings');
+      }
+    };
+
+    //meal reminders
+    const handleToggleMealReminders = async (value: boolean) => {
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ meal_reminders_enabled: value })
+          .eq('id', profile!.id);
+    
+        if (error) throw error;
+        
+        setProfile(prev => prev ? { ...prev, meal_reminders_enabled: value } : null);
+      } catch (error) {
+        console.error('Error updating meal reminders:', error);
+        Alert.alert('Error', 'Failed to update notification settings');
+      }
+    };
+
+    //send message to coach
+    const handleCoachMessage = () => {
+      // Navigate to messages with coach
+      router.push(`/messages/${coach?.id}`);
+    };
+
+    const handleCoachCardPress = () => {
+      // Navigate to coach profile/details
+      Alert.alert('Coach Profile', 'Coach profile screen coming soon!');
+    };
+    
+    const handleWeightGoals = () => {
+      router.push('/weightGoal');
+    };
+    
+    const handleEditProfile = () => {
+      router.push('/editProfile');
+    };
+    
+    // const handlePrivacySecurity = () => {
+    //   Alert.alert('Privacy & Security', 'Privacy settings screen coming soon!');
+    // };
+    
+    const handleHelpCenter = async () => {
+      const email = 'tryhaven01@gmail.com';
+      const subject = 'Help Request - HAVEN App';
+      const body = `Hi HAVEN Support Team,\n\nI need help with:\n\n[Please describe your issue here]\n\n---\nUser ID: ${profile?.id}\nApp Version: 1.0.0`;
+      
+      const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      
+      try {
+        const canOpen = await Linking.canOpenURL(mailtoUrl);
+        
+        if (canOpen) {
+          await Linking.openURL(mailtoUrl);
+        } else {
+          // Fallback if no email client is available
+          Alert.alert(
+            'Contact Support',
+            `Please send an email to:\n\n${email}`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Copy Email',
+                onPress: async () => {
+                  await Clipboard.setStringAsync(email);
+                  Alert.alert('Copied', 'Email address copied to clipboard');
+                }
+              }
+            ]
+          );
+        }
+      } catch (error) {
+        console.error('Error opening email:', error);
+        Alert.alert(
+          'Contact Support',
+          `Please email us at:\n\n${email}`
+        );
+      }
+    };
+    
+    const handleTermsPrivacy = async () => {
+      const url = 'https://www.tryhaven.co/'; // Change to /privacy when ready
+      
+      try {
+        const canOpen = await Linking.canOpenURL(url);
+        
+        if (canOpen) {
+          await Linking.openURL(url);
+        } else {
+          Alert.alert('Error', 'Unable to open the link');
+        }
+      } catch (error) {
+        console.error('Error opening URL:', error);
+        Alert.alert('Error', 'Unable to open the link');
+      }
+    };
+    
+    const handleSignOut = async () => {
+      Alert.alert(
+        'Sign Out',
+        'Are you sure you want to sign out?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Sign Out',
+            style: 'destructive',
+            onPress: async () => {
+              await supabase.auth.signOut();
+              router.replace('/(auth)/login');
+            },
           },
-        },
-      ]
+        ]
+      );
+    };
+
+    const formatMemberSince = (dateString: string): string => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        month: 'long', 
+        year: 'numeric' 
+      });
+    };
+    
+    
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#206E6B" />
+      </View>
     );
-  };
+  }
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Profile</Text>
-        </View>
+  if (!profile) {
+    return null;
+  }
 
-        {/* User Info Card */}
-        <View style={styles.userCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {profile?.full_name?.charAt(0).toUpperCase() || 'U'}
-            </Text>
-          </View>
-          <Text style={styles.userName}>{profile?.full_name || 'User'}</Text>
-          <Text style={styles.userGoal}>{profile?.goal?.replace('_', ' ') || 'No goal set'}</Text>
-        </View>
+return (
+  <SafeAreaView style={styles.safeArea} edges={['top']}>
+  <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+   <ProfileHeader
+      fullName={profile.full_name}
+      email={userEmail}
+      currentStreak={profile.current_streak}
+      currentWeight={currentWeight}
+      weightUnit={weightUnit}
+      goal={userGoal}
+      targetWeight={targetWeight}
+    />
 
-        {/* Stats */}
-        <View style={styles.statsGrid}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.current_streak || 0}</Text>
-            <Text style={styles.statLabel}>Current Streak</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.longest_streak || 0}</Text>
-            <Text style={styles.statLabel}>Longest Streak</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {profile?.weekly_calorie_bank?.toLocaleString() || 0}
-            </Text>
-            <Text style={styles.statLabel}>Weekly Budget</Text>
-          </View>
-        </View>
+    {/* My Coach Section - Only show if trainer_id exists */}
+    {coach && (
+      <MyCoachCard
+        coach={coach}
+        onMessagePress={handleCoachMessage}
+        onCardPress={handleCoachCardPress}
+      />
+    )}
 
-        {/* Menu Items */}
-        <View style={styles.menu}>
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="person-outline" size={24} color="#2C4A52" />
-            <Text style={styles.menuItemText}>Edit Profile</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+    {/* Notifications */}
+    <SectionHeader title="Notifications" />
+    <Card style={styles.card}>
+      <ToggleRow
+        icon="phone-portrait-outline"
+        label="Push Notifications"
+        description="Coach messages & reminders"
+        value={profile.push_notifications_enabled}
+        onValueChange={handleTogglePushNotifications}
+      />
+      <View style={styles.divider} />
+      <ToggleRow
+        icon="restaurant-outline"
+        iconColor="#EF7828"
+        iconBgColor="#FEF3E8"
+        label="Meal Reminders"
+        description="Breakfast, lunch & dinner"
+        value={profile.meal_reminders_enabled}
+        onValueChange={handleToggleMealReminders}
+      />
+    </Card>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="settings-outline" size={24} color="#2C4A52" />
-            <Text style={styles.menuItemText}>Settings</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+    {/* Goals & Preferences */}
+    <SectionHeader title="Goals & Preferences" />
+    <Card style={styles.card}>
+      <SettingsRow
+        icon="scale-outline"
+        label="Weight Goals"
+        onPress={handleWeightGoals}
+      />
+    </Card>
 
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="help-circle-outline" size={24} color="#2C4A52" />
-            <Text style={styles.menuItemText}>Help & Support</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+    {/* Account */}
+    <SectionHeader title="Account" />
+    <Card style={styles.card}>
+      <SettingsRow
+        icon="person-outline"
+        label="Edit Profile"
+        onPress={handleEditProfile}
+      />
+      <View style={styles.divider} />
+      {/* <SettingsRow
+        icon="shield-checkmark-outline"
+        label="Privacy & Security"
+        onPress={handlePrivacySecurity}
+      /> */}
+    </Card>
 
-          <TouchableOpacity style={styles.menuItem} onPress={handleSignOut}>
-            <Ionicons name="log-out-outline" size={24} color="#EF5350" />
-            <Text style={[styles.menuItemText, { color: '#EF5350' }]}>Sign Out</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
+    {/* Support */}
+    <SectionHeader title="Support" />
+    <Card style={styles.card}>
+      <SettingsRow
+        icon="help-circle-outline"
+        label="Help Center"
+        onPress={handleHelpCenter}
+      />
+      <View style={styles.divider} />
+      <SettingsRow
+        icon="document-text-outline"
+        label="Terms & Privacy"
+        onPress={handleTermsPrivacy}
+      />
+    </Card>
+
+    {/* Member Since & Sign Out */}
+    <View style={styles.footer}>
+      <Text style={styles.memberSince}>
+        Member since {formatMemberSince(profile.created_at)}
+      </Text>
+      <TouchableOpacity
+        style={styles.signOutButton}
+        onPress={handleSignOut}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </TouchableOpacity>
+    </View>
+
+    <View style={styles.bottomPadding} />
+  </ScrollView>
+  </SafeAreaView>
+);
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#206E6B',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: Colors.lightCream,
   },
-  content: {
-    padding: 20,
-  },
-  header: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#2C4A52',
-  },
-  userCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#2C4A52',
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  card: {
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginLeft: 72,
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 24,
     marginBottom: 16,
   },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#2C4A52',
-    marginBottom: 4,
-  },
-  userGoal: {
+  memberSince: {
     fontSize: 14,
-    color: '#666',
-    textTransform: 'capitalize',
+    color: Colors.fatSteel,
+    marginBottom: 16,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  statItem: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2C4A52',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: '#666',
-    textAlign: 'center',
-  },
-  menu: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  menuItem: {
+  signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
   },
-  menuItemText: {
-    flex: 1,
+  signOutText: {
     fontSize: 16,
-    color: '#2C4A52',
-    marginLeft: 12,
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  bottomPadding: {
+    height: 100,
   },
 });

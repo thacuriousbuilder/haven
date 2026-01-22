@@ -306,7 +306,7 @@ const renderMessage = ({ item, index }: { item: Message; index: number }) => {
                   style={styles.backButton}
                   onPress={() => router.back()}
                 >
-                  <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                  <Ionicons name="arrow-back" size={24} color={Colors.graphite}  />
                 </TouchableOpacity>
                 
                 <View style={styles.headerCenter}>
@@ -319,7 +319,7 @@ const renderMessage = ({ item, index }: { item: Message; index: number }) => {
                 </View>
 
                 <TouchableOpacity style={styles.menuButton}>
-                  <Ionicons name="ellipsis-vertical" size={24} color="#FFFFFF" />
+                  <Ionicons name="ellipsis-vertical" size={24} color={Colors.graphite}  />
                 </TouchableOpacity>
               </View>
             </View>
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerWrapper: {
-    backgroundColor: '#206E6B',
+    backgroundColor: Colors.lightCream,
     paddingTop: 8,
   },
   headerContent: {
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#2D8B87',
+    backgroundColor: Colors.vividTeal,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   headerName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: Colors.graphite,
   },
   menuButton: {
     width: 40,
