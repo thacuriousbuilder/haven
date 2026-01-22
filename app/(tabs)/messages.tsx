@@ -453,7 +453,7 @@ const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3D5A5C" />
+          <ActivityIndicator size="large" color={Colors.vividTeal} />
         </View>
       </SafeAreaView>
     );
@@ -463,7 +463,7 @@ const renderMessage = ({ item, index }: { item: Message; index: number }) => {
 // TRAINER VIEW - Conversation List
 if (userType === 'trainer') {
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top','bottom']}>
       {/* Updated Header */}
       <View style={styles.trainerHeaderWrapper}>
         <View style={styles.trainerHeaderTop}>
@@ -546,9 +546,9 @@ if (userType === 'trainer') {
 
   if (!trainerId) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubbles-outline" size={64} color="#D1D5DB" />
+          <Ionicons name="chatbubbles-outline" size={64} color={Colors.vividTeal} />
           <Text style={styles.emptyTitle}>No Trainer Assigned</Text>
           <Text style={styles.emptyDescription}>
             You need to be assigned to a trainer to send messages
@@ -559,12 +559,15 @@ if (userType === 'trainer') {
   }
 
   return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <KeyboardAvoidingView 
+      <SafeAreaView style={styles.container} edges={['top','bottom']}>
+
+      <KeyboardAvoidingView 
           style={styles.container}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={0}
+           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
+    
+    
           {/* Header */}
           <View style={styles.headerWrapper}>
             <View style={styles.headerContent}>
@@ -572,7 +575,7 @@ if (userType === 'trainer') {
                 style={styles.backButton}
                 onPress={() => router.back()}
               >
-                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                <Ionicons name="arrow-back" size={24} color={Colors.graphite} />
               </TouchableOpacity>
               
               <View style={styles.headerCenter}>
@@ -585,11 +588,10 @@ if (userType === 'trainer') {
               </View>
     
               <TouchableOpacity style={styles.menuButton}>
-                <Ionicons name="ellipsis-vertical" size={24} color="#FFFFFF" />
+                <Ionicons name="ellipsis-vertical" size={24} color={Colors.graphite}  />
               </TouchableOpacity>
             </View>
           </View>
-    
           {/* Messages List */}
           {messages.length === 0 ? (
             <View style={styles.emptyMessagesContainer}>
@@ -602,10 +604,12 @@ if (userType === 'trainer') {
           ) : (
             <FlatList
               ref={flatListRef}
+              style={{flex:1}}
               data={messages}
               renderItem={renderMessage}
               keyExtractor={item => item.id}
               contentContainerStyle={styles.messagesList}
+              showsVerticalScrollIndicator={false}
               onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
               refreshControl={
                 <RefreshControl
@@ -625,8 +629,8 @@ if (userType === 'trainer') {
     paddingBottom: keyboardVisible 
       ? 0 
       : Platform.OS === 'ios' 
-        ? insets.bottom + 55
-        : 16 
+        ? insets.bottom + 23
+        : 65
   }
 ]}>
   <View style={styles.inputContainer}>
@@ -659,6 +663,14 @@ if (userType === 'trainer') {
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#206E6B',
+  },
+  safeAreaTrainer: {
+    flex:1,
+    backgroundColor: '#206E6B',
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.lightCream,
@@ -682,7 +694,7 @@ const styles = StyleSheet.create({
   },
  //client message
 headerWrapper: {
-  backgroundColor: '#206E6B',
+  backgroundColor: Colors.lightCream,
   paddingTop: 8,
 },
 headerContent: {
@@ -709,7 +721,7 @@ headerAvatar: {
   width: 40,
   height: 40,
   borderRadius: 20,
-  backgroundColor: '#2D8B87',
+  backgroundColor: Colors.vividTeal,
   alignItems: 'center',
   justifyContent: 'center',
 },
@@ -724,7 +736,7 @@ headerTextContainer: {
 headerName: {
   fontSize: 18,
   fontWeight: '600',
-  color: '#FFFFFF',
+  color: '#1F2937',
 },
 menuButton: {
   width: 40,
@@ -814,7 +826,8 @@ menuButton: {
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
     alignItems: 'center',
-    gap: 12,
+    
+    gap: 8,
   },
   input: {
     flex: 1,
@@ -893,7 +906,7 @@ menuButton: {
     borderRadius: 12,
   },
 trainerHeaderWrapper: {
-  backgroundColor: '#206E6B',
+  backgroundColor: Colors.lightCream,
   paddingTop: 8,
   paddingBottom: 16,
 },
@@ -905,7 +918,7 @@ trainerHeaderTop: {
 trainerHeaderTitle: {
   fontSize: 32,
   fontWeight: '700',
-  color: '#FFFFFF',
+  color: Colors.graphite,
   marginBottom: 4,
 },
 unreadCountContainer: {
@@ -913,7 +926,7 @@ unreadCountContainer: {
 },
 unreadCountText: {
   fontSize: 14,
-  color: 'rgba(255, 255, 255, 0.8)',
+  color: Colors.fatSteel,
 },
 searchContainer: {
   flexDirection: 'row',
