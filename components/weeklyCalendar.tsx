@@ -1,12 +1,18 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
 
 interface WeeklyCalendarProps {
   currentDate: Date;
   cheatDates: string[]; // Array of ISO date strings
+  loggedDates?: string[]; // Array of ISO date strings for days with logs
 }
 
-export default function WeeklyCalendar({ currentDate, cheatDates }: WeeklyCalendarProps) {
+export default function WeeklyCalendar({ 
+  currentDate, 
+  cheatDates, 
+  loggedDates = [] 
+}: WeeklyCalendarProps) {
   const getWeekDays = () => {
     const monday = new Date(currentDate);
     const day = monday.getDay();
@@ -23,7 +29,7 @@ export default function WeeklyCalendar({ currentDate, cheatDates }: WeeklyCalend
   };
 
   const weekDays = getWeekDays();
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   const isToday = (date: Date) => {
     const today = new Date();
@@ -35,20 +41,28 @@ export default function WeeklyCalendar({ currentDate, cheatDates }: WeeklyCalend
     return cheatDates.includes(dateStr);
   };
 
+  const hasLogs = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return loggedDates.includes(dateStr);
+  };
+
   return (
     <View style={styles.container}>
       {weekDays.map((date, index) => {
         const today = isToday(date);
         const cheat = isCheatDay(date);
+        const logged = hasLogs(date);
 
         return (
           <View key={index} style={styles.dayContainer}>
-            <Text style={styles.dayName}>{dayNames[date.getDay()]}</Text>
+            <Text style={styles.dayName}>
+              {dayNames[date.getDay() === 0 ? 6 : date.getDay() - 1]}
+            </Text>
             <View
               style={[
                 styles.dateCircle,
                 today && styles.todayCircle,
-                cheat && styles.cheatCircle,
+                cheat && !today && styles.cheatCircle,
               ]}
             >
               <Text
@@ -60,6 +74,16 @@ export default function WeeklyCalendar({ currentDate, cheatDates }: WeeklyCalend
                 {date.getDate()}
               </Text>
             </View>
+            {/* Dot indicator for logged days */}
+            {logged && (
+              <View 
+                style={[
+                  styles.logDot,
+                  today && styles.logDotToday,
+                  cheat && !today && styles.logDotCheat,
+                ]} 
+              />
+            )}
           </View>
         );
       })}
@@ -71,17 +95,20 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.small,
   },
   dayContainer: {
     alignItems: 'center',
+    gap: Spacing.sm,
   },
   dayName: {
     fontSize: 12,
-    color: '#2C4A52',
-    marginBottom: 8,
+    color: Colors.steelBlue,
     fontWeight: '500',
   },
   dateCircle: {
@@ -90,20 +117,32 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: Colors.lightCream,
   },
   todayCircle: {
-    backgroundColor: '#FF6B35', // Orange for today
+    backgroundColor: Colors.vividTeal,
   },
   cheatCircle: {
-    backgroundColor: '#3D5A5C', // Orange for cheat days
+    backgroundColor: Colors.energyOrange,
   },
   dateText: {
     fontSize: 14,
-    color: '#2C4A52',
+    color: Colors.graphite,
     fontWeight: '600',
   },
   highlightedText: {
-    color: '#FFFFFF',
+    color: Colors.white,
+  },
+  logDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.vividTeal,
+  },
+  logDotToday: {
+    backgroundColor: Colors.energyOrange,
+  },
+  logDotCheat: {
+    backgroundColor: Colors.vividTeal,
   },
 });
