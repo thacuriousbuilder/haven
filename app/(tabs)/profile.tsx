@@ -39,6 +39,7 @@ interface UserProfile {
   target_weight_lbs: number | null;
   unit_system: 'imperial' | 'metric';
   goal: 'lose' | 'maintain' | 'gain' | null;
+  user_type: 'client' | 'trainer';
 }
 
 interface CoachData {
@@ -56,6 +57,7 @@ export default function ProfileScreen() {
   const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>('lbs');
   const [targetWeight, setTargetWeight] = useState<number | null>(null);
   const [userGoal, setUserGoal] = useState<'lose' | 'maintain' | 'gain' | null>(null);
+  const [totalClients, setTotalClients] = useState(0);
 
   useEffect(() => {
     fetchProfileData();
@@ -98,6 +100,8 @@ export default function ProfileScreen() {
       } else {
         setTargetWeight(null);
       }
+      //set profile
+      setProfile(profileData);
 
       // Set user goal
       setUserGoal(profileData.goal || null);
@@ -115,6 +119,17 @@ export default function ProfileScreen() {
           setCoach(coachData);
         }
       }
+       // If trainer, fetch total clients
+    if (profileData.user_type === 'trainer') {
+      const { count, error: clientsError } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('trainer_id', profileData.id);
+
+      if (!clientsError) {
+        setTotalClients(count || 0);
+      }
+    }
     } catch (error) {
       console.error('Error fetching profile:', error);
       Alert.alert('Error', 'Failed to load profile data');
@@ -310,6 +325,7 @@ return (
       currentWeight={currentWeight}
       weightUnit={weightUnit}
       goal={userGoal}
+      userType={profile.user_type}
       targetWeight={targetWeight}
     />
 
@@ -324,27 +340,37 @@ return (
 
     {/* Notifications */}
     <SectionHeader title="Notifications" />
-    <Card style={styles.card}>
-      <ToggleRow
-        icon="phone-portrait-outline"
-        label="Push Notifications"
-        description="Coach messages & reminders"
-        value={profile.push_notifications_enabled}
-        onValueChange={handleTogglePushNotifications}
-      />
-      <View style={styles.divider} />
-      <ToggleRow
-        icon="restaurant-outline"
-        iconColor="#EF7828"
-        iconBgColor="#FEF3E8"
-        label="Meal Reminders"
-        description="Breakfast, lunch & dinner"
-        value={profile.meal_reminders_enabled}
-        onValueChange={handleToggleMealReminders}
-      />
-    </Card>
+      <Card style={styles.card}>
+        <ToggleRow
+          icon="phone-portrait-outline"
+          label="Push Notifications"
+          description={profile.user_type === 'trainer' 
+            ? "Get notified about client activity" 
+            : "Coach messages & reminders"}
+          value={profile.push_notifications_enabled}
+          onValueChange={handleTogglePushNotifications}
+        />
+        
+        {/* Only show Meal Reminders for clients */}
+        {profile.user_type === 'client' && (
+          <>
+            <View style={styles.divider} />
+            <ToggleRow
+              icon="restaurant-outline"
+              iconColor="#EF7828"
+              iconBgColor="#FEF3E8"
+              label="Meal Reminders"
+              description="Breakfast, lunch & dinner"
+              value={profile.meal_reminders_enabled}
+              onValueChange={handleToggleMealReminders}
+            />
+          </>
+        )}
+      </Card>
 
     {/* Goals & Preferences */}
+    {profile.user_type === 'client' && (
+      <>
     <SectionHeader title="Goals & Preferences" />
     <Card style={styles.card}>
       <SettingsRow
@@ -353,7 +379,9 @@ return (
         onPress={handleWeightGoals}
       />
     </Card>
-
+    </>
+    )}
+    
     {/* Account */}
     <SectionHeader title="Account" />
     <Card style={styles.card}>

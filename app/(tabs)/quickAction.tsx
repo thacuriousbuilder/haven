@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { 
   View, 
@@ -7,12 +9,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Share,
-  Clipboard
+  Share
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '@/constants/colors';
+import * as Clipboard from 'expo-clipboard';
 
 interface InviteCode {
   id: string;
@@ -41,9 +44,9 @@ export default function QuickActionsScreen() {
         .select('*')
         .eq('trainer_id', user.id)
         .eq('is_active', true)
-        .order('created_at', { ascending: false })  // Get most recent first
+        .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle();  // Use maybeSingle instead of single
+        .maybeSingle();
   
       if (error) {
         console.error('Error fetching invite code:', error);
@@ -80,10 +83,10 @@ export default function QuickActionsScreen() {
     }
   };
 
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     if (!inviteCode) return;
 
-    Clipboard.setString(inviteCode.invite_code);
+    await Clipboard.setStringAsync(inviteCode.invite_code);
     Alert.alert('Copied!', 'Invite code copied to clipboard');
   };
 
@@ -92,7 +95,7 @@ export default function QuickActionsScreen() {
 
     try {
       await Share.share({
-        message: `Join me on HAVEN! Use my code: ${inviteCode.invite_code}`,
+        message: `Join me on HAVEN for nutrition coaching! Use my invite code: ${inviteCode.invite_code}`,
       });
     } catch (error) {
       console.error('Error sharing:', error);
@@ -158,7 +161,7 @@ export default function QuickActionsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3D5A5C" />
+          <ActivityIndicator size="large" color={Colors.vividTeal} />
         </View>
       </SafeAreaView>
     );
@@ -171,33 +174,40 @@ export default function QuickActionsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <View style={styles.greetingSection}>
-            <Text style={styles.greeting}>Quick Actions</Text>
-            <Text style={styles.subGreeting}>Manage your invite code and client tools</Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Quick Actions</Text>
+            <Text style={styles.subtitle}>Manage your coaching tools</Text>
           </View>
 
-          {/* Invite Code Section */}
+          {/* Invite Code Card */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Add New Client</Text>
-            
-            <View style={styles.card}>
-              <Text style={styles.cardLabel}>Your Invite Code</Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="link" size={24} color={Colors.graphite} />
+              <Text style={styles.sectionTitle}>Invite Code</Text>
+            </View>
+
+            <View style={styles.inviteCard}>
+              <Text style={styles.inviteLabel}>Your Personal Code</Text>
               
               <View style={styles.codeContainer}>
-                <Text style={styles.code}>{inviteCode?.invite_code || 'Loading...'}</Text>
+                <Text style={styles.codeText}>
+                  {inviteCode?.invite_code || 'Loading...'}
+                </Text>
               </View>
 
-              <Text style={styles.cardDescription}>
-                Share this code with new clients to connect them to your account
+              <Text style={styles.inviteDescription}>
+                Share this code with new clients to connect them to your coaching account
               </Text>
 
-              <View style={styles.buttonRow}>
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
                 <TouchableOpacity 
                   style={styles.primaryButton}
                   onPress={copyToClipboard}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="copy-outline" size={20} color="#fff" />
+                  <Ionicons name="copy-outline" size={20} color="#FFFFFF" />
                   <Text style={styles.primaryButtonText}>Copy Code</Text>
                 </TouchableOpacity>
 
@@ -206,11 +216,12 @@ export default function QuickActionsScreen() {
                   onPress={shareInviteCode}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="share-outline" size={20} color="#3D5A5C" />
+                  <Ionicons name="share-outline" size={20} color={Colors.vividTeal} />
                   <Text style={styles.secondaryButtonText}>Share</Text>
                 </TouchableOpacity>
               </View>
 
+              {/* Regenerate Link */}
               <TouchableOpacity 
                 style={styles.regenerateButton}
                 onPress={regenerateCode}
@@ -222,29 +233,48 @@ export default function QuickActionsScreen() {
             </View>
           </View>
 
-          {/* Stats Section */}
+          {/* How it Works Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick Stats</Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="information-circle-outline" size={24} color={Colors.graphite} />
+              <Text style={styles.sectionTitle}>How It Works</Text>
+            </View>
 
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>{clientCount}</Text>
-                <Text style={styles.statLabel}>Active Clients</Text>
+            <View style={styles.infoCard}>
+              <View style={styles.infoStep}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>1</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Share Your Code</Text>
+                  <Text style={styles.stepDescription}>
+                    Send your invite code to new clients via text, email, or in person
+                  </Text>
+                </View>
               </View>
 
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>-</Text>
-                <Text style={styles.statLabel}>On Track</Text>
+              <View style={styles.infoStep}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>2</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Client Signs Up</Text>
+                  <Text style={styles.stepDescription}>
+                    They'll enter your code during registration to link their account
+                  </Text>
+                </View>
               </View>
 
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>-</Text>
-                <Text style={styles.statLabel}>Need Follow-up</Text>
-              </View>
-
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>-</Text>
-                <Text style={styles.statLabel}>In Baseline</Text>
+              <View style={styles.infoStep}>
+                <View style={styles.stepNumber}>
+                  <Text style={styles.stepNumberText}>3</Text>
+                </View>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Start Coaching</Text>
+                  <Text style={styles.stepDescription}>
+                    Track their progress, send messages, and support their journey
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -257,172 +287,198 @@ export default function QuickActionsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
-  },
-  scrollView: {
-    flex: 1,
+    backgroundColor: Colors.lightCream,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  scrollView: {
+    flex: 1,
+  },
   content: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    padding: 20,
+    paddingBottom: 100,
   },
-  greetingSection: {
-    marginBottom: 32,
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#3D5A5C',
-    marginBottom: 8,
-  },
-  subGreeting: {
-    fontSize: 16,
-    color: '#6B7280',
-    lineHeight: 24,
-  },
-  section: {
+  header: {
     marginBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#3D5A5C',
-    marginBottom: 16,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  cardLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  codeContainer: {
-    backgroundColor: '#F5F1E8',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: '#3D5A5C',
-    borderStyle: 'dashed',
-  },
-  code: {
+  title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#3D5A5C',
-    letterSpacing: 3,
+    color: Colors.graphite,
+    marginBottom: 4,
   },
-  cardDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  primaryButton: {
-    flex: 1,
-    backgroundColor: '#3D5A5C',
-    borderRadius: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
+  subtitle: {
     fontSize: 16,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 2,
-    borderColor: '#3D5A5C',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  secondaryButtonText: {
-    color: '#3D5A5C',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  regenerateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 6,
-  },
-  regenerateText: {
-    fontSize: 14,
-    fontWeight: '600',
     color: '#6B7280',
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  statCard: {
+  statsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 20,
-    flex: 1,
-    minWidth: '45%',
-    alignItems: 'center',
+    padding: 24,
+    marginBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 1,
   },
+  statItem: {
+    alignItems: 'center',
+  },
   statNumber: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.graphite,
+    marginTop: 12,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
     color: '#6B7280',
-    textAlign: 'center',
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.graphite,
+  },
+  inviteCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  inviteLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  codeContainer: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+  },
+  codeText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.vividTeal,
+    letterSpacing: 2,
+  },
+  inviteDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  primaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.vividTeal,
+    borderRadius: 12,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  secondaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    gap: 8,
+    borderWidth: 2,
+    borderColor: Colors.vividTeal,
+  },
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.vividTeal,
+  },
+  regenerateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  regenerateText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  infoStep: {
+    flexDirection: 'row',
+    marginBottom: 24,
+  },
+  stepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E0F2F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  stepNumberText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.vividTeal,
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.graphite,
+    marginBottom: 4,
+  },
+  stepDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
   },
 });
