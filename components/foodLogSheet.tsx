@@ -808,14 +808,14 @@ export function FoodLogSheet({
           setSelectedFood(null);
         }}
       >
-        <Ionicons name="arrow-back" size={20} color="#3D5A5C" />
-        <Text style={styles.backText}>Back</Text>
+        <Ionicons name="arrow-back" size={24} color="#3D5A5C" />
+        
       </TouchableOpacity>
       
       {selectedFood && (
         <View style={styles.selectedFoodBanner}>
           <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-          <Text style={styles.selectedFoodText}>Food selected from database</Text>
+          {/* <Text style={styles.selectedFoodText}>Food selected from database</Text> */}
         </View>
       )}
 
