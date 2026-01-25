@@ -16,11 +16,16 @@ import { TodayMealsCard } from '@/components/homebaseline/cards/todayMealsCard';
 import { WeeklyBudgetCard } from '@/components/homeactive/cards/weeklyBudget';
 import { NextCheatDayCard } from '@/components/homeactive/cards/nextCheatDayCard';
 import { TodayCaloriesCard } from '@/components/homebaseline/cards/todayCaloriesCard';
+import { ClientCardFollowUp } from '@/components/coach/clientCardFollowUp';
+import { ClientCardOnTrack } from '@/components/coach/clientCardOnTrack';
+import { ClientCardBaseline } from '@/components/coach/clientCardBaseline';
 import * as ImagePicker from 'expo-image-picker';
 
 // Type imports
 import type { MealLogItem, MacroData } from '@/types/home';
 import { Colors } from '@/constants/colors';
+import { CoachDashboardHeader } from '@/components/coach/coachDashboardHeader';
+import { ClientOverview } from '@/components/coach/clientOverview';
 
 interface ProfileData {
   full_name: string | null;
@@ -62,6 +67,16 @@ interface ClientStatus {
   balance_score: number | null;
   status: 'needs_attention' | 'on_track' | 'baseline';
   baseline_day: number | null;
+  // Add these new fields from RPC
+  days_inactive?: number;
+  baseline_days_completed?: number;
+  baseline_days_remaining?: number;
+  baseline_avg_daily_calories?: number;
+}
+
+interface DashboardStats {
+  unreadMessagesCount: number;
+  clientsNeedingAttention: number;
 }
 
 export default function HomeScreen() {
@@ -76,6 +91,10 @@ export default function HomeScreen() {
   const [cheatDates, setCheatDates] = useState<string[]>([]);
   const [showBaselineComplete, setShowBaselineComplete] = useState(false);
   const [baselineAverage, setBaselineAverage] = useState<number>(0);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    unreadMessagesCount: 0,
+    clientsNeedingAttention: 0,
+  });
   
   // Trainer-specific state
   const [clients, setClients] = useState<ClientStatus[]>([]);
@@ -349,70 +368,77 @@ export default function HomeScreen() {
     }
   };
 
+  interface ClientStatus {
+    id: string;
+    full_name: string | null;
+    last_log_time: string | null;
+    meals_today: number;
+    current_streak: number;
+    balance_score: number | null;
+    status: 'needs_attention' | 'on_track' | 'baseline';
+    baseline_day: number | null;
+    // Add these new fields from RPC
+    days_inactive?: number;
+    baseline_days_completed?: number;
+    baseline_days_remaining?: number;
+    baseline_avg_daily_calories?: number;
+  }
+  
+  // Update fetchTrainerDashboard to include all the RPC data
   const fetchTrainerDashboard = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      const { data: clientProfiles, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, current_streak, baseline_start_date, baseline_complete')
-        .eq('trainer_id', user.id);
-
-      if (error) {
-        console.error('Error fetching clients:', error);
+  
+      // Use the new RPC function
+      const { data: clientsData, error: clientsError } = await supabase
+        .rpc('get_coach_clients_with_status', { coach_id: user.id });
+  
+      if (clientsError) {
+        console.error('Error fetching clients:', clientsError);
         return;
       }
-
-      if (!clientProfiles || clientProfiles.length === 0) {
+  
+      // Get unread messages count
+      const { count: unreadCount, error: messagesError } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('recipient_id', user.id)
+        .eq('is_read', false);
+  
+      if (messagesError) {
+        console.error('Error fetching unread messages:', messagesError);
+      }
+  
+      if (!clientsData || clientsData.length === 0) {
         setClients([]);
         setClientStats({ total: 0, needsAttention: 0, onTrack: 0, baseline: 0 });
+        setDashboardStats({
+          unreadMessagesCount: unreadCount || 0,
+          clientsNeedingAttention: 0,
+        });
         return;
       }
-
-      const today = getLocalDateString();
-      const clientStatuses: ClientStatus[] = [];
-
-      for (const client of clientProfiles) {
-        const { data: todayLogs } = await supabase
-          .from('food_logs')
-          .select('created_at')
-          .eq('user_id', client.id)
-          .eq('log_date', today)
-          .order('created_at', { ascending: false });
-
-        const mealsToday = todayLogs?.length || 0;
-        const lastLogTime = todayLogs?.[0]?.created_at || null;
-
-        let status: 'needs_attention' | 'on_track' | 'baseline' = 'on_track';
-        let baselineDay = null;
-
-        if (!client.baseline_complete && client.baseline_start_date) {
-          status = 'baseline';
-          const startDate = new Date(client.baseline_start_date);
-          const todayDate = new Date();
-          const diffDays = Math.floor((todayDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-          baselineDay = Math.min(diffDays, 7);
-        } else if (mealsToday === 0) {
-          status = 'needs_attention';
-        } else if (mealsToday < 2) {
-          status = 'needs_attention';
-        }
-
-        clientStatuses.push({
-          id: client.id,
-          full_name: client.full_name,
-          last_log_time: lastLogTime,
-          meals_today: mealsToday,
-          current_streak: client.current_streak || 0,
-          balance_score: null,
-          status,
-          baseline_day: baselineDay,
-        });
-      }
-
+  
+      const clientStatuses: ClientStatus[] = clientsData.map((client: any) => ({
+        id: client.id,
+        full_name: client.full_name,
+        last_log_time: null,
+        meals_today: client.meals_logged_today || 0,
+        current_streak: client.current_streak || 0,
+        balance_score: null,
+        status: client.status === 'need_followup' ? 'needs_attention' 
+               : client.status === 'in_baseline' ? 'baseline' 
+               : 'on_track',
+        baseline_day: client.baseline_days_completed || null,
+        days_inactive: client.days_inactive || 0,
+        baseline_days_completed: client.baseline_days_completed || 0,
+        baseline_days_remaining: client.baseline_days_remaining || 0,
+        baseline_avg_daily_calories: client.baseline_avg_daily_calories || null,
+      }));
+  
       setClients(clientStatuses);
-
+  
       const stats = {
         total: clientStatuses.length,
         needsAttention: clientStatuses.filter(c => c.status === 'needs_attention').length,
@@ -420,10 +446,24 @@ export default function HomeScreen() {
         baseline: clientStatuses.filter(c => c.status === 'baseline').length,
       };
       setClientStats(stats);
-
+  
+      setDashboardStats({
+        unreadMessagesCount: unreadCount || 0,
+        clientsNeedingAttention: stats.needsAttention,
+      });
+  
     } catch (error) {
       console.error('Error in fetchTrainerDashboard:', error);
     }
+  };
+  
+  // Helper function to calculate weekly progress
+  const calculateWeeklyProgress = (): number => {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+    const monday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Monday = 0
+    const daysIntoWeek = monday + 1;
+    return Math.round((daysIntoWeek / 7) * 100);
   };
 
   const fetchRecentLogs = async () => {
@@ -626,12 +666,20 @@ export default function HomeScreen() {
 
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+        {/* <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logoCircle} />
             <Text style={styles.logo}>HAVEN</Text>
           </View>
-        </View>
+        </View> */}
+       <CoachDashboardHeader
+          coachName={profile.full_name || 'Coach'}
+          unreadMessagesCount={dashboardStats.unreadMessagesCount}
+          clientsNeedingAttention={dashboardStats.clientsNeedingAttention}
+          onNotificationPress={() => {
+            router.push('/(tabs)/messages');
+          }}
+        />
 
         <ScrollView 
           style={styles.scrollView}
@@ -642,147 +690,95 @@ export default function HomeScreen() {
           }
           bounces={true}
           overScrollMode="always"
-        >
+          >
+          {clientStats.total > 0 && (
+                <ClientOverview
+                  totalClients={clientStats.total}
+                  onTrackCount={clientStats.onTrack}
+                  followUpCount={clientStats.needsAttention}
+                  baselineCount={clientStats.baseline}
+                />
+              )}
           <View style={styles.content}>
-            <View style={styles.greetingSection}>
-              <Text style={styles.greeting}>Coach Dashboard</Text>
-              <Text style={styles.subGreeting}>
-                {clientStats.total === 0 
-                  ? 'No clients yet. Share your invite code to get started!' 
-                  : `Managing ${clientStats.total} client${clientStats.total !== 1 ? 's' : ''}`}
-              </Text>
-            </View>
-
+           
             {clientStats.total > 0 && (
               <>
-                <View style={styles.statsGrid}>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statNumber}>{clientStats.total}</Text>
-                    <Text style={styles.statLabel}>Total Clients</Text>
-                  </View>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statNumber}>{clientStats.onTrack}</Text>
-                    <Text style={styles.statLabel}>On Track</Text>
-                  </View>
-                  <View style={styles.statCard}>
-                    <Text style={[styles.statNumber, { color: '#EF4444' }]}>{clientStats.needsAttention}</Text>
-                    <Text style={styles.statLabel}>Need Follow-up</Text>
-                  </View>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statNumber}>{clientStats.baseline}</Text>
-                    <Text style={styles.statLabel}>In Baseline</Text>
-                  </View>
-                </View>
-
-                {needsAttentionClients.length > 0 && (
-                  <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                      <Ionicons name="alert-circle" size={24} color="#EF4444" />
-                      <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>
-                        Needs Attention ({needsAttentionClients.length})
-                      </Text>
-                    </View>
-
-                    {needsAttentionClients.map((client) => (
-                      <View key={client.id} style={styles.clientCard}>
-                        <View style={styles.clientHeader}>
-                          <Text style={styles.clientName}>
-                            {client.full_name || 'Client'}
+                    {/* NEEDS ATTENTION SECTION */}
+                    {needsAttentionClients.length > 0 && (
+                      <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                          <Ionicons name="alert-circle" size={24} color="#EF4444" />
+                          <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>
+                            Need Follow-up ({needsAttentionClients.length})
                           </Text>
-                          <View style={[styles.statusBadge, { backgroundColor: '#FEE2E2' }]}>
-                            <Text style={[styles.statusText, { color: '#EF4444' }]}>
-                              {client.meals_today === 0 ? 'No logs' : `${client.meals_today} meal${client.meals_today !== 1 ? 's' : ''}`}
+                        </View>
+
+                        {needsAttentionClients.map((client) => (
+                          <ClientCardFollowUp
+                            key={client.id}
+                            clientId={client.id}
+                            fullName={client.full_name || 'Client'}
+                            avatarUrl={null}
+                            lastActiveDaysAgo={client.days_inactive || 0}
+                            avgDailyCalories={client.baseline_avg_daily_calories}
+                            currentStreak={client.current_streak}
+                            onViewPress={() => router.push(`/clientDetail/${client.id}`)}
+                            onMessagePress={() => router.push(`/messageThread/${client.id}`)}
+                          />
+                        ))}
+                      </View>
+                    )}
+
+
+                  {/* BASELINE SECTION */}
+                    {baselineClients.length > 0 && (
+                      <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                          <Ionicons name="time-outline" size={24} color="#F59E0B" />
+                          <Text style={[styles.sectionTitle, { color: '#F59E0B' }]}>
+                            Baseline ({baselineClients.length})
+                          </Text>
+                        </View>
+
+                        {baselineClients.map((client) => (
+                          <ClientCardBaseline
+                            key={client.id}
+                            clientId={client.id}
+                            fullName={client.full_name || 'Client'}
+                            avatarUrl={null}
+                            mealsLoggedToday={client.meals_today}
+                            baselineDaysCompleted={client.baseline_days_completed || 0}
+                            daysRemaining={client.baseline_days_remaining || 7}
+                            avgDailyCalories={client.baseline_avg_daily_calories}
+                            onViewProgressPress={() => router.push(`/clientDetail/${client.id}`)}
+                          />
+                        ))}
+                      </View>
+                    )}
+
+                    {/* ON TRACK SECTION */}
+                      {onTrackClients.length > 0 && (
+                        <View style={styles.section}>
+                          <View style={styles.sectionHeader}>
+                            <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+                            <Text style={[styles.sectionTitle, { color: '#10B981' }]}>
+                              On Track ({onTrackClients.length})
                             </Text>
                           </View>
-                        </View>
-                        <Text style={styles.clientTime}>
-                          Last: {getTimeSinceLog(client.last_log_time)}
-                        </Text>
-                        <View style={styles.clientActions}>
-                          <TouchableOpacity 
-                            style={styles.actionButton}
-                            onPress={() => router.push(`/messageThread/${client.id}`)}
-                          >
-                            <Ionicons name="chatbubble-outline" size={16} color="#3D5A5C" />
-                            <Text style={styles.actionText}>Message</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity 
-                            style={styles.actionButton}
-                            onPress={() => router.push(`/clientDetail/${client.id}`)}
-                          >
-                            <Ionicons name="eye-outline" size={16} color="#3D5A5C" />
-                            <Text style={styles.actionText}>View Progress</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
 
-                {baselineClients.length > 0 && (
-                  <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                      <Ionicons name="time-outline" size={24} color="#F59E0B" />
-                      <Text style={[styles.sectionTitle, { color: '#F59E0B' }]}>
-                        In Baseline ({baselineClients.length})
-                      </Text>
-                    </View>
-
-                    {baselineClients.map((client) => (
-                      <View key={client.id} style={styles.clientCard}>
-                        <View style={styles.clientHeader}>
-                          <Text style={styles.clientName}>
-                            {client.full_name || 'Client'}
-                          </Text>
-                          <View style={[styles.statusBadge, { backgroundColor: '#FEF3C7' }]}>
-                            <Text style={[styles.statusText, { color: '#F59E0B' }]}>
-                              Day {client.baseline_day} of 7
-                            </Text>
-                          </View>
-                        </View>
-                        <Text style={styles.clientTime}>
-                          {client.meals_today} meals logged today
-                        </Text>
-                        <View style={styles.clientActions}>
-                          <TouchableOpacity 
-                            style={styles.actionButton}
-                            onPress={() => router.push(`/clientDetail/${client.id}`)}
-                          >
-                            <Ionicons name="eye-outline" size={16} color="#3D5A5C" />
-                            <Text style={styles.actionText}>View Progress</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {onTrackClients.length > 0 && (
-                  <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                      <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-                      <Text style={[styles.sectionTitle, { color: '#10B981' }]}>
-                        On Track ({onTrackClients.length})
-                      </Text>
-                    </View>
-
-                    {onTrackClients.slice(0, 3).map((client) => (
-                      <View key={client.id} style={styles.clientCard}>
-                        <View style={styles.clientHeader}>
-                          <Text style={styles.clientName}>
-                            {client.full_name || 'Client'}
-                          </Text>
-                          <View style={[styles.statusBadge, { backgroundColor: '#D1FAE5' }]}>
-                            <Text style={[styles.statusText, { color: '#10B981' }]}>
-                              {client.meals_today} meals
-                            </Text>
-                          </View>
-                        </View>
-                        <Text style={styles.clientTime}>
-                          Last: {getTimeSinceLog(client.last_log_time)}
-                        </Text>
-                      </View>
-                    ))}
+                          {onTrackClients.slice(0, 3).map((client) => (
+                            <ClientCardOnTrack
+                              key={client.id}
+                              clientId={client.id}
+                              fullName={client.full_name || 'Client'}
+                              avatarUrl={null}
+                              mealsLoggedToday={client.meals_today}
+                              weeklyProgress={calculateWeeklyProgress()}
+                              avgDailyCalories={client.baseline_avg_daily_calories}
+                              currentStreak={client.current_streak}
+                              onViewProgressPress={() => router.push(`/clientDetail/${client.id}`)}
+                            />
+                          ))}
 
                     {onTrackClients.length > 3 && (
                       <TouchableOpacity 
