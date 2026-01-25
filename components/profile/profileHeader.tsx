@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { 
   View, 
@@ -15,6 +16,8 @@ interface ProfileHeaderProps {
   weightUnit: 'lbs' | 'kg';
   goal: 'lose' | 'maintain' | 'gain' | null;
   targetWeight: number | null;
+  userType?: 'client' | 'trainer';
+  totalClients?: number; 
 }
 
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
@@ -25,6 +28,8 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   weightUnit,
   goal,
   targetWeight,
+  userType = 'client',
+  totalClients = 0,
 }) => {
   // Get initials from full name
   const getInitials = (name: string): string => {
@@ -60,35 +65,50 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         </View>
 
         <View style={styles.userInfo}>
-        <Text style={styles.name}>{fullName || 'User'}</Text>
+          <Text style={styles.name}>{fullName || 'User'}</Text>
           <Text style={styles.email}>{email}</Text>
-          <View style={styles.metricsContainer}>
-            {currentWeight !== null && (
-              <View style={styles.weightContainer}>
-                <Ionicons name="scale-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.weightText}>
-                  {Math.round(currentWeight)} {weightUnit}
+          
+          {/* Show different metrics based on user type */}
+          {userType === 'trainer' ? (
+            // Trainer view - show only total clients
+            <View style={styles.metricsContainer}>
+              <View style={styles.clientsContainer}>
+                <Ionicons name="people" size={16} color="#FFFFFF" />
+                <Text style={styles.clientsText}>
+                  {totalClients} {totalClients === 1 ? 'client' : 'clients'}
                 </Text>
               </View>
-            )}
-            {goal && (
-              <View style={styles.goalContainer}>
-                <Ionicons name="flag-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.goalText}>
-                  {formatGoal(goal)}
-                  {targetWeight !== null && (
-                    <Text style={styles.targetWeightText}>
-                      {' '}→ {Math.round(targetWeight)} {weightUnit}
-                    </Text>
-                  )}
-                </Text>
-              </View>
-            )}
-            <View style={styles.streakContainer}>
-              <Ionicons name="flame" size={16} color="#EF7828" />
-              <Text style={styles.streakText}>{currentStreak} day streak</Text>
             </View>
-          </View>
+          ) : (
+            // Client view - show weight, goal, streak
+            <View style={styles.metricsContainer}>
+              {currentWeight !== null && (
+                <View style={styles.weightContainer}>
+                  <Ionicons name="scale-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.weightText}>
+                    {Math.round(currentWeight)} {weightUnit}
+                  </Text>
+                </View>
+              )}
+              {goal && (
+                <View style={styles.goalContainer}>
+                  <Ionicons name="flag-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.goalText}>
+                    {formatGoal(goal)}
+                    {targetWeight !== null && (
+                      <Text style={styles.targetWeightText}>
+                        {' '}→ {Math.round(targetWeight)} {weightUnit}
+                      </Text>
+                    )}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.streakContainer}>
+                <Ionicons name="flame" size={16} color="#EF7828" />
+                <Text style={styles.streakText}>{currentStreak} day streak</Text>
+              </View>
+            </View>
+          )}
         </View>
       </View>
     </View>
@@ -144,6 +164,18 @@ const styles = StyleSheet.create({
     gap: 16,
     flexWrap: 'wrap',
   },
+  // Trainer-specific styles
+  clientsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  clientsText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  // Client-specific styles
   weightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
