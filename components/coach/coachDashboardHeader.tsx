@@ -32,8 +32,7 @@ export function CoachDashboardHeader({
       {/* Logo Row */}
       <View style={styles.logoRow}>
         <View style={styles.logoContainer}>
-          <Ionicons name="leaf-outline" size={24} color={Colors.vividTeal} />
-          <Text style={styles.logoText}>HAVEN</Text>
+        <Text style={styles.logo}>HAVEN</Text>
         </View>
         
         {/* Notification Badge */}
@@ -83,11 +82,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  logoText: {
-    fontSize: 20,
+  logo: {
+    fontSize: 28,
     fontWeight: '700',
     color: Colors.vividTeal,
-    letterSpacing: 0.5,
   },
   greeting: {
     fontSize: 24,
