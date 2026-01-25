@@ -1,4 +1,4 @@
-
+// app/clientDetail/[id].tsx
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -14,7 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import { getLocalDateString, formatDateDisplay } from '@/utils/timezone';
+import { Colors } from '@/constants/colors';
+import { getLocalDateString } from '@/utils/timezone';
+
+// Import cards
+import { ClientMetricCards } from '@/components/coach/clientMetricCards';
+import { TodayCaloriesCard } from '@/components/homebaseline/cards/todayCaloriesCard';
+import { NextCheatDayCard } from '@/components/homeactive/cards/nextCheatDayCard';
+import { ClientFoodLogs } from '@/components/coach/clientFoodLogs';
 
 interface ClientProfile {
   id: string;
@@ -23,6 +30,7 @@ interface ClientProfile {
   baseline_start_date: string | null;
   baseline_complete: boolean;
   baseline_avg_daily_calories: number | null;
+  weekly_calorie_bank: number | null;
 }
 
 interface FoodLog {
@@ -32,6 +40,9 @@ interface FoodLog {
   meal_type: string;
   log_date: string;
   created_at: string;
+  protein_grams?: number | null;
+  carbs_grams?: number | null;
+  fat_grams?: number | null;
 }
 
 export default function ClientDetailScreen() {
@@ -43,6 +54,8 @@ export default function ClientDetailScreen() {
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [todayMealCount, setTodayMealCount] = useState(0);
+  const [todayCalories, setTodayCalories] = useState(0);
+  const [cheatDates, setCheatDates] = useState<string[]>([]);
 
   useEffect(() => {
     fetchClientData();
@@ -53,10 +66,10 @@ export default function ClientDetailScreen() {
       // Fetch client profile
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, full_name, current_streak, baseline_start_date, baseline_complete, baseline_avg_daily_calories')
+        .select('*')
         .eq('id', id)
         .single();
-        console.log('user',id)
+
       if (profileError) {
         console.error('Error fetching client profile:', profileError);
         setLoading(false);
@@ -65,58 +78,52 @@ export default function ClientDetailScreen() {
       }
 
       setClient(profileData);
+
       // Get today's date
       const today = getLocalDateString();
 
-    // Fetch today's logs specifically
-    const { data: todayLogs } = await supabase
-      .from('food_logs')
-      .select('id')
-      .eq('user_id', id)
-      .eq('log_date', today);
+      // Fetch today's logs specifically
+      const { data: todayLogs } = await supabase
+        .from('food_logs')
+        .select('calories')
+        .eq('user_id', id)
+        .eq('log_date', today);
 
-      
       setTodayMealCount(todayLogs?.length || 0);
-
-      const { data: allLogs, error: allLogsError } = await supabase
-      .from('food_logs')
-      .select('id, food_name, log_date, created_at')
-      .eq('user_id', id)
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (allLogs) {
-      allLogs.forEach((log, index) => {
-        console.log(`Log ${index + 1}:`, {
-          food: log.food_name,
-          log_date: log.log_date,
-          created_at: log.created_at,
-        });
-      });
-    }
-    console.log('=== END DEBUG ===');
+      const todayTotal = todayLogs?.reduce((sum, log) => sum + (log.calories || 0), 0) || 0;
+      setTodayCalories(todayTotal);
 
       // Fetch recent food logs (last 7 days)
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const year = sevenDaysAgo.getFullYear();
-      const month = String(sevenDaysAgo.getMonth() + 1).padStart(2, '0');
-      const day = String(sevenDaysAgo.getDate()).padStart(2, '0');
-      const sevenDaysAgoStr = `${year}-${month}-${day}`;
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
       const { data: logsData, error: logsError } = await supabase
-          .from('food_logs')
-          .select('*')
-          .eq('user_id', id)
-          .gte('log_date', sevenDaysAgoStr)
-          .lte('log_date', new Date().toISOString().split('T')[0])  // Add upper bound
-          .order('log_date', { ascending: false })  // Order by log_date first
-          .order('created_at', { ascending: false });
+        .from('food_logs')
+        .select('*')
+        .eq('user_id', id)
+        .gte('log_date', sevenDaysAgoStr)
+        .lte('log_date', today)
+        .order('log_date', { ascending: false })
+        .order('created_at', { ascending: false });
 
       if (logsError) {
         console.error('Error fetching food logs:', logsError);
       } else {
         setFoodLogs(logsData || []);
+      }
+
+      // Fetch cheat days if client has completed baseline
+      if (profileData.baseline_complete) {
+        const { data: cheatDays } = await supabase
+          .from('planned_cheat_days')
+          .select('cheat_date')
+          .eq('user_id', id)
+          .gte('cheat_date', today);
+
+        if (cheatDays) {
+          setCheatDates(cheatDays.map(cd => cd.cheat_date));
+        }
       }
 
     } catch (error) {
@@ -132,53 +139,42 @@ export default function ClientDetailScreen() {
     fetchClientData();
   };
 
-  const formatDate = (dateString: string) => {
-    const result = formatDateDisplay(dateString);
-    return result;
+  // Get unique dates that have logs
+  const getAvailableDates = (): string[] => {
+    const uniqueDates = [...new Set(foodLogs.map(log => log.log_date))];
+    return uniqueDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
   };
 
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
+  // Get next cheat day info
+  const getNextCheatDayInfo = () => {
+    if (cheatDates.length === 0) return null;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const upcomingCheatDays = cheatDates
+      .map(dateStr => new Date(dateStr + 'T00:00:00'))
+      .filter(date => date >= today)
+      .sort((a, b) => a.getTime() - b.getTime());
+    
+    if (upcomingCheatDays.length === 0) return null;
+    
+    const nextDate = upcomingCheatDays[0];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    return {
+      dayName: dayNames[nextDate.getDay()],
+      dateString: `${months[nextDate.getMonth()]} ${nextDate.getDate()}`,
+      date: nextDate,
+    };
   };
-
-  const getMealIcon = (mealType: string) => {
-    switch (mealType) {
-      case 'breakfast': return 'sunny-outline';
-      case 'lunch': return 'partly-sunny-outline';
-      case 'dinner': return 'moon-outline';
-      case 'snack': return 'fast-food-outline';
-      default: return 'restaurant-outline';
-    }
-  };
-
-  const capitalizeFirst = (str: string) => {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  };
-
-  // Group logs by date
-  const groupedLogs = foodLogs.reduce((acc, log) => {
-    const date = log.log_date;
-    if (!acc[date]) {
-      acc[date] = [];
-    }
-    acc[date].push(log);
-    return acc;
-  }, {} as Record<string, FoodLog[]>);
-
-  const sortedDates = Object.keys(groupedLogs).sort((a, b) => 
-    new Date(b).getTime() - new Date(a).getTime()
-  );
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3D5A5C" />
+          <ActivityIndicator size="large" color={Colors.vividTeal} />
         </View>
       </SafeAreaView>
     );
@@ -194,6 +190,10 @@ export default function ClientDetailScreen() {
     );
   }
 
+  const nextCheatDay = getNextCheatDayInfo();
+  const dailyGoal = client.baseline_avg_daily_calories || 2000;
+  const todayRemaining = dailyGoal - todayCalories;
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -202,21 +202,19 @@ export default function ClientDetailScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="arrow-back" size={24} color="#3D5A5C" />
+          <Ionicons name="arrow-back" size={24} color={Colors.graphite} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerName}>{client.full_name || 'Client'}</Text>
           {!client.baseline_complete && client.baseline_start_date && (
-            <Text style={styles.headerStatus}>In Baseline Week</Text>
+            <Text style={styles.headerStatus}>Day {client.current_streak} of 7</Text>
           )}
         </View>
         <TouchableOpacity
           style={styles.messageButton}
-          onPress={() => {
-            router.push(`/messageThread/${client.id}`);
-          }}
+          onPress={() => router.push(`/messageThread/${client.id}`)}
         >
-          <Ionicons name="chatbubble-outline" size={24} color="#3D5A5C" />
+          <Ionicons name="chatbubble-outline" size={24} color={Colors.graphite} />
         </TouchableOpacity>
       </View>
 
@@ -228,81 +226,47 @@ export default function ClientDetailScreen() {
         }
       >
         <View style={styles.content}>
-          {/* Quick Stats */}
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Ionicons name="flash" size={24} color="#E09B7B" />
-              <Text style={styles.statNumber}>{client.current_streak}</Text>
-              <Text style={styles.statLabel}>Day Streak</Text>
+          {/* Metric Cards */}
+          <ClientMetricCards
+            dayStreak={client.current_streak}
+            todayMeals={todayMealCount}
+          />
+
+          {/* Today's Calories Card */}
+          {client.baseline_complete && (
+            <View style={styles.cardSpacing}>
+              <TodayCaloriesCard
+                todayStats={{
+                  consumed: todayCalories,
+                  remaining: todayRemaining,
+                  goal: dailyGoal,
+                  macros: { protein: 0, carbs: 0, fat: 0 },
+                }}
+              />
             </View>
+          )}
 
-            <View style={styles.statCard}>
-    <Ionicons name="restaurant" size={24} color="#3D5A5C" />
-    <Text style={styles.statNumber}>{todayMealCount}</Text>
-    <Text style={styles.statLabel}>Today's Meals</Text>
-  </View>
 
-            {client.baseline_complete && client.baseline_avg_daily_calories && (
-              <View style={styles.statCard}>
-                <Ionicons name="analytics" size={24} color="#10B981" />
-                <Text style={styles.statNumber}>{client.baseline_avg_daily_calories}</Text>
-                <Text style={styles.statLabel}>Baseline Avg</Text>
-              </View>
-            )}
+          {/* Next Cheat Day Card */}
+          {nextCheatDay && (
+            <View style={styles.cardSpacing}>
+              <NextCheatDayCard
+                dayName={nextCheatDay.dayName}
+                dateString={nextCheatDay.dateString}
+                reservedCalories={0}
+                onPress={() => {}}
+              />
+            </View>
+          )}
+
+           {/* Food Logs Section */}
+            <View style={styles.logsSection}>
+              <ClientFoodLogs
+                foodLogs={foodLogs}
+                availableDates={getAvailableDates()}
+              />
+            </View>
           </View>
-
-          {/* Food Logs Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Food Logs</Text>
-            
-            {sortedDates.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="restaurant-outline" size={48} color="#D1D5DB" />
-                <Text style={styles.emptyTitle}>No food logs yet</Text>
-                <Text style={styles.emptyDescription}>
-                  Client hasn't logged meals in the last 7 days
-                </Text>
-              </View>
-            ) : (
-              sortedDates.map((date) => (
-                <View key={date} style={styles.dateGroup}>
-                  <View style={styles.dateHeader}>
-                    <Text style={styles.dateText}>{formatDate(date)}</Text>
-                    <Text style={styles.dateMealCount}>
-                      {groupedLogs[date].length} meal{groupedLogs[date].length !== 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                  
-                  {groupedLogs[date].map((log) => (
-                    <View key={log.id} style={styles.logCard}>
-                      <View style={styles.logLeft}>
-                        <View style={styles.mealIconContainer}>
-                          <Ionicons
-                            name={getMealIcon(log.meal_type) as any}
-                            size={20}
-                            color="#3D5A5C"
-                          />
-                        </View>
-                        <View style={styles.logInfo}>
-                          <Text style={styles.logFood}>{log.food_name}</Text>
-                          <Text style={styles.logMeta}>
-                            {capitalizeFirst(log.meal_type)} • {formatTime(log.created_at)}
-                          </Text>
-                        </View>
-                      </View>
-                      {log.calories && (
-                        <View style={styles.logCalories}>
-                          <Text style={styles.caloriesNumber}>{log.calories}</Text>
-                          <Text style={styles.caloriesLabel}>cal</Text>
-                        </View>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              ))
-            )}
-          </View>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -311,10 +275,7 @@ export default function ClientDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
-  },
-  scrollView: {
-    flex: 1,
+    backgroundColor: Colors.lightCream,
   },
   loadingContainer: {
     flex: 1,
@@ -325,19 +286,26 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
   },
   errorText: {
     fontSize: 16,
     color: '#EF4444',
+    textAlign: 'center',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingVertical: 16,
+    backgroundColor: Colors.lightCream ,
   },
   backButton: {
-    marginRight: 16,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
   headerInfo: {
     flex: 1,
@@ -345,7 +313,7 @@ const styles = StyleSheet.create({
   headerName: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.graphite,
   },
   headerStatus: {
     fontSize: 14,
@@ -353,138 +321,22 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   messageButton: {
-    padding: 8,
-  },
-  content: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 40,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#3D5A5C',
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#3D5A5C',
-    marginBottom: 16,
-  },
-  dateGroup: {
-    marginBottom: 20,
-  },
-  dateHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  dateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3D5A5C',
-  },
-  dateMealCount: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  logCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  logLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-  },
-  mealIconContainer: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F5F1E8',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logInfo: {
+  scrollView: {
     flex: 1,
   },
-  logFood: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3D5A5C',
-    marginBottom: 4,
+  content: {
+    padding: 20,
+    paddingBottom: 100,
   },
-  logMeta: {
-    fontSize: 12,
-    color: '#6B7280',
+  cardSpacing: {
+    marginBottom: 16,
   },
-  logCalories: {
-    alignItems: 'flex-end',
-  },
-  caloriesNumber: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#3D5A5C',
-  },
-  caloriesLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  emptyDescription: {
-    fontSize: 14,
-    color: '#9CA3AF',
+  logsSection: {
     marginTop: 8,
-    textAlign: 'center',
   },
 });

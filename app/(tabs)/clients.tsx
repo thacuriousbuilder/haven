@@ -1,4 +1,4 @@
-
+// app/(tabs)/clients.tsx
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -15,21 +15,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { Colors } from '@/constants/colors';
+
+// Import new card components
+import { ClientCardFollowUp } from '@/components/coach/clientCardFollowUp';
+import { ClientCardOnTrack } from '@/components/coach/clientCardOnTrack';
+import { ClientCardBaseline } from '@/components/coach/clientCardBaseline';
 
 interface Client {
   id: string;
   full_name: string | null;
+  avatar_url: string | null;
+  status: 'need_followup' | 'on_track' | 'in_baseline';
+  baseline_days_completed: number | null;
+  baseline_days_remaining: number | null;
+  baseline_avg_daily_calories: number | null;
   current_streak: number;
-  baseline_start_date: string | null;
-  baseline_complete: boolean;
-  last_log_time: string | null;
-  meals_today: number;
-  balance_score: number | null;
-  status: 'needs_attention' | 'on_track' | 'baseline';
-  baseline_day: number | null;
+  meals_logged_today: number;
+  days_inactive: number;
 }
 
-type FilterType = 'all' | 'on_track' | 'baseline' | 'needs_attention';
+type FilterType = 'all' | 'on_track' | 'in_baseline' | 'need_followup';
 
 export default function ClientsScreen() {
   const [loading, setLoading] = useState(true);
@@ -47,11 +53,9 @@ export default function ClientsScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: clientProfiles, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, current_streak, baseline_start_date, baseline_complete')
-        .eq('trainer_id', user.id)
-        .order('full_name', { ascending: true });
+      // Use RPC function to get clients with status
+      const { data: clientsData, error } = await supabase
+        .rpc('get_coach_clients_with_status', { coach_id: user.id });
 
       if (error) {
         console.error('Error fetching clients:', error);
@@ -60,62 +64,11 @@ export default function ClientsScreen() {
         return;
       }
 
-      if (!clientProfiles || clientProfiles.length === 0) {
-        setClients([]);
-        setLoading(false);
-        setRefreshing(false);
-        return;
-      }
-
-      // For each client, get their today's logs
-      const today = new Date().toISOString().split('T')[0];
-      const clientStatuses: Client[] = [];
-
-      for (const client of clientProfiles) {
-        const { data: todayLogs } = await supabase
-          .from('food_logs')
-          .select('created_at')
-          .eq('user_id', client.id)
-          .gte('log_date', today)
-          .order('created_at', { ascending: false });
-
-        const mealsToday = todayLogs?.length || 0;
-        const lastLogTime = todayLogs?.[0]?.created_at || null;
-
-        // Determine status
-        let status: 'needs_attention' | 'on_track' | 'baseline' = 'on_track';
-        let baselineDay = null;
-
-        if (!client.baseline_complete && client.baseline_start_date) {
-          status = 'baseline';
-          const startDate = new Date(client.baseline_start_date);
-          const todayDate = new Date();
-          const diffDays = Math.floor((todayDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-          baselineDay = Math.min(diffDays, 7);
-        } else if (mealsToday === 0) {
-          status = 'needs_attention';
-        } else if (mealsToday < 2) {
-          status = 'needs_attention';
-        }
-
-        clientStatuses.push({
-          id: client.id,
-          full_name: client.full_name,
-          current_streak: client.current_streak || 0,
-          baseline_start_date: client.baseline_start_date,
-          baseline_complete: client.baseline_complete,
-          last_log_time: lastLogTime,
-          meals_today: mealsToday,
-          balance_score: null,
-          status,
-          baseline_day: baselineDay,
-        });
-      }
-
-      setClients(clientStatuses);
+      setClients(clientsData || []);
+      setLoading(false);
+      setRefreshing(false);
     } catch (error) {
       console.error('Error in fetchClients:', error);
-    } finally {
       setLoading(false);
       setRefreshing(false);
     }
@@ -126,46 +79,13 @@ export default function ClientsScreen() {
     fetchClients();
   };
 
-  const getTimeSinceLog = (timestamp: string | null) => {
-    if (!timestamp) return 'No logs today';
-    
-    const now = new Date();
-    const logTime = new Date(timestamp);
-    const diffMs = now.getTime() - logTime.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return 'Yesterday';
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'needs_attention': return '#EF4444';
-      case 'baseline': return '#F59E0B';
-      case 'on_track': return '#10B981';
-      default: return '#6B7280';
-    }
-  };
-
-  const getStatusBgColor = (status: string) => {
-    switch (status) {
-      case 'needs_attention': return '#FEE2E2';
-      case 'baseline': return '#FEF3C7';
-      case 'on_track': return '#D1FAE5';
-      default: return '#F3F4F6';
-    }
-  };
-
-  const getStatusText = (client: Client) => {
-    if (client.status === 'baseline') {
-      return `Day ${client.baseline_day} of 7`;
-    }
-    if (client.status === 'needs_attention') {
-      return client.meals_today === 0 ? 'No logs' : `${client.meals_today} meal${client.meals_today !== 1 ? 's' : ''}`;
-    }
-    return `${client.meals_today} meals`;
+  // Helper function to calculate weekly progress
+  const calculateWeeklyProgress = (): number => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const monday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const daysIntoWeek = monday + 1;
+    return Math.round((daysIntoWeek / 7) * 100);
   };
 
   // Filter and search clients
@@ -174,14 +94,14 @@ export default function ClientsScreen() {
     if (activeFilter !== 'all' && client.status !== activeFilter) {
       return false;
     }
-
+  
     // Apply search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const name = (client.full_name || 'client').toLowerCase();
+      const name = (client.full_name || '').toLowerCase(); // Fix: Handle null
       return name.includes(query);
     }
-
+  
     return true;
   });
 
@@ -190,11 +110,65 @@ export default function ClientsScreen() {
     return clients.filter(c => c.status === filter).length;
   };
 
+  // Render appropriate card based on status
+  const renderClientCard = (client: Client) => {
+    const displayName = client.full_name || 'Client'; 
+    switch (client.status) {
+      case 'need_followup':
+        return (
+          <ClientCardFollowUp
+            key={client.id}
+            clientId={client.id}
+            fullName={displayName}
+            avatarUrl={client.avatar_url}
+            lastActiveDaysAgo={client.days_inactive}
+            avgDailyCalories={client.baseline_avg_daily_calories}
+            currentStreak={client.current_streak}
+            onViewPress={() => router.push(`/clientDetail/${client.id}`)}
+            onMessagePress={() => router.push(`/messageThread/${client.id}`)}
+          />
+        );
+
+      case 'on_track':
+        return (
+          <ClientCardOnTrack
+            key={client.id}
+            clientId={client.id}
+            fullName={displayName}
+            avatarUrl={client.avatar_url}
+            mealsLoggedToday={client.meals_logged_today}
+            weeklyProgress={calculateWeeklyProgress()}
+            avgDailyCalories={client.baseline_avg_daily_calories}
+            currentStreak={client.current_streak}
+            onViewProgressPress={() => router.push(`/clientDetail/${client.id}`)}
+          />
+        );
+
+      case 'in_baseline':
+        return (
+          <ClientCardBaseline
+            key={client.id}
+            clientId={client.id}
+            fullName={displayName}
+            avatarUrl={client.avatar_url}
+            mealsLoggedToday={client.meals_logged_today}
+            baselineDaysCompleted={client.baseline_days_completed || 0}
+            daysRemaining={client.baseline_days_remaining || 7}
+            avgDailyCalories={client.baseline_avg_daily_calories}
+            onViewProgressPress={() => router.push(`/clientDetail/${client.id}`)}
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3D5A5C" />
+          <ActivityIndicator size="large" color={Colors.vividTeal} />
         </View>
       </SafeAreaView>
     );
@@ -210,6 +184,7 @@ export default function ClientsScreen() {
         }
       >
         <View style={styles.content}>
+          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>All Clients</Text>
             <Text style={styles.subtitle}>
@@ -239,6 +214,7 @@ export default function ClientsScreen() {
             horizontal 
             showsHorizontalScrollIndicator={false}
             style={styles.filterContainer}
+            contentContainerStyle={styles.filterContentContainer}
           >
             <TouchableOpacity
               style={[styles.filterTab, activeFilter === 'all' && styles.filterTabActive]}
@@ -259,20 +235,20 @@ export default function ClientsScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.filterTab, activeFilter === 'baseline' && styles.filterTabActive]}
-              onPress={() => setActiveFilter('baseline')}
+              style={[styles.filterTab, activeFilter === 'in_baseline' && styles.filterTabActive]}
+              onPress={() => setActiveFilter('in_baseline')}
             >
-              <Text style={[styles.filterText, activeFilter === 'baseline' && styles.filterTextActive]}>
-                Baseline ({getFilterCount('baseline')})
+              <Text style={[styles.filterText, activeFilter === 'in_baseline' && styles.filterTextActive]}>
+                Baseline ({getFilterCount('in_baseline')})
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.filterTab, activeFilter === 'needs_attention' && styles.filterTabActive]}
-              onPress={() => setActiveFilter('needs_attention')}
+              style={[styles.filterTab, activeFilter === 'need_followup' && styles.filterTabActive]}
+              onPress={() => setActiveFilter('need_followup')}
             >
-              <Text style={[styles.filterText, activeFilter === 'needs_attention' && styles.filterTextActive]}>
-                Needs Attention ({getFilterCount('needs_attention')})
+              <Text style={[styles.filterText, activeFilter === 'need_followup' && styles.filterTextActive]}>
+                Follow-up ({getFilterCount('need_followup')})
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -292,56 +268,7 @@ export default function ClientsScreen() {
             </View>
           ) : (
             <View style={styles.clientList}>
-              {filteredClients.map((client) => (
-                <TouchableOpacity
-                  key={client.id}
-                  style={styles.clientCard}
-                  onPress={() => {
-                    router.push(`/clientDetail/${client.id}`);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.clientHeader}>
-                    <View style={styles.clientInfo}>
-                      <Text style={styles.clientName}>
-                        {client.full_name || 'Client'}
-                      </Text>
-                      <Text style={styles.clientTime}>
-                        Last: {getTimeSinceLog(client.last_log_time)}
-                      </Text>
-                    </View>
-                    <View style={[
-                      styles.statusBadge, 
-                      { backgroundColor: getStatusBgColor(client.status) }
-                    ]}>
-                      <Text style={[
-                        styles.statusText,
-                        { color: getStatusColor(client.status) }
-                      ]}>
-                        {getStatusText(client)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.clientFooter}>
-                    <View style={styles.clientMeta}>
-                      {client.current_streak > 0 && (
-                        <View style={styles.metaBadge}>
-                          <Ionicons name="flash" size={14} color="#E09B7B" />
-                          <Text style={styles.metaText}>{client.current_streak} day streak</Text>
-                        </View>
-                      )}
-                      {client.status === 'on_track' && (
-                        <View style={styles.metaBadge}>
-                          <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-                          <Text style={styles.metaText}>On track</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-                  </View>
-                </TouchableOpacity>
-              ))}
+              {filteredClients.map(renderClientCard)}
             </View>
           )}
         </View>
@@ -353,7 +280,7 @@ export default function ClientsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F1E8',
+    backgroundColor: Colors.lightCream,
   },
   scrollView: {
     flex: 1,
@@ -364,16 +291,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   content: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
   header: {
-    marginBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
-    color: '#3D5A5C',
+    color: Colors.graphite,
     marginBottom: 4,
   },
   subtitle: {
@@ -384,37 +312,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    marginHorizontal: 20,
     marginBottom: 16,
     gap: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 1,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#3D5A5C',
+    color: Colors.graphite,
   },
   filterContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
+  },
+  filterContentContainer: {
+    paddingHorizontal: 20,
+    gap: 8,
   },
   filterTab: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    marginRight: 12,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#E5E7EB',
   },
   filterTabActive: {
-    backgroundColor: '#3D5A5C',
-    borderColor: '#3D5A5C',
+    backgroundColor: Colors.vividTeal,
+    borderColor: Colors.vividTeal,
   },
   filterText: {
     fontSize: 14,
@@ -425,63 +357,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   clientList: {
+    paddingHorizontal: 20,
     gap: 12,
-  },
-  clientCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  clientHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  clientInfo: {
-    flex: 1,
-  },
-  clientName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#3D5A5C',
-    marginBottom: 4,
-  },
-  clientTime: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  clientFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  clientMeta: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  metaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 12,
-    color: '#6B7280',
   },
   emptyState: {
     alignItems: 'center',
@@ -498,7 +375,7 @@ const styles = StyleSheet.create({
   emptyLink: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3D5A5C',
+    color: Colors.vividTeal,
     marginTop: 12,
   },
 });
