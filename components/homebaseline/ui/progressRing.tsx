@@ -13,6 +13,7 @@ interface ProgressRingProps {
   label: string;           // Bottom label (e.g., "total kcal")
   color?: string;          // Ring color (default: vividTeal)
   showPercentage?: boolean; // Show percentage instead of value
+  displayValue?:number
 }
 
 export function ProgressRing({
@@ -23,24 +24,25 @@ export function ProgressRing({
   label,
   color = Colors.vividTeal,
   showPercentage = false,
+  displayValue,  // NEW
 }: ProgressRingProps) {
-  // Calculate percentage if max is provided
-  const percentage = max && max > 0 ? Math.min((value / max) * 100, 100) : 75;
+  // Calculate percentage from value/max
+  const percentage = max && max > 0 ? Math.min((value / max) * 100, 100) : 0;
   
-  // Circle calculations
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const strokeDashoffset = circumference - (circumference * percentage) / 100;
   
-  // Format display value
-  const displayValue = showPercentage 
+  // Use displayValue if provided, otherwise use value
+  const valueToShow = displayValue !== undefined ? displayValue : value;
+  
+  const displayText = showPercentage 
     ? `${Math.round(percentage)}%`
-    : value.toLocaleString('en-US');
+    : valueToShow.toLocaleString('en-US');
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       <Svg width={size} height={size} style={styles.svg}>
-        {/* Background circle */}
         <Circle
           cx={size / 2}
           cy={size / 2}
@@ -50,7 +52,6 @@ export function ProgressRing({
           fill="none"
         />
         
-        {/* Progress circle */}
         <Circle
           cx={size / 2}
           cy={size / 2}
@@ -65,9 +66,8 @@ export function ProgressRing({
         />
       </Svg>
       
-      {/* Center content */}
       <View style={styles.centerContent}>
-        <Text style={styles.value}>{displayValue}</Text>
+        <Text style={styles.value}>{displayText}</Text>
         <Text style={styles.label}>{label}</Text>
       </View>
     </View>

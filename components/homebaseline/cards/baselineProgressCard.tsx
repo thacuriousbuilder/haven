@@ -18,10 +18,12 @@ export function BaselineProgressCard({
   completedDays,
   currentDayIndex,
 }: BaselineProgressCardProps) {
-  const daysRemaining = progress.totalDays - progress.daysLogged;
-  const progressText = daysRemaining > 0 
-    ? `Day ${progress.currentDay} of ${progress.totalDays} — ${daysRemaining} days to go!`
-    : 'Baseline complete!';
+  const calendarDaysRemaining = progress.totalDays - progress.currentDay;
+  const progressText = calendarDaysRemaining > 0 
+    ? `Day ${progress.currentDay} of ${progress.totalDays} — ${calendarDaysRemaining} day${calendarDaysRemaining === 1 ? '' : 's'} left`
+    : calendarDaysRemaining === 0
+      ? `Day ${progress.currentDay} of ${progress.totalDays} — Last day!`
+      : 'Baseline complete!';
 
   return (
     <View style={styles.card}>
@@ -74,7 +76,7 @@ export function BaselineProgressCard({
       <View style={styles.messageContainer}>
         <Ionicons name="heart" size={18} color={Colors.energyOrange} />
         <Text style={styles.messageText}>
-          {daysRemaining > 0 
+          {calendarDaysRemaining> 0 
             ? "Keep it up! Log today's meals to unlock personalized insights"
             : "Great work! Your personalized plan is ready"}
         </Text>
