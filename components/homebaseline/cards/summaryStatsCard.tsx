@@ -26,8 +26,10 @@ export function SummaryStatsCard({
         {/* Left: Progress ring */}
         <View style={styles.ringContainer}>
           <ProgressRing
-            value={totalCalories}
+            value={daysLogged}
+            displayValue={totalCalories}
             label="total kcal"
+            max={7}
             size={150}
             strokeWidth={16}
           />
