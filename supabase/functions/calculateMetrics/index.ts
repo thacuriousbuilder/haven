@@ -1,3 +1,4 @@
+
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -7,7 +8,7 @@ const corsHeaders = {
 }
 
 //@ts-ignore
-Deno.serve(async (req:Request) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -48,9 +49,13 @@ Deno.serve(async (req:Request) => {
 
     const userId = user.id
 
-    // Get calculation date from request body, or use server UTC as fallback
+    // Get calculation date (YYYY-MM-DD format)
     const requestBody = await req.json().catch(() => ({}))
-    const calculatedDate = requestBody.calculation_date || new Date().toISOString().split('T')[0]
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    const calculatedDate = requestBody.calculation_date || `${year}-${month}-${day}`
     
     console.log('📅 Calculation date:', calculatedDate)
 
@@ -65,11 +70,8 @@ Deno.serve(async (req:Request) => {
       .gte('week_end_date', calculatedDate)
       .single()
 
-    console.log('Period error:', periodError)
-    console.log('Period found:', !!weeklyPeriod)
-
     if (periodError || !weeklyPeriod) {
-      console.error('No active weekly period found for today')
+      console.error('No active weekly period found for date:', calculatedDate)
       return new Response(
         JSON.stringify({ 
           error: 'No active weekly period found',
@@ -79,12 +81,12 @@ Deno.serve(async (req:Request) => {
       )
     }
 
-    // Use the period's actual dates
     const weekStartDate = weeklyPeriod.week_start_date
     const weekEndDate = weeklyPeriod.week_end_date
 
     console.log('📅 Using period:', weekStartDate, 'to', weekEndDate)
 
+    // Get all daily summaries for this week up to today
     const { data: weekSummaries } = await supabaseClient
       .from('daily_summaries')
       .select('*')
@@ -93,9 +95,11 @@ Deno.serve(async (req:Request) => {
       .lte('summary_date', calculatedDate)
       .order('summary_date', { ascending: true })
 
+    // Calculate total consumed this week
     //@ts-ignore
-    const totalConsumed = weekSummaries?.reduce((sum: any, day: any) => sum + (day.calories_consumed || 0), 0) || 0
+    const totalConsumed = weekSummaries?.reduce((sum, day) => sum + (day.calories_consumed || 0), 0) || 0
 
+    // Get all cheat days for this week
     const { data: cheatDays } = await supabaseClient
       .from('planned_cheat_days')
       .select('*')
@@ -103,56 +107,22 @@ Deno.serve(async (req:Request) => {
       .gte('cheat_date', weekStartDate)
       .lte('cheat_date', weekEndDate)
 
+    // Calculate calories reserved for upcoming cheat days
     //@ts-ignore
-    const upcomingCheatDays = cheatDays?.filter((cd: any) => cd.cheat_date > calculatedDate) || []
+    const upcomingCheatDays = cheatDays?.filter(cd => cd.cheat_date > calculatedDate) || []
     //@ts-ignore
-    const caloriesReserved = upcomingCheatDays.reduce((sum: any, cd: any) => sum + (cd.planned_calories || 0), 0)
+    const caloriesReserved = upcomingCheatDays.reduce((sum, cd) => sum + (cd.planned_calories || 0), 0)
+
+    // Calculate total remaining
     const totalRemaining = weeklyPeriod.weekly_budget - totalConsumed
 
-    // Calculate days left using the period's end date
-    const todayDate = new Date(calculatedDate + 'T00:00:00')
-    const sunday = new Date(weekEndDate + 'T23:59:59')
-    const daysLeftInWeek = Math.max(1, Math.ceil((sunday.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
-    const dailyBudgetRemaining = totalRemaining / daysLeftInWeek
-    const baselineAvg = weeklyPeriod.baseline_average_daily
-
-    let balanceScore = dailyBudgetRemaining >= baselineAvg ? 100 : dailyBudgetRemaining >= baselineAvg * 0.7 ? 65 : 30
-
-    let consistencyScore = 50
-    if (weekSummaries && weekSummaries.length >= 3) {
-      //@ts-ignore
-      const calories = weekSummaries.map((s: any) => s.calories_consumed || 0)
-      //@ts-ignore
-      const mean = calories.reduce((a, b) => a + b, 0) / calories.length
-      //@ts-ignore
-      const stdDev = Math.sqrt(calories.map(v => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / calories.length)
-      const cv = (stdDev / mean) * 100
-      consistencyScore = cv < 15 ? 85 : cv < 30 ? 55 : 25
-    }
-
-    let driftScore = 50
-    //@ts-ignore
-    const pastCheatDays = cheatDays?.filter((cd: any) => cd.cheat_date <= calculatedDate) || []
-    if (pastCheatDays.length > 0) {
-      let totalDrift = 0
-      for (const cheatDay of pastCheatDays) {
-        //@ts-ignore
-        const summary = weekSummaries?.find(s => s.summary_date === cheatDay.cheat_date)
-        if (summary) totalDrift += Math.max(0, summary.calories_consumed - cheatDay.planned_calories)
-      }
-      const avgDrift = totalDrift / pastCheatDays.length
-      driftScore = avgDrift < 200 ? 80 : avgDrift < 500 ? 50 : 20
-    }
-
+    // Upsert metrics (remove scores)
     await supabaseClient
       .from('weekly_metrics')
       .upsert({
         user_id: userId,
         weekly_period_id: weeklyPeriod.id,
         calculated_date: calculatedDate,
-        balance_score: balanceScore,
-        consistency_score: consistencyScore,
-        drift_score: driftScore,
         total_consumed: totalConsumed,
         total_remaining: totalRemaining,
         calories_reserved: caloriesReserved,
@@ -164,9 +134,6 @@ Deno.serve(async (req:Request) => {
       JSON.stringify({
         success: true,
         data: {
-          balance_score: balanceScore,
-          consistency_score: consistencyScore,
-          drift_score: driftScore,
           total_consumed: totalConsumed,
           total_remaining: totalRemaining,
           calories_reserved: caloriesReserved,

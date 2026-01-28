@@ -3,58 +3,73 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
-import { MacroCircle } from '../ui/macroCircle';
 import { formatNumber } from '@/utils/homeHelpers';
-import type { TodayStats } from '@/types/home';
+import { MacroCircle } from '@/components/homebaseline/ui/macroCircle';
+
+interface MacroData {
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+interface TodayStats {
+  consumed: number;
+  remaining: number;
+  macros: MacroData;
+  goal: number;
+}
 
 interface TodayCaloriesCardProps {
   todayStats: TodayStats;
 }
 
 export function TodayCaloriesCard({ todayStats }: TodayCaloriesCardProps) {
-  const { consumed, remaining, macros } = todayStats;
+  const { consumed, remaining, macros, goal } = todayStats;
 
   return (
     <View style={styles.card}>
-      {/* Top: Calories row */}
-      <View style={styles.caloriesRow}>
-        {/* Left: Today's Calories */}
-        <View style={styles.calorieColumn}>
-          <Text style={styles.label}>Today's Calories</Text>
-          <View style={styles.valueRow}>
-            <Text style={styles.value}>{formatNumber(consumed)}</Text>
-            <Text style={styles.unit}>kcal</Text>
-          </View>
+      {/* Header */}
+      <Text style={styles.headerLabel}>Today's Calories</Text>
+
+      {/* Main Stats Row */}
+      <View style={styles.mainStatsRow}>
+        {/* Consumed */}
+        <View style={styles.statColumn}>
+          <Text style={styles.mainValue}>{formatNumber(consumed)}</Text>
+          <Text style={styles.mainLabel}>kcal</Text>
         </View>
 
-        {/* Right: Remaining */}
-        <View style={styles.calorieColumn}>
-          <Text style={[styles.label, styles.labelRight]}>Remaining</Text>
-          <Text style={[styles.value, styles.remainingValue]}>
+        {/* Divider */}
+        <View style={styles.divider} />
+
+        {/* Remaining */}
+        <View style={styles.statColumn}>
+          <Text style={styles.remainingLabel}>Remaining</Text>
+          <Text style={[styles.mainValue, styles.remainingValue]}>
             {formatNumber(remaining)}
           </Text>
         </View>
       </View>
 
-      {/* Bottom: Macro circles */}
-      <View style={styles.macrosContainer}>
+      {/* Macros Row - Using MacroCircle component */}
+      <View style={styles.macrosRow}>
         <MacroCircle
-          value={Math.round(macros.protein)}
+          value={macros.protein}
           label="Protein"
           type="protein"
-          size="medium"
+          size="small"
         />
         <MacroCircle
-          value={Math.round(macros.carbs)}
+          value={macros.carbs}
           label="Carbs"
           type="carbs"
-          size="medium"
+          size="small"
         />
         <MacroCircle
-          value={Math.round(macros.fat)}
+          value={macros.fat}
           label="Fat"
           type="fat"
-          size="medium"
+          size="small"
         />
       </View>
     </View>
@@ -70,47 +85,55 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     ...Shadows.medium,
   },
-  caloriesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.xl,
-  },
-  calorieColumn: {
-    flex: 1,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '500',
+  headerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
     color: Colors.steelBlue,
-    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: Spacing.md,
   },
-  labelRight: {
-    textAlign: 'right',
-  },
-  valueRow: {
+  mainStatsRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.lg,
   },
-  value: {
-    fontSize: 32,
+  statColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  mainValue: {
+    fontSize: 36,
     fontWeight: '700',
     color: Colors.graphite,
+    marginBottom: 4,
   },
-  unit: {
-    fontSize: 13,
+  mainLabel: {
+    fontSize: 14,
     fontWeight: '500',
     color: Colors.steelBlue,
+  },
+  divider: {
+    width: 1,
+    height: 50,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.lg,
+  },
+  remainingLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.steelBlue,
+    marginBottom: 4,
   },
   remainingValue: {
     color: Colors.vividTeal,
-    textAlign: 'right',
   },
-  macrosContainer: {
+  macrosRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
+    justifyContent: 'space-around',
+    paddingTop: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
 });
