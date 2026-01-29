@@ -1,4 +1,3 @@
-// app/clientDetail/[id].tsx
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -55,7 +54,10 @@ export default function ClientDetailScreen() {
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [todayMealCount, setTodayMealCount] = useState(0);
   const [todayCalories, setTodayCalories] = useState(0);
+  const [todayMacros, setTodayMacros] = useState({ protein: 0, carbs: 0, fat: 0 }); 
   const [cheatDates, setCheatDates] = useState<string[]>([]);
+  const [cheatDays, setCheatDays] = useState<Array<{ cheat_date: string; planned_calories: number | null }>>([]);  // ← CHANGED
+
 
   useEffect(() => {
     fetchClientData();
@@ -69,29 +71,42 @@ export default function ClientDetailScreen() {
         .select('*')
         .eq('id', id)
         .single();
-
+  
       if (profileError) {
         console.error('Error fetching client profile:', profileError);
         setLoading(false);
         setRefreshing(false);
         return;
       }
-
+  
       setClient(profileData);
-
+  
       // Get today's date
       const today = getLocalDateString();
-
-      // Fetch today's logs specifically
+  
+      // Fetch today's logs specifically (NOW INCLUDING MACROS)
       const { data: todayLogs } = await supabase
         .from('food_logs')
-        .select('calories')
+        .select('calories, protein_grams, carbs_grams, fat_grams')  // ← CHANGED: added macros
         .eq('user_id', id)
         .eq('log_date', today);
-
+  
       setTodayMealCount(todayLogs?.length || 0);
+      
+      // Calculate totals including macros
       const todayTotal = todayLogs?.reduce((sum, log) => sum + (log.calories || 0), 0) || 0;
+      const todayProtein = todayLogs?.reduce((sum, log) => sum + (log.protein_grams || 0), 0) || 0;
+      const todayCarbs = todayLogs?.reduce((sum, log) => sum + (log.carbs_grams || 0), 0) || 0;
+      const todayFat = todayLogs?.reduce((sum, log) => sum + (log.fat_grams || 0), 0) || 0;
+      
       setTodayCalories(todayTotal);
+      
+      // Store macros in state (we'll add this state next)
+      setTodayMacros({
+        protein: Math.round(todayProtein),
+        carbs: Math.round(todayCarbs),
+        fat: Math.round(todayFat),
+      });
 
       // Fetch recent food logs (last 7 days)
       const sevenDaysAgo = new Date();
@@ -115,14 +130,18 @@ export default function ClientDetailScreen() {
 
       // Fetch cheat days if client has completed baseline
       if (profileData.baseline_complete) {
-        const { data: cheatDays } = await supabase
+        const { data: cheatDays, error:cheatDaysError } = await supabase
           .from('planned_cheat_days')
-          .select('cheat_date')
+          .select('cheat_date, planned_calories')
           .eq('user_id', id)
           .gte('cheat_date', today);
+          console.log('Cheat days data:', cheatDays); 
+          console.log('Cheat days error:', cheatDaysError);
 
         if (cheatDays) {
           setCheatDates(cheatDays.map(cd => cd.cheat_date));
+          setCheatDays(cheatDays);
+          console.log('Setting cheat days:', cheatDays); 
         }
       }
 
@@ -147,26 +166,34 @@ export default function ClientDetailScreen() {
 
   // Get next cheat day info
   const getNextCheatDayInfo = () => {
-    if (cheatDates.length === 0) return null;
+    if (cheatDays.length === 0) return null;
+    console.log('cheatDays state:', cheatDays); 
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const upcomingCheatDays = cheatDates
-      .map(dateStr => new Date(dateStr + 'T00:00:00'))
-      .filter(date => date >= today)
-      .sort((a, b) => a.getTime() - b.getTime());
+    // Find upcoming cheat days with their reserved calories
+    const upcomingCheatDays = cheatDays
+      .map(cd => ({
+        date: new Date(cd.cheat_date + 'T00:00:00'),
+        reservedCalories: cd.planned_calories || 0, 
+      }))
+      .filter(cd => cd.date >= today)
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+      console.log('Upcoming cheat days:', upcomingCheatDays);
     
     if (upcomingCheatDays.length === 0) return null;
     
-    const nextDate = upcomingCheatDays[0];
+    const nextCheatDay = upcomingCheatDays[0];
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
     return {
-      dayName: dayNames[nextDate.getDay()],
-      dateString: `${months[nextDate.getMonth()]} ${nextDate.getDate()}`,
-      date: nextDate,
+      dayName: dayNames[nextCheatDay.date.getDay()],
+      dateString: `${months[nextCheatDay.date.getMonth()]} ${nextCheatDay.date.getDate()}`,
+      date: nextCheatDay.date,
+      reservedCalories: nextCheatDay.reservedCalories, 
     };
   };
 
@@ -232,7 +259,7 @@ export default function ClientDetailScreen() {
             todayMeals={todayMealCount}
           />
 
-          {/* Today's Calories Card */}
+         {/* Today's Calories Card */}
           {client.baseline_complete && (
             <View style={styles.cardSpacing}>
               <TodayCaloriesCard
@@ -240,7 +267,7 @@ export default function ClientDetailScreen() {
                   consumed: todayCalories,
                   remaining: todayRemaining,
                   goal: dailyGoal,
-                  macros: { protein: 0, carbs: 0, fat: 0 },
+                  macros: todayMacros,
                 }}
               />
             </View>
@@ -253,7 +280,7 @@ export default function ClientDetailScreen() {
               <NextCheatDayCard
                 dayName={nextCheatDay.dayName}
                 dateString={nextCheatDay.dateString}
-                reservedCalories={0}
+                reservedCalories={nextCheatDay.reservedCalories}  
                 onPress={() => {}}
               />
             </View>

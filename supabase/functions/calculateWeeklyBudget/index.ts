@@ -1,4 +1,3 @@
-
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -60,15 +59,19 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    console.log('🚀 calculateWeeklyBudget called')
+    
     const authHeader = req.headers.get('Authorization')
     
     if (!authHeader) {
+      console.error('❌ No auth header')
       return new Response(
         JSON.stringify({ error: 'Missing Authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    console.log('🔑 Creating Supabase client...')
     const supabaseClient = createClient(
       //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -81,10 +84,11 @@ Deno.serve(async (req: Request) => {
       }
     )
 
+    console.log('👤 Getting user...')
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
 
     if (userError || !user) {
-      console.error('Auth failed:', userError)
+      console.error('❌ Auth failed:', userError)
       return new Response(
         JSON.stringify({ error: 'Authentication failed', details: userError?.message }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -95,12 +99,25 @@ Deno.serve(async (req: Request) => {
 
     const userId = user.id
 
-    // Check if manual budget is provided
-    const requestBody = await req.json().catch(() => ({}))
+    console.log('📦 Parsing request body...')
+    let requestBody = {}
+    try {
+      const text = await req.text()
+      console.log('📝 Request body text:', text)
+      if (text) {
+        requestBody = JSON.parse(text)
+      }
+    } catch (e) {
+      console.log('⚠️ No request body or invalid JSON, using empty object')
+    }
+
+    console.log('📊 Request body parsed:', JSON.stringify(requestBody))
+    //@ts-ignore
     const manualWeeklyBudget = requestBody.manual_weekly_budget
 
     let weeklyBudget: number
     let averageDailyCalories: number
+    let daysUsed = 7
     let isManual = false
     let weekStartDate: string
     let weekEndDate: string
@@ -129,47 +146,56 @@ Deno.serve(async (req: Request) => {
     } else {
       console.log('📊 Calculating from baseline...')
 
-      // Get user profile to validate baseline
+      // Get user profile
+      console.log('👤 Fetching profile...')
       const { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
         .select('baseline_start_date, baseline_complete')
         .eq('id', userId)
         .single()
-
+    
       if (profileError || !profile) {
-        throw new Error('Profile not found')
-      }
-
-      // Validate user has baseline_start_date
-      if (!profile.baseline_start_date) {
+        console.error('❌ Profile error:', profileError)
         return new Response(
-          JSON.stringify({ error: 'No baseline_start_date found. Use manual_weekly_budget to skip baseline.' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Profile not found', details: profileError?.message }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      // Validate baseline isn't already complete
+      console.log('✅ Profile found:', JSON.stringify(profile))
+    
       if (profile.baseline_complete) {
+        console.error('❌ Baseline already complete')
         return new Response(
-          JSON.stringify({ error: 'Baseline already completed' }),
+          JSON.stringify({ error: 'Baseline already complete' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
-
+    
+      if (!profile.baseline_start_date) {
+        console.error('❌ No baseline start date')
+        return new Response(
+          JSON.stringify({ error: 'No baseline start date found' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    
       const baselineStartDate = profile.baseline_start_date
-
-      // Calculate the 7th day (end of baseline)
+      console.log('📅 Baseline start date:', baselineStartDate)
+    
+      // Calculate end date (7 days from start)
       const startDate = new Date(baselineStartDate + 'T00:00:00')
       const endDate = new Date(startDate)
       endDate.setDate(startDate.getDate() + 6)
-      const year = endDate.getFullYear()
-      const month = String(endDate.getMonth() + 1).padStart(2, '0')
-      const day = String(endDate.getDate()).padStart(2, '0')
-      const baselineEndDate = `${year}-${month}-${day}`
-
+      const eYear = endDate.getFullYear()
+      const eMonth = String(endDate.getMonth() + 1).padStart(2, '0')
+      const eDay = String(endDate.getDate()).padStart(2, '0')
+      const baselineEndDate = `${eYear}-${eMonth}-${eDay}`
+    
       console.log('📅 Baseline period:', baselineStartDate, 'to', baselineEndDate)
-
-      // Get baseline summaries (7 consecutive days)
+    
+      // Get baseline data
+      console.log('📊 Querying daily_summaries...')
       const { data: dailySummaries, error: summariesError } = await supabaseClient
         .from('daily_summaries')
         .select('summary_date, calories_consumed')
@@ -177,61 +203,65 @@ Deno.serve(async (req: Request) => {
         .gte('summary_date', baselineStartDate)
         .lte('summary_date', baselineEndDate)
         .order('summary_date', { ascending: true })
-
+    
       if (summariesError) {
-        throw new Error(summariesError.message)
+        console.error('❌ Query error:', summariesError)
+        return new Response(
+          JSON.stringify({ error: 'Database error', details: summariesError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
-
+    
       console.log('📊 Summaries found:', dailySummaries?.length)
-
-      if (!dailySummaries || dailySummaries.length < 7) {
+      console.log('📋 Summaries data:', JSON.stringify(dailySummaries))
+    
+      if (!dailySummaries || dailySummaries.length < 3) {
+        console.error('❌ Not enough data:', dailySummaries?.length || 0)
         return new Response(
           JSON.stringify({
-            error: 'Need 7 days of baseline data',
+            error: 'Need at least 3 days of data',
             found: dailySummaries?.length || 0,
-            required: 7,
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
-
-      // Calculate baseline metrics
-      //@ts-ignore
-      const totalCalories = dailySummaries.reduce((sum, day) => sum + day.calories_consumed, 0)
-      averageDailyCalories = Math.round(totalCalories / 7)
+    
+      // Calculate averages
+      console.log('🧮 Calculating averages...')
+      const totalCalories = dailySummaries.reduce((sum: number, day: any) => sum + (day.calories_consumed || 0), 0)
+      const daysLogged = dailySummaries.length
+      averageDailyCalories = Math.round(totalCalories / daysLogged)
       weeklyBudget = averageDailyCalories * 7
+      daysUsed = daysLogged
+    
+      console.log(`📊 Calculated from ${daysLogged} days:`)
+      console.log(`   Total: ${totalCalories} cal`)
+      console.log(`   Average: ${averageDailyCalories} cal/day`)
+      console.log(`   Weekly budget: ${weeklyBudget} cal`)
 
-      console.log('📊 Baseline avg:', averageDailyCalories, 'Weekly budget:', weeklyBudget)
+      // Smart week assignment based on days remaining
+      const today = new Date()
+      const dayOfWeek = today.getDay() // 0 = Sunday, 6 = Saturday
+      const daysLeftInWeek = dayOfWeek === 0 ? 0 : 7 - dayOfWeek
 
-      // Baseline users start NEXT week (fresh start after baseline)
-      weekStartDate = getNextMonday()
-      weekEndDate = getSunday(weekStartDate)
-      console.log('📅 Baseline user - creating period for NEXT week:', weekStartDate, 'to', weekEndDate)
+      if (daysLeftInWeek < 3) {
+        // Less than 3 days left → fresh start next Monday
+        weekStartDate = getNextMonday()
+        weekEndDate = getSunday(weekStartDate)
+        console.log(`📅 Only ${daysLeftInWeek} day(s) left this week - giving full week starting ${weekStartDate}`)
+      } else {
+        // 3+ days left → start tracking remainder of this week
+        weekStartDate = getCurrentMonday()
+        weekEndDate = getSunday(weekStartDate)
+        console.log(`📅 ${daysLeftInWeek} days remaining - starting this week from ${weekStartDate}`)
+      }
     }
 
-    // Check if period already exists
-    const { data: existingPeriod } = await supabaseClient
-      .from('weekly_periods')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('week_start_date', weekStartDate)
-      .single()
-
-    if (existingPeriod) {
-      console.log('⏭️  Period already exists')
-      return new Response(
-        JSON.stringify({
-          success: true,
-          data: { already_exists: true },
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Create weekly period
+    // Create weekly period (common for both paths)
+    console.log('📝 Creating weekly period...')
     const { data: weeklyPeriod, error: periodError } = await supabaseClient
       .from('weekly_periods')
-      .insert({
+      .upsert({
         user_id: userId,
         week_start_date: weekStartDate,
         week_end_date: weekEndDate,
@@ -239,14 +269,25 @@ Deno.serve(async (req: Request) => {
         weekly_budget: weeklyBudget,
         period_type: 'active',
         status: 'active',
+      }, {
+        onConflict: 'user_id,week_start_date'
       })
       .select()
       .single()
 
-    if (periodError) throw new Error(periodError.message)
+    if (periodError) {
+      console.error('❌ Period creation error:', periodError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to create period', details: periodError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log('✅ Weekly period created:', weeklyPeriod.id)
 
     // Update profile
-    await supabaseClient
+    console.log('📝 Updating profile...')
+    const { error: updateError } = await supabaseClient
       .from('profiles')
       .update({
         baseline_complete: true,
@@ -255,7 +296,15 @@ Deno.serve(async (req: Request) => {
       })
       .eq('id', userId)
 
-    console.log('✅ Success!', isManual ? '(Manual)' : '(Baseline)')
+    if (updateError) {
+      console.error('❌ Profile update error:', updateError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to update profile', details: updateError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log('✅ Profile updated - baseline complete!')
 
     return new Response(
       JSON.stringify({
@@ -266,6 +315,7 @@ Deno.serve(async (req: Request) => {
           week_start_date: weekStartDate,
           week_end_date: weekEndDate,
           weekly_period_id: weeklyPeriod.id,
+          days_used: daysUsed,
           is_manual: isManual,
         },
       }),
@@ -273,10 +323,12 @@ Deno.serve(async (req: Request) => {
     )
 
   } catch (error) {
-    console.error('Error:', error)
+    console.error('💥 Unhandled error:', error)
+    //@ts-ignore
+    console.error('💥 Error stack:', error.stack)
     return new Response(
       //@ts-ignore
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Internal server error', details: error.message, stack: error.stack }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   label: {
-    fontSize: 13,
+    fontSize: 10,
     fontWeight: '500',
     color: Colors.steelBlue,
   },
