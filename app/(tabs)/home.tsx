@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import WeeklyCalendar from '@/components/weeklyCalendar';
 import { calculateMetrics } from '@/utils/metrics';
-import { calculateWeeklyBudget } from '@/utils/weeklyBudget';
 import { BaselineCompleteModal } from '@/components/baseLineCompleteModal';
 import { getLocalDateString } from '@/utils/timezone';
 import { BaselineProgressCard } from '@/components/homebaseline/cards/baselineProgressCard';
