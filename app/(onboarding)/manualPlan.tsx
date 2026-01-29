@@ -7,17 +7,26 @@ import { useOnboarding } from '@/contexts/onboardingContext';
 import { supabase } from '@/lib/supabase';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
+import { calculateWeeklyBudget } from '@/utils/weeklyBudget';
+import {
+  calculateBMR,
+  calculateTDEE,
+  adjustForGoal,
+  calculateWeeklyCalorieBudget,
+  calculateMacros,
+  estimateTargetDate,
+} from '@/utils/calorieCalculator';
 
 export default function ManualPlanScreen() {
   const { data } = useOnboarding();
   const [loading, setLoading] = useState(true);
   const [planData, setPlanData] = useState({
-    goalWeight: 150,
-    targetDate: 'September 20',
-    weeklyCalories: 14000,
-    protein: 546,
-    carbs: 1232,
-    fats: 259,
+    goalWeight: 0,
+    targetDate: '',
+    weeklyCalories: 0,
+    protein: 0,
+    carbs: 0,
+    fats: 0,
   });
 
   useEffect(() => {
@@ -26,24 +35,74 @@ export default function ManualPlanScreen() {
 
   const calculateAndSavePlan = async () => {
     try {
-      // Simulate calculating plan
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // In real app, calculate based on user data
+      setLoading(true);
+  
+      // Validate and provide defaults for null values
+      const gender = data.gender || 'other';
+      const currentWeight = data.currentWeight || 150;
+      const heightFeet = data.heightFeet || 5;
+      const heightInches = data.heightInches || 8;
+      const birthYear = data.birthYear || 1990;
+      const birthMonth = data.birthMonth || 1;
+      const birthDay = data.birthDay || 1;
+      const activityLevel = data.activityLevel || 'lightly_active';
+      const goal = data.goal || 'maintain';
+      const goalWeight = data.goalWeight || currentWeight;
+  
+      // Calculate birth date
+      const birthDate = new Date(
+        birthYear,
+        birthMonth - 1,
+        birthDay
+      ).toISOString().split('T')[0];
+  
+      // Step 1: Calculate BMR
+      const bmr = calculateBMR(
+        gender,
+        currentWeight,
+        heightFeet,
+        heightInches,
+        birthDate
+      );
+  
+      // Step 2: Calculate TDEE
+      const tdee = calculateTDEE(bmr, activityLevel);
+  
+      // Step 3: Adjust for goal
+      const dailyCalories = adjustForGoal(
+        tdee,
+        goal,
+        goalWeight,
+        currentWeight
+      );
+  
+      // Step 4: Calculate weekly budget
+      const weeklyCalories = calculateWeeklyCalorieBudget(dailyCalories);
+  
+      // Step 5: Calculate macros
+      const macros = calculateMacros(weeklyCalories);
+  
+      // Step 6: Estimate target date
+      const targetDate = estimateTargetDate(
+        currentWeight,
+        goalWeight,
+        goal
+      );
+  
       const calculatedPlan = {
-        goalWeight: data.goalWeight || 150,
-        targetDate: 'September 20',
-        weeklyCalories: 14000,
-        protein: 546,
-        carbs: 1232,
-        fats: 259,
+        goalWeight: goalWeight,
+        targetDate: targetDate,
+        weeklyCalories: weeklyCalories,
+        protein: macros.protein,
+        carbs: macros.carbs,
+        fats: macros.fats,
       };
-      
+  
       setPlanData(calculatedPlan);
-
-   
-      await saveOnboardingData();
-      
+  
+      // Save onboarding data AND create weekly budget
+      await saveOnboardingData(weeklyCalories);
+  
       setLoading(false);
     } catch (error) {
       console.error('Error calculating plan:', error);
@@ -51,49 +110,56 @@ export default function ManualPlanScreen() {
       setLoading(false);
     }
   };
-
-  const saveOnboardingData = async () => {
+  
+  const saveOnboardingData = async (weeklyCalories: number) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        console.error('No user found');
         throw new Error('No user found');
       }
-
+  
       // Calculate birth date
       const birthDate = new Date(
         data.birthYear || 1990,
         (data.birthMonth || 1) - 1,
         data.birthDay || 1
-      );
-
-      const { error } = await supabase
+      ).toISOString().split('T')[0];
+  
+      // Save profile
+      const { error: profileError } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
-          gender: data.gender,
-          birth_date: birthDate.toISOString().split('T')[0],
+          gender: data.gender || 'other',
+          birth_date: birthDate,
           unit_system: 'imperial',
-          height_ft: data.heightFeet,
-          height_in: data.heightInches,
-          weight_lbs: data.currentWeight,
-          target_weight_lbs: data.goalWeight,
-          goal: data.goal,
-          workouts_per_week: data.workoutFrequency,
-          activity_level: data.activityLevel,
-          baseline_start_date: null, // They skipped baseline
-          baseline_complete: true, // Mark as complete since they're using estimate
+          height_ft: data.heightFeet || 5,
+          height_in: data.heightInches || 0,
+          weight_lbs: data.currentWeight || 150,
+          target_weight_lbs: data.goalWeight || data.currentWeight || 150,
+          goal: data.goal || 'maintain',
+          workouts_per_week: data.workoutFrequency || '0-2',
+          activity_level: data.activityLevel || 'lightly_active',
+          baseline_start_date: null,
+          baseline_complete: true,
+          baseline_avg_daily_calories: Math.round(weeklyCalories / 7),
+          weekly_calorie_bank: weeklyCalories,
           onboarding_completed: true,
           updated_at: new Date().toISOString(),
         });
-
-      if (error) {
-        console.error('Error saving profile:', error);
-        throw error;
+  
+      if (profileError) {
+        console.error('Error saving profile:', profileError);
+        throw profileError;
       }
-
-      console.log('✅ Onboarding data saved successfully (manual plan)');
+  
+      // Small delay to ensure profile is committed
+      await new Promise(resolve => setTimeout(resolve, 500));
+  
+      // Create weekly period with manual budget
+      await calculateWeeklyBudget(weeklyCalories);
+  
     } catch (error) {
       console.error('Error in saveOnboardingData:', error);
       throw error;
@@ -101,7 +167,6 @@ export default function ManualPlanScreen() {
   };
 
   const handleContinue = () => {
-  
     router.replace('/(tabs)/home');
   };
 
@@ -127,9 +192,9 @@ export default function ManualPlanScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.title}>Your Custom plan is ready!</Text>
+          <Text style={styles.title}>Your Custom Plan is Ready!</Text>
           
-          <Text style={styles.subtitle}>you should hit your goal</Text>
+          <Text style={styles.subtitle}>You should hit your goal</Text>
 
           <View style={styles.goalCard}>
             <Text style={styles.goalText}>
@@ -146,18 +211,18 @@ export default function ManualPlanScreen() {
             </View>
 
             <View style={styles.macroCard}>
-              <Text style={styles.macroValue}>{planData.protein}</Text>
-              <Text style={styles.macroLabel}>Protein</Text>
+              <Text style={styles.macroValue}>{planData.protein.toLocaleString()}</Text>
+              <Text style={styles.macroLabel}>Protein (g)</Text>
             </View>
 
             <View style={styles.macroCard}>
               <Text style={styles.macroValue}>{planData.carbs.toLocaleString()}</Text>
-              <Text style={styles.macroLabel}>Carbs</Text>
+              <Text style={styles.macroLabel}>Carbs (g)</Text>
             </View>
 
             <View style={styles.macroCard}>
-              <Text style={styles.macroValue}>{planData.fats}</Text>
-              <Text style={styles.macroLabel}>Fats</Text>
+              <Text style={styles.macroValue}>{planData.fats.toLocaleString()}</Text>
+              <Text style={styles.macroLabel}>Fats (g)</Text>
             </View>
           </View>
         </ScrollView>
@@ -229,8 +294,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
-    borderColor:"#E5E5E5",
-    borderWidth:1,
+    borderColor: '#E5E5E5',
+    borderWidth: 1,
   },
   goalText: {
     fontSize: 20,
@@ -260,8 +325,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
-    borderColor:"#E5E5E5",
-    borderWidth:1,
+    borderColor: '#E5E5E5',
+    borderWidth: 1,
   },
   macroValue: {
     fontSize: 24,

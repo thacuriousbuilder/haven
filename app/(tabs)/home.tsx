@@ -165,23 +165,30 @@ export default function HomeScreen() {
     }));
   };
 
-  // // Calculate total macros from food logs
-  // const calculateTotalMacros = (logs: FoodLog[]): MacroData => {
-  //   return logs.reduce(
-  //     (acc, log) => ({
-  //       protein: acc.protein + (log.protein_grams || 0),
-  //       carbs: acc.carbs + (log.carbs_grams || 0),
-  //       fat: acc.fat + (log.fat_grams || 0),
-  //     }),
-  //     { protein: 0, carbs: 0, fat: 0 }
-  //   );
-  // };
+  // Calculate total macros from food logs
+  const calculateTotalMacros = (logs: FoodLog[]): MacroData => {
+    return logs.reduce(
+      (acc, log) => ({
+        protein: acc.protein + (log.protein_grams || 0),
+        carbs: acc.carbs + (log.carbs_grams || 0),
+        fat: acc.fat + (log.fat_grams || 0),
+      }),
+      { protein: 0, carbs: 0, fat: 0 }
+    );
+  };
 
   // Calculate today's total calories
   const calculateTodayCalories = (): number => {
     const today = getLocalDateString();
     const todayLogs = recentLogs.filter(log => log.log_date === today);
     return todayLogs.reduce((sum, log) => sum + (log.calories || 0), 0);
+  };
+
+  // Add this function for today's macros:
+  const calculateTodayMacros = (): MacroData => {
+    const today = getLocalDateString();
+    const todayLogs = recentLogs.filter(log => log.log_date === today);
+    return calculateTotalMacros(todayLogs);
   };
 
 
@@ -270,12 +277,9 @@ export default function HomeScreen() {
   // ============= BASELINE STATUS CHECKING (NEW SYSTEM) =============
 
   const checkBaselineStatus = async () => {
-    try {
-      console.log('🔍 Checking baseline status...');
-      
+    try {  
       // Only run for clients with active baseline
       if (!profile?.baseline_start_date || profile.baseline_complete || profile.user_type === 'trainer') {
-        console.log('⏭️ Skipping baseline check (not applicable)');
         return;
       }
   
@@ -303,7 +307,6 @@ export default function HomeScreen() {
       const baselinePeriodEnded = today > endDate;
       
       if (baselinePeriodEnded) {
-        console.log('⏰ Baseline period ended, checking completion status...');
         await handleBaselineEnded();
       } else {
         console.log('✅ Baseline still active');
@@ -359,53 +362,29 @@ const completeBaselineAuto = async (
 ) => {
   try {
     console.log('🎯 Auto-completing baseline...');
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Calculate average from available days
+    
+    // Calculate average for display
     const totalCalories = summaries.reduce((sum, day) => sum + day.calories_consumed, 0);
     const average = Math.round(totalCalories / summaries.length);
 
     console.log(`📊 Baseline stats: ${daysLogged} days, ${average} cal/day average`);
 
-   // Determine completion quality
-    const quality = daysLogged === 7 ? 'full' : daysLogged >= 5 ? 'partial' : 'minimal';
-
-    // Mark baseline complete in database
-    const { error } = await supabase
-      .from('profiles')
-      .update({ 
-        baseline_complete: true,
-        weekly_calorie_bank: average * 7,
-        baseline_days_logged: daysLogged,
-        baseline_completion_quality: quality,
-      })
-      .eq('id', user.id);
-
-    if (error) {
-      console.error('❌ Error completing baseline:', error);
-      return;
-    }
-
-    console.log('✅ Baseline marked complete in database');
-
-    // Set data for completion modal
+    // Set data for completion modal (don't call Edge Function yet!)
     setBaselineAverage(average);
     
-    // Add message if partial completion (5-6 days)
+    // Add message if partial completion
     if (daysLogged < 7) {
       setBaselineCompletionMessage(
         `We calculated your baseline from the ${daysLogged} days you logged. For best results, try to log daily going forward.`
       );
     }
     
-    // Show completion modal
+    // Show completion modal (Edge Function will be called when user clicks button)
     setBaselineModalType('complete');
     
-    // Refresh profile to update UI
-    await fetchProfile();
   } catch (error) {
     console.error('❌ Error in completeBaselineAuto:', error);
+    Alert.alert('Error', 'Something went wrong. Please try again.');
   }
 };
 
@@ -417,7 +396,7 @@ const completeBaselineWithPartialData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user || !profile?.baseline_start_date) return;
 
-    // Get all available summaries
+    // Get all available summaries (just for count/display)
     const { data: summaries, error } = await supabase
       .from('daily_summaries')
       .select('calories_consumed, summary_date')
@@ -431,36 +410,31 @@ const completeBaselineWithPartialData = async () => {
       return;
     }
 
-    // Calculate average from available days
+    // Calculate average for display
     const totalCalories = summaries.reduce((sum, day) => sum + day.calories_consumed, 0);
     const average = Math.round(totalCalories / summaries.length);
 
     console.log(`📊 Completing with ${summaries.length} days, average: ${average} cal/day`);
 
-   // Determine completion quality
-    const quality = summaries.length >= 5 ? 'partial' : 'minimal';
+    // Call Edge Function to complete baseline
+    const { data: functionData, error: functionError } = await supabase.functions.invoke('calculateWeeklyBudget');
 
-    // Mark baseline complete
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ 
-        baseline_complete: true,
-        weekly_calorie_bank: average * 7,
-        baseline_days_logged: summaries.length,
-        baseline_completion_quality: quality,
-      })
-      .eq('id', user.id);
-
-    if (updateError) {
-      console.error('❌ Error updating profile:', updateError);
+    if (functionError) {
+      console.error('❌ Edge Function error:', functionError);
       Alert.alert('Error', 'Failed to complete baseline. Please try again.');
       return;
     }
 
-    console.log('✅ Baseline completed with partial data');
+    if (!functionData.success) {
+      console.error('❌ Edge Function failed:', functionData.error);
+      Alert.alert('Error', functionData.error || 'Failed to complete baseline.');
+      return;
+    }
+
+    console.log('✅ Baseline completed with partial data:', functionData.data);
 
     // Set data for completion modal
-    setBaselineAverage(average);
+    setBaselineAverage(functionData.data.baseline_average_daily);
     setBaselineCompletionMessage(
       `We calculated your baseline from the ${summaries.length} days you logged. This may be less accurate than a full 7-day baseline.`
     );
@@ -597,23 +571,25 @@ const fetchBaselineStats = async () => {
   const startDate = new Date(profile.baseline_start_date + 'T00:00:00');
   const endDate = new Date(startDate);
   endDate.setDate(startDate.getDate() + 6);
-  const endDateStr = endDate.toISOString().split('T')[0];
+  const year = endDate.getFullYear();
+  const month = String(endDate.getMonth() + 1).padStart(2, '0');
+  const day = String(endDate.getDate()).padStart(2, '0');
+  const endDateStr = `${year}-${month}-${day}`;
 
-  // Get all daily summaries for baseline period (calories only)
-  const { data: summaries, error } = await supabase
-  .from('daily_summaries')
-  .select('calories_consumed, protein_grams, carbs_grams, fat_grams')
-  .eq('user_id', user.id)
-  .gte('summary_date', profile.baseline_start_date)
-  .lte('summary_date', endDateStr)
-  .gt('calories_consumed', 0);
+  // Get all food logs for baseline period (includes macros!)
+  const { data: foodLogs, error } = await supabase
+    .from('food_logs')
+    .select('calories, protein_grams, carbs_grams, fat_grams, log_date')
+    .eq('user_id', user.id)
+    .gte('log_date', profile.baseline_start_date)
+    .lte('log_date', endDateStr);
 
   if (error) {
     console.error('Error fetching baseline stats:', error);
     return;
   }
 
-  if (!summaries || summaries.length === 0) {
+  if (!foodLogs || foodLogs.length === 0) {
     setBaselineStats({
       totalCalories: 0,
       avgCalories: 0,
@@ -621,22 +597,26 @@ const fetchBaselineStats = async () => {
     });
     return;
   }
-// Calculate totals (calories + macros)
-const totalCalories = summaries.reduce((sum, day) => sum + (day.calories_consumed || 0), 0);
-const totalProtein = summaries.reduce((sum, day) => sum + (day.protein_grams || 0), 0);
-const totalCarbs = summaries.reduce((sum, day) => sum + (day.carbs_grams || 0), 0);
-const totalFat = summaries.reduce((sum, day) => sum + (day.fat_grams || 0), 0);
-const avgCalories = summaries.length > 0 ? Math.round(totalCalories / summaries.length) : 0;
 
-setBaselineStats({
-  totalCalories,
-  avgCalories,
-  macros: {
-    protein: totalProtein,
-    carbs: totalCarbs,
-    fat: totalFat,
-  },
-});
+  // Calculate totals from food_logs
+  const totalCalories = foodLogs.reduce((sum, log) => sum + (log.calories || 0), 0);
+  const totalProtein = foodLogs.reduce((sum, log) => sum + (log.protein_grams || 0), 0);
+  const totalCarbs = foodLogs.reduce((sum, log) => sum + (log.carbs_grams || 0), 0);
+  const totalFat = foodLogs.reduce((sum, log) => sum + (log.fat_grams || 0), 0);
+
+  // Count unique days for average calculation
+  const uniqueDays = new Set(foodLogs.map(log => log.log_date)).size;
+  const avgCalories = uniqueDays > 0 ? Math.round(totalCalories / uniqueDays) : 0;
+
+  setBaselineStats({
+    totalCalories,
+    avgCalories,
+    macros: {
+      protein: totalProtein,
+      carbs: totalCarbs,
+      fat: totalFat,
+    },
+  });
 };
 
   const fetchProfile = async () => {
@@ -703,7 +683,7 @@ setBaselineStats({
         setCurrentDay(Math.max(1, Math.min(diffDays, 7)));
       }
 
-      // Load metrics if client and baseline complete
+    // Load metrics if client and baseline complete
       if (data.user_type !== 'trainer' && data.baseline_complete) {
         try {
           const today = new Date();
@@ -720,9 +700,13 @@ setBaselineStats({
             .eq('week_start_date', weekStartDate)
             .single();
 
-          if (!weeklyPeriod) {
-            await calculateWeeklyBudget();
-          }
+          // Only auto-create period for baseline users (not manual setup users)
+          // if (!weeklyPeriod && data.baseline_start_date) {
+          //   await calculateWeeklyBudget();
+          // } else if (!weeklyPeriod && !data.baseline_start_date) {
+          //   // Manual users should have had their period created during onboarding
+          //   // Don't try to auto-create as it will fail without baseline data
+          // }
 
           const metricsData = await calculateMetrics();
           setMetrics(metricsData);
@@ -748,15 +732,14 @@ setBaselineStats({
           console.error('Metrics error:', metricsError);
         }
       }
-
-      setLoading(false);
-      setRefreshing(false);
-    } catch (error) {
-      console.error('Error in fetchProfile:', error);
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+            setLoading(false);
+            setRefreshing(false);
+          } catch (error) {
+            console.error('Error in fetchProfile:', error);
+            setLoading(false);
+            setRefreshing(false);
+          }
+        };
 
   interface ClientStatus {
     id: string;
@@ -1184,10 +1167,10 @@ setBaselineStats({
 
 
 
-  // const todayCalories = calculateTodayCalories();
-  // const todayMacros = calculateTodayCalories();
-  // const todayGoal = metrics?.weekly_budget ? Math.round(metrics.weekly_budget / 7) : 2000;
-  // const todayRemaining = todayGoal - todayCalories;
+  const todayCalories = calculateTodayCalories();
+  const todayMacros = calculateTodayMacros();
+  const todayGoal = metrics?.weekly_budget ? Math.round(metrics.weekly_budget / 7) : 2000;
+  const todayRemaining = todayGoal - todayCalories;
 
   const todayLogs = recentLogs.filter(log => log.log_date === getLocalDateString());
 
@@ -1289,6 +1272,17 @@ setBaselineStats({
                   loggedDates={getLoggedDates()}
                 />
               </View>
+                 {/* Today's Calories Card */}
+                 <View style={styles.cardSpacing}>
+                <TodayCaloriesCard
+                  todayStats={{
+                    consumed: todayCalories,
+                    remaining: todayRemaining,
+                    macros: todayMacros,
+                    goal: todayGoal,
+                  }}
+                />
+              </View>
 
               {/* Weekly Budget Card */}
               {metrics && (
@@ -1301,18 +1295,6 @@ setBaselineStats({
                   />
                 </View>
               )}
-
-              {/* Today's Calories Card */}
-              {/* <View style={styles.cardSpacing}>
-                <TodayCaloriesCard
-                  todayStats={{
-                    consumed: todayCalories,
-                    remaining: todayRemaining,
-                    macros: todayMacros,
-                    goal: todayGoal,
-                  }}
-                />
-              </View> */}
 
               {/* Next Cheat Day Card (conditional) */}
               {getNextCheatDayInfo() && (

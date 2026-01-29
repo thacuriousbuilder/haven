@@ -16,11 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { supabase } from '@/lib/supabase';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '@/constants/colors';
+import { getLocalDateString } from '@/utils/timezone';
 
 export default function EditCheatDayScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const [selectedDate, setSelectedDate] = useState(new Date(params.date as string));
+  
+  // FIXED: Parse date in local timezone
+  const [selectedDate, setSelectedDate] = useState(new Date(params.date as string + 'T00:00:00'));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [plannedCalories, setPlannedCalories] = useState(params.calories as string || '');
   const [notes, setNotes] = useState(params.notes as string || '');
@@ -29,89 +32,91 @@ export default function EditCheatDayScreen() {
   const [recommendedCalories, setRecommendedCalories] = useState<number>(0);
   const [useRecommended, setUseRecommended] = useState<boolean>(false);
 
+  // Fetch smart recommended calories based on weekly progress
+  React.useEffect(() => {
+    const fetchSmartRecommendation = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-    // Fetch smart recommended calories based on weekly progress
-    React.useEffect(() => {
-      const fetchSmartRecommendation = async () => {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
-  
-          const today = new Date().toISOString().split('T')[0];
-          const editingDate = selectedDate.toISOString().split('T')[0];
-  
-          // Get the active weekly period that contains the editing date
-          const { data: weeklyPeriod } = await supabase
-            .from('weekly_periods')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('period_type', 'active')
-            .eq('status', 'active')
-            .lte('week_start_date', editingDate)
-            .gte('week_end_date', editingDate)
-            .single();
-  
-          if (!weeklyPeriod) {
-            console.log('No active weekly period found');
-            return;
-          }
-  
-          const weekStartDate = weeklyPeriod.week_start_date;
-          const weekEndDate = weeklyPeriod.week_end_date;
-          const weeklyBudget = weeklyPeriod.weekly_budget;
-  
-          // Get total calories consumed so far this week
-          const { data: weekSummaries } = await supabase
-            .from('daily_summaries')
-            .select('calories_consumed')
-            .eq('user_id', user.id)
-            .gte('summary_date', weekStartDate)
-            .lte('summary_date', today);
-  
-          const totalConsumed = weekSummaries?.reduce(
-            (sum, day) => sum + (day.calories_consumed || 0),
-            0
-          ) || 0;
-  
-          // Get other planned cheat days for this week (excluding current one being edited)
-          const { data: otherCheatDays } = await supabase
-            .from('planned_cheat_days')
-            .select('planned_calories, cheat_date')
-            .eq('user_id', user.id)
-            .gte('cheat_date', today)
-            .lte('cheat_date', weekEndDate)
-            .neq('id', params.id as string); // Exclude current cheat day
-  
-          // Calculate total reserved for other cheat days
-          const totalReservedOther = otherCheatDays?.reduce(
-            (sum, day) => sum + (day.planned_calories || 0),
-            0
-          ) || 0;
-  
-          // Calculate days left in week (including today)
-          const todayDate = new Date(today + 'T00:00:00');
-          const endDate = new Date(weekEndDate + 'T23:59:59');
-          const daysLeft = Math.max(1, Math.ceil((endDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-  
-          // Calculate available calories
-          const availableCalories = weeklyBudget - totalConsumed - totalReservedOther;
-          
-          // Calculate recommended calories per remaining day
-          const recommended = Math.round(availableCalories / daysLeft);
-  
-          // Set baseline average for display purposes
-          setBaselineAverage(weeklyPeriod.baseline_average_daily || 0);
-          setRecommendedCalories(recommended > 0 ? recommended : 0);
-  
-        } catch (error) {
-          console.error('Error fetching smart recommendation:', error);
+        // FIXED: Use local date strings
+        const today = getLocalDateString();
+        const year = selectedDate.getFullYear();
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        const editingDate = `${year}-${month}-${day}`;
+
+        // Get the active weekly period that contains the editing date
+        const { data: weeklyPeriod } = await supabase
+          .from('weekly_periods')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('period_type', 'active')
+          .eq('status', 'active')
+          .lte('week_start_date', editingDate)
+          .gte('week_end_date', editingDate)
+          .single();
+
+        if (!weeklyPeriod) {
+          console.log('No active weekly period found');
+          return;
         }
-      };
-  
-      fetchSmartRecommendation();
-    }, [selectedDate, params.id]);
-    
 
+        const weekStartDate = weeklyPeriod.week_start_date;
+        const weekEndDate = weeklyPeriod.week_end_date;
+        const weeklyBudget = weeklyPeriod.weekly_budget;
+
+        // Get total calories consumed so far this week
+        const { data: weekSummaries } = await supabase
+          .from('daily_summaries')
+          .select('calories_consumed')
+          .eq('user_id', user.id)
+          .gte('summary_date', weekStartDate)
+          .lte('summary_date', today);
+
+        const totalConsumed = weekSummaries?.reduce(
+          (sum, day) => sum + (day.calories_consumed || 0),
+          0
+        ) || 0;
+
+        // Get other planned cheat days for this week (excluding current one being edited)
+        const { data: otherCheatDays } = await supabase
+          .from('planned_cheat_days')
+          .select('planned_calories, cheat_date')
+          .eq('user_id', user.id)
+          .gte('cheat_date', today)
+          .lte('cheat_date', weekEndDate)
+          .neq('id', params.id as string); // Exclude current cheat day
+
+        // Calculate total reserved for other cheat days
+        const totalReservedOther = otherCheatDays?.reduce(
+          (sum, day) => sum + (day.planned_calories || 0),
+          0
+        ) || 0;
+
+        // Calculate days left in week (including today)
+        const todayDate = new Date(today + 'T00:00:00');
+        const endDate = new Date(weekEndDate + 'T23:59:59');
+        const daysLeft = Math.max(1, Math.ceil((endDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+        // Calculate available calories
+        const availableCalories = weeklyBudget - totalConsumed - totalReservedOther;
+        
+        // Calculate recommended calories per remaining day
+        const recommended = Math.round(availableCalories / daysLeft);
+
+        // Set baseline average for display purposes
+        setBaselineAverage(weeklyPeriod.baseline_average_daily || 0);
+        setRecommendedCalories(recommended > 0 ? recommended : 0);
+
+      } catch (error) {
+        console.error('Error fetching smart recommendation:', error);
+      }
+    };
+
+    fetchSmartRecommendation();
+  }, [selectedDate, params.id]);
+    
   const formatDate = (date: Date) => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -157,7 +162,11 @@ export default function EditCheatDayScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const newCheatDate = selectedDate.toISOString().split('T')[0];
+      // FIXED: Convert date to local date string
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const newCheatDate = `${year}-${month}-${day}`;
       const oldCheatDate = params.date as string;
 
       // Check if date changed and if new date already has a cheat day
@@ -310,8 +319,8 @@ export default function EditCheatDayScreen() {
           </TouchableOpacity>
         )}
 
-      {/* Recommended Calories */}
-      {recommendedCalories > 0 && (
+        {/* Recommended Calories */}
+        {recommendedCalories > 0 && (
           <>
             <Text style={styles.label}>Calories for this day</Text>
             <TouchableOpacity
@@ -404,8 +413,8 @@ export default function EditCheatDayScreen() {
           placeholderTextColor={Colors.textMuted}
         />
 
-       {/* Summary Card */}
-       <View style={styles.summaryCard}>
+        {/* Summary Card */}
+        <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Summary</Text>
           
           <View style={styles.summaryRow}>
@@ -480,6 +489,7 @@ export default function EditCheatDayScreen() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

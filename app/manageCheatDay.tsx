@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -15,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { PlannedCheatDay } from '@/types/database';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '@/constants/colors';
+import { getLocalDateString } from '@/utils/timezone';
 
 export default function ManageCheatDaysScreen() {
   const router = useRouter();
@@ -32,7 +35,8 @@ export default function ManageCheatDaysScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const today = new Date().toISOString().split('T')[0];
+      
+      const today = getLocalDateString();
 
       const { data, error } = await supabase
         .from('planned_cheat_days')
@@ -106,20 +110,21 @@ export default function ManageCheatDaysScreen() {
     );
   };
 
+  
   const formatDateShort = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = new Date(dateString + 'T00:00:00');
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
     return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
   };
 
+  // FIXED: Use local dates for comparison
   const getDaysUntil = (dateString: string) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const targetDate = new Date(dateString);
-    targetDate.setHours(0, 0, 0, 0);
+    const targetDate = new Date(dateString + 'T00:00:00');
     
     const diffTime = targetDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -197,7 +202,8 @@ export default function ManageCheatDaysScreen() {
         data={cheatDays}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => {
-          const date = new Date(item.cheat_date);
+          // FIXED: Parse date in local timezone
+          const date = new Date(item.cheat_date + 'T00:00:00');
           const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
           const dayNum = date.getDate();
           const month = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][date.getMonth()];

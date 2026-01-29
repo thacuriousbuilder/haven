@@ -1,4 +1,5 @@
-
+import { ComponentProps } from 'react';
+import { Ionicons } from '@expo/vector-icons'
 
 import { Colors } from '@/constants/colors';
 
@@ -72,6 +73,7 @@ export function getTimeSinceLog(timestamp: string | null): string {
   return `${diffDays}d ago`;
 }
 
+
 /**
  * Get color for macro type
  */
@@ -101,14 +103,18 @@ export function getMacroBackgroundColor(macroType: 'protein' | 'carbs' | 'fat'):
 /**
  * Get icon name for macro type
  */
-export function getMacroIcon(macroType: 'protein' | 'carbs' | 'fat'): string {
-  const iconMap = {
-    protein: 'fitness-outline',      // Muscle/strength
-    carbs: 'nutrition-outline',      // Grain/food
-    fat: 'water-outline',            // Droplet
-  };
-  
-  return iconMap[macroType];
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
+export function getMacroIcon(type: 'protein' | 'carbs' | 'fat'): IoniconsName {
+  switch (type) {
+    case 'protein':
+      return 'barbell-outline';  // Dumbbell for protein/muscle
+    case 'carbs':
+      return 'nutrition-outline'; // Grain/wheat symbol for carbs
+    case 'fat':
+      return 'water-outline';              // Solid leaf for avocado/healthy fats
+    default:
+      return 'ellipse-outline';
+  }
 }
 
 /**

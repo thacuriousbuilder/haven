@@ -4,7 +4,7 @@ import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
 
 interface WeeklyCalendarProps {
   currentDate: Date;
-  cheatDates: string[]; // Array of ISO date strings
+  cheatDates: string[]; // Array of ISO date strings (YYYY-MM-DD)
   loggedDates?: string[]; // Array of ISO date strings for days with logs
 }
 
@@ -36,13 +36,21 @@ export default function WeeklyCalendar({
     return date.toDateString() === today.toDateString();
   };
 
+  
   const isCheatDay = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
     return cheatDates.includes(dateStr);
   };
 
+  
   const hasLogs = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
     return loggedDates.includes(dateStr);
   };
 
@@ -140,9 +148,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.vividTeal,
   },
   logDotToday: {
-    backgroundColor: Colors.energyOrange,
+    backgroundColor: Colors.vividTeal, // White dot on teal background
   },
   logDotCheat: {
-    backgroundColor: Colors.vividTeal,
+    backgroundColor: Colors.energyOrange, // Teal dot on orange background
   },
 });

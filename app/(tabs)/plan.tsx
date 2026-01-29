@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -16,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { PlannedCheatDay } from '@/types/database';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '@/constants/colors';
+import { getLocalDateString } from '@/utils/timezone';
 
 export default function PlanScreen() {
   const router = useRouter();
@@ -30,7 +32,6 @@ export default function PlanScreen() {
     loadData();
   }, []);
 
-  // Check if user is in baseline
   useEffect(() => {
     checkBaselineStatus();
   }, []);
@@ -40,7 +41,6 @@ export default function PlanScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Check profile for baseline status
       const { data: profile } = await supabase
         .from('profiles')
         .select('baseline_complete, baseline_start_date')
@@ -50,7 +50,6 @@ export default function PlanScreen() {
       if (profile && !profile.baseline_complete) {
         setIsInBaseline(true);
 
-        // Get baseline progress
         const baselineStartDate = profile.baseline_start_date;
         const { data: dailySummaries } = await supabase
           .from('daily_summaries')
@@ -74,8 +73,8 @@ export default function PlanScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Load upcoming cheat days
-      const today = new Date().toISOString().split('T')[0];
+      // Use local date string consistently
+      const today = getLocalDateString();
 
       const { data: cheatDaysData } = await supabase
         .from('planned_cheat_days')
@@ -87,7 +86,6 @@ export default function PlanScreen() {
       if (cheatDaysData) {
         setCheatDays(cheatDaysData);
         
-        // Calculate total reserved
         const reserved = cheatDaysData.reduce(
           (sum, day) => sum + (day.planned_calories || 0),
           0
@@ -107,16 +105,9 @@ export default function PlanScreen() {
     loadData();
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color={Colors.vividTeal} />
-      </SafeAreaView>
-    );
-  }
-
   const formatCheatDayDate = (dateString: string) => {
-    const date = new Date(dateString);
+    // CRITICAL: Append T00:00:00 to force local timezone interpretation
+    const date = new Date(dateString + 'T00:00:00');
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
@@ -151,7 +142,6 @@ export default function PlanScreen() {
 
               if (error) throw error;
 
-              // Reload data
               loadData();
             } catch (error) {
               console.error('Error deleting cheat day:', error);
@@ -174,6 +164,14 @@ export default function PlanScreen() {
       },
     });
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color={Colors.vividTeal} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -199,7 +197,8 @@ export default function PlanScreen() {
               <View style={styles.bannerText}>
                 <Text style={styles.bannerTitle}>Complete your baseline week first</Text>
                 <Text style={styles.bannerSubtitle}>
-                  Track {baselineProgress.daysNeeded - baselineProgress.daysLogged} more {baselineProgress.daysNeeded - baselineProgress.daysLogged === 1 ? 'day' : 'days'} to unlock cheat day planning
+                  Track {baselineProgress.daysNeeded - baselineProgress.daysLogged} more{' '}
+                  {baselineProgress.daysNeeded - baselineProgress.daysLogged === 1 ? 'day' : 'days'} to unlock cheat day planning
                 </Text>
               </View>
             </View>
@@ -235,8 +234,8 @@ export default function PlanScreen() {
           </View>
         </View>
 
-       {/* Empty State or Cheat Days List */}
-       {cheatDays.length === 0 ? (
+        {/* Empty State or Cheat Days List */}
+        {cheatDays.length === 0 ? (
           <View style={styles.emptyStateCard}>
             <View style={styles.emptyIconCircle}>
               <Ionicons name="calendar-outline" size={40} color={Colors.steelBlue} />
@@ -369,6 +368,46 @@ const styles = StyleSheet.create({
     color: Colors.steelBlue,
   },
 
+  // Baseline Banner
+  baselineBanner: {
+    backgroundColor: Colors.orangeOverlay,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.energyOrange + '40',
+  },
+  bannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  bannerText: {
+    flex: 1,
+    marginLeft: Spacing.md,
+  },
+  bannerTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.graphite,
+    marginBottom: Spacing.xs / 2,
+  },
+  bannerSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.steelBlue,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: Colors.white,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: Colors.energyOrange,
+    borderRadius: 3,
+  },
+
   // Stat Cards
   statCardsRow: {
     flexDirection: 'row',
@@ -426,55 +465,55 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-// Cheat Day Cards
-cheatDaysList: {
-  marginBottom: Spacing.lg,
-},
-cheatDayCard: {
-  backgroundColor: Colors.orangeOverlay,
-  borderRadius: BorderRadius.lg,
-  padding: Spacing.lg,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: Spacing.md,
-  borderWidth: 1,
-  borderColor: Colors.energyOrange + '20',
-},
-cheatDayLeft: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  flex: 1,
-},
-partyIconCircle: {
-  width: 48,
-  height: 48,
-  borderRadius: 24,
-  backgroundColor: Colors.white,
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginRight: Spacing.md,
-},
-cheatDayInfo: {
-  flex: 1,
-},
-cheatDayName: {
-  fontSize: Typography.fontSize.base,
-  fontWeight: Typography.fontWeight.semibold,
-  color: Colors.graphite,
-  marginBottom: Spacing.xs / 2,
-},
-cheatDayDetails: {
-  fontSize: Typography.fontSize.sm,
-  color: Colors.steelBlue,
-},
-cheatDayActions: {
-  flexDirection: 'row',
-  gap: Spacing.sm,
-},
-actionButton: {
-  padding: Spacing.sm,
-},
+  // Cheat Day Cards
+  cheatDaysList: {
+    marginBottom: Spacing.lg,
+  },
+  cheatDayCard: {
+    backgroundColor: Colors.orangeOverlay,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.energyOrange + '20',
+  },
+  cheatDayLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  partyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  cheatDayInfo: {
+    flex: 1,
+  },
+  cheatDayName: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.graphite,
+    marginBottom: Spacing.xs / 2,
+  },
+  cheatDayDetails: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.steelBlue,
+  },
+  cheatDayActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  actionButton: {
+    padding: Spacing.sm,
+  },
 
   // Buttons
   primaryButton: {
@@ -486,6 +525,10 @@ actionButton: {
     justifyContent: 'center',
     marginBottom: Spacing.md,
     ...Shadows.small,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: Colors.steelBlue,
+    opacity: 0.6,
   },
   primaryButtonText: {
     color: Colors.white,
@@ -503,6 +546,9 @@ actionButton: {
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.xl,
+  },
+  secondaryButtonDisabled: {
+    opacity: 0.5,
   },
   secondaryButtonText: {
     color: Colors.vividTeal,
@@ -537,51 +583,5 @@ actionButton: {
     fontSize: Typography.fontSize.sm,
     color: Colors.graphite,
     lineHeight: Typography.fontSize.sm * Typography.lineHeight.relaxed,
-  },
-  // Baseline Banner
-  baselineBanner: {
-    backgroundColor: Colors.orangeOverlay,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.energyOrange + '40',
-  },
-  bannerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  bannerText: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  bannerTitle: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.semibold,
-    color: Colors.graphite,
-    marginBottom: Spacing.xs / 2,
-  },
-  bannerSubtitle: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.steelBlue,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: Colors.white,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.energyOrange,
-    borderRadius: 3,
-  },
-  primaryButtonDisabled: {
-    backgroundColor: Colors.steelBlue,
-    opacity: 0.6,
-  },
-  secondaryButtonDisabled: {
-    opacity: 0.5,
   },
 });

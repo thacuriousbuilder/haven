@@ -5,11 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
 
 interface BaselineCompleteModalProps {
@@ -25,44 +23,29 @@ export function BaselineCompleteModal({
   message,
   onComplete 
 }: BaselineCompleteModalProps) {
-  const [transitioning, setTransitioning] = useState(false);
+  const handleStartTracking = () => {
+    // Calculate days remaining in this week for the message
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+    const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+    const daysRemaining = daysUntilSunday + 1; // Include today
 
-  const handleTransition = async () => {
-    setTransitioning(true);
+    const weeklyBudget = baselineAverage * 7;
+    
+    const midWeekMessage = daysRemaining < 7 
+      ? `\n\nYou're starting mid-week with ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} to track. Fresh start next Monday!`
+      : '';
 
-    try {
-      const { data, error } = await supabase.functions.invoke('transitionToActiveWeek');
-
-      if (error) {
-        console.error('Transition error:', error);
-        throw error;
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to transition to active week');
-      }
-
-      console.log('✅ Transition successful:', data.data);
-
-      Alert.alert(
-        '🎉 Welcome to Active Tracking!',
-        `Your weekly budget: ${data.data.weekly_budget.toLocaleString()} calories\n\nBased on your baseline average of ${data.data.baseline_average_daily} cal/day`,
-        [
-          {
-            text: 'Start Tracking',
-            onPress: onComplete,
-          }
-        ]
-      );
-
-    } catch (error) {
-      console.error('Transition error:', error);
-      Alert.alert(
-        'Transition Failed',
-        'Could not complete baseline. Please try again or contact support.'
-      );
-      setTransitioning(false);
-    }
+    Alert.alert(
+      '🎉 Welcome to Active Tracking!',
+      `Your weekly budget: ${weeklyBudget.toLocaleString()} calories\n\nBased on your baseline average of ${baselineAverage} cal/day${midWeekMessage}`,
+      [
+        {
+          text: 'Start Tracking',
+          onPress: onComplete,
+        }
+      ]
+    );
   };
 
   return (
@@ -104,22 +87,12 @@ export function BaselineCompleteModal({
 
           {/* Start Button */}
           <TouchableOpacity
-            style={[styles.button, transitioning && styles.buttonDisabled]}
-            onPress={handleTransition}
-            disabled={transitioning}
+            style={styles.button}
+            onPress={handleStartTracking}
             activeOpacity={0.8}
           >
-            {transitioning ? (
-              <>
-                <ActivityIndicator size="small" color={Colors.white} />
-                <Text style={styles.buttonText}>Setting up...</Text>
-              </>
-            ) : (
-              <>
-                <Ionicons name="checkmark-outline" size={20} color={Colors.white} />
-                <Text style={styles.buttonText}>Start Weekly Tracking</Text>
-              </>
-            )}
+            <Ionicons name="checkmark-outline" size={20} color={Colors.white} />
+            <Text style={styles.buttonText}>Start Weekly Tracking</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -209,22 +182,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '500',
   },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: Colors.lightCream,
-    padding: 16,
-    borderRadius: BorderRadius.md,
-    marginBottom: 24,
-    gap: 12,
-    width: '100%',
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.steelBlue,
-    lineHeight: 20,
-  },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -235,9 +192,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     width: '100%',
     gap: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
   },
   buttonText: {
     fontSize: 16,
