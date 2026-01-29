@@ -246,7 +246,16 @@ export function FoodLogSheet({
             onConflict: 'user_id,summary_date'
           });
       }
-
+      
+      try {
+        await supabase.functions.invoke('calculateStreaks', {
+          body: { userId: user.id }
+        });
+        console.log('✅ Streak updated');
+      } catch (streakError) {
+        // Don't block the user if streak update fails
+        console.error('⚠️ Streak update failed (non-critical):', streakError);
+      }
       // Success - reset form
       setFoodDescription('');
       setEstimatedCalories('');
