@@ -107,13 +107,13 @@ type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 export function getMacroIcon(type: 'protein' | 'carbs' | 'fat'): IoniconsName {
   switch (type) {
     case 'protein':
-      return 'barbell-outline';  // Dumbbell for protein/muscle
+      return 'barbell';  // Dumbbell for protein/muscle
     case 'carbs':
-      return 'nutrition-outline'; // Grain/wheat symbol for carbs
+      return 'nutrition'; // Grain/wheat symbol for carbs
     case 'fat':
-      return 'water-outline';              // Solid leaf for avocado/healthy fats
+      return 'water';              // Solid leaf for avocado/healthy fats
     default:
-      return 'ellipse-outline';
+      return 'ellipse';
   }
 }
 

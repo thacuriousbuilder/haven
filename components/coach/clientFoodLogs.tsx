@@ -17,9 +17,10 @@ interface FoodLog {
 interface ClientFoodLogsProps {
   foodLogs: FoodLog[];
   availableDates: string[]; // Array of dates that have logs
+  onFoodPress?: (foodId: string) => void; 
 }
 
-export function ClientFoodLogs({ foodLogs, availableDates }: ClientFoodLogsProps) {
+export function ClientFoodLogs({ foodLogs, availableDates, onFoodPress  }: ClientFoodLogsProps) {
   const [selectedDate, setSelectedDate] = useState<string>(
     availableDates.length > 0 ? availableDates[0] : ''
   );
@@ -127,31 +128,38 @@ export function ClientFoodLogs({ foodLogs, availableDates }: ClientFoodLogsProps
       </View>
 
       {/* Food Logs List */}
-      <View style={styles.logsList}>
-        {logsForDate.map((log) => (
-          <View key={log.id} style={styles.logCard}>
-            <View style={styles.logLeft}>
-              <View style={styles.mealIconContainer}>
-                <Ionicons 
-                  name={getMealIcon(log.meal_type) as any} 
-                  size={20} 
-                  color={Colors.vividTeal} 
-                />
-              </View>
-              <View style={styles.logInfo}>
-                <Text style={styles.logFood}>{log.food_name}</Text>
-                <Text style={styles.logMeta}>
-                  {capitalizeFirst(log.meal_type)} • {formatTime(log.created_at)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.logRight}>
-              <Text style={styles.logCalories}>{log.calories || 0}</Text>
-              <Text style={styles.logCaloriesLabel}>cal</Text>
-            </View>
-          </View>
-        ))}
+
+<View style={styles.logsList}>
+  {logsForDate.map((log) => (
+    <TouchableOpacity 
+      key={log.id} 
+      style={styles.logCard}
+      onPress={() => onFoodPress?.(log.id)}
+      activeOpacity={0.7}
+      disabled={!onFoodPress}
+    >
+      <View style={styles.logLeft}>
+        <View style={styles.mealIconContainer}>
+          <Ionicons 
+            name={getMealIcon(log.meal_type) as any} 
+            size={20} 
+            color={Colors.vividTeal} 
+          />
+        </View>
+        <View style={styles.logInfo}>
+          <Text style={styles.logFood}>{log.food_name}</Text>
+          <Text style={styles.logMeta}>
+            {capitalizeFirst(log.meal_type)} • {formatTime(log.created_at)}
+          </Text>
+        </View>
       </View>
+      <View style={styles.logRight}>
+        <Text style={styles.logCalories}>{log.calories || 0}</Text>
+        <Text style={styles.logCaloriesLabel}>cal</Text>
+      </View>
+    </TouchableOpacity>
+  ))}
+    </View>
     </View>
   );
 }
