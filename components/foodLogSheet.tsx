@@ -16,6 +16,8 @@ import { searchFoods, getFoodDetails, getRecentFoods } from '@/utils/foodSearch'
 import * as ImagePicker from 'expo-image-picker';
 import { getLocalDateString } from '@/utils/timezone';
 import { Colors } from '@/constants/colors';
+import { compressImageForUpload } from '@/utils/imageCompression';
+import { Platform, Linking } from 'react-native';
 
 interface FoodLogSheetProps {
   onSuccess: () => void;
@@ -277,56 +279,151 @@ export function FoodLogSheet({
   };
 
   const handleTakePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera access is required to scan food.');
+    // Check current permission status
+    const { status: currentStatus } = await ImagePicker.getCameraPermissionsAsync();
+    
+    let finalStatus = currentStatus;
+    
+    // If not determined yet, request permission
+    if (currentStatus !== 'granted') {
+      const { status: newStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      finalStatus = newStatus;
+    }
+    
+    // Handle permission denial
+    if (finalStatus !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'HAVEN needs camera access to scan food images. Please enable camera access in Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Open Settings', 
+            onPress: () => {
+              if (Platform.OS === 'ios') {
+                Linking.openURL('app-settings:');
+              } else {
+                Linking.openSettings();
+              }
+            }
+          }
+        ]
+      );
       return;
     }
-  
+    
+    // Permission granted, proceed with camera
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: 'images',
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.7, // Compress to reduce upload size and API costs
-      base64: true, // We need base64 to send to OpenAI
+      quality: 0.8,
     });
   
-    if (!result.canceled && result.assets[0].base64) {
-      setSelectedImage(result.assets[0].base64);
-      setSelectedMethod('image');
+    if (!result.canceled && result.assets[0].uri) {
+      try {
+        const compressed = await compressImageForUpload(result.assets[0].uri);
+        setSelectedImage(compressed.base64);
+        setSelectedMethod('image');
+        
+        console.log(`📷 Image compressed from ${compressed.originalSizeMB.toFixed(2)}MB to ${compressed.compressedSizeMB.toFixed(2)}MB`);
+      } catch (error) {
+        console.error('Compression error:', error);
+        Alert.alert(
+          'Image Too Large',
+          error instanceof Error ? error.message : 'Could not process this image. Please try a different photo.',
+          [{ text: 'OK' }]
+        );
+      }
     }
   };
   
+  
   const handlePickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Photo library access is required.');
+    // First, check current permission status
+    const { status: currentStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
+    
+    let finalStatus = currentStatus;
+    
+    // If not determined yet, request permission
+    if (currentStatus !== 'granted') {
+      const { status: newStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      finalStatus = newStatus;
+    }
+    
+    // Handle permission denial
+    if (finalStatus !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'HAVEN needs access to your photo library to scan food images. Please enable photo library access in Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Open Settings', 
+            onPress: () => {
+              // Opens the app settings where user can enable permissions
+              if (Platform.OS === 'ios') {
+                Linking.openURL('app-settings:');
+              } else {
+                Linking.openSettings();
+              }
+            }
+          }
+        ]
+      );
       return;
     }
-  
+    
+    // Permission granted - proceed with image picker
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.7,
-      base64: true,
+      quality: 0.8,
     });
   
-    if (!result.canceled && result.assets[0].base64) {
-      setSelectedImage(result.assets[0].base64);
-      setSelectedMethod('image');
+    if (!result.canceled && result.assets[0].uri) {
+      try {
+        const compressed = await compressImageForUpload(result.assets[0].uri);
+        setSelectedImage(compressed.base64);
+        setSelectedMethod('image');
+        
+        console.log(`🖼️ Image compressed from ${compressed.originalSizeMB.toFixed(2)}MB to ${compressed.compressedSizeMB.toFixed(2)}MB`);
+      } catch (error) {
+        console.error('Compression error:', error);
+        Alert.alert(
+          'Image Too Large',
+          error instanceof Error ? error.message : 'Could not process this image. Please try a different photo.',
+          [{ text: 'OK' }]
+        );
+      }
     }
   };
   
   const processImageWithAI = async (base64Image: string) => {
     setProcessingImage(true);
     try {
+      // DEBUG: Log the size of what we're sending
+      const imageSizeBytes = (base64Image.length * 3) / 4;
+      const imageSizeMB = imageSizeBytes / (1024 * 1024);
+      console.log(`🔍 Sending image to Edge Function: ${imageSizeMB.toFixed(2)}MB`);
+      
+      // Check if image is too large BEFORE sending
+      if (imageSizeMB > 5) {
+        throw new Error(`Image too large for upload: ${imageSizeMB.toFixed(2)}MB. Maximum is 5MB.`);
+      }
+  
+      console.log('📤 Calling analyzeFoodImage function...');
+      
       const { data, error } = await supabase.functions.invoke('analyzeFoodImage', {
         body: { image_base64: base64Image },
       });
   
+      console.log('📥 Response received');
+  
       if (error) {
-        console.error('Function error:', error);
+        console.error('❌ Function error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         throw error;
       }
   
@@ -373,10 +470,24 @@ export function FoodLogSheet({
       );
   
     } catch (error) {
-      console.error('Image processing error:', error);
+      console.error('❌ Image processing error:', error);
+      
+      // More detailed error message
+      let errorMessage = 'Could not analyze the image.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to send a request')) {
+          errorMessage = 'Network error - could not reach the server. Please check your internet connection.';
+        } else if (error.message.includes('too large')) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       Alert.alert(
         'Analysis Failed',
-        'Could not analyze the image. Would you like to enter details manually?',
+        `${errorMessage}\n\nWould you like to enter details manually?`,
         [
           {
             text: 'Cancel',
