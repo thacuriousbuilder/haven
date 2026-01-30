@@ -939,6 +939,11 @@ const fetchBaselineStats = async () => {
     }
   };
 
+  const handleMealPress = (meal: MealLogItem) => {
+    router.push(`/food/${meal.id}`);
+  };
+  
+
   // ============= FORMATTING FUNCTIONS =============
 
   const formatTime = (timestamp: string) => {
@@ -1236,9 +1241,7 @@ const fetchBaselineStats = async () => {
                 <TodayMealsCard
                   meals={transformMealsData(todayLogs)}
                   onAddMeal={handleLogFood}
-                  onMealPress={(meal) => {
-                    console.log('Meal pressed:', meal.name);
-                  }}
+                  onMealPress={handleMealPress}
                 />
               </View>
 

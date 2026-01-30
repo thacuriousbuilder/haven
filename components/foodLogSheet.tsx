@@ -614,12 +614,9 @@ export function FoodLogSheet({
               <View style={styles.methodInfo}>
                 <View style={styles.methodTitleRow}>
                   <Text style={styles.methodTitle}>Take Photo</Text>
-                  <View style={styles.aiBadge}>
-                    <Text style={styles.aiBadgeText}>AI</Text>
-                  </View>
                 </View>
                 <Text style={styles.methodDescription}>
-                  AI-powered food recognition
+                  Quick and easy food recognition
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
@@ -887,7 +884,7 @@ export function FoodLogSheet({
         {processingImage && (
           <View style={styles.processingOverlay}>
             <ActivityIndicator size="large" color="#FFFFFF" />
-            <Text style={styles.processingText}>AI is reading your photo...</Text>
+            <Text style={styles.processingText}>HAVEN is reading your photo...</Text>
           </View>
         )}
       </View>
@@ -928,7 +925,7 @@ export function FoodLogSheet({
           setSelectedFood(null);
         }}
       >
-        <Ionicons name="arrow-back" size={24} color="#3D5A5C" />
+        <Ionicons name="arrow-back" size={24} color= {Colors.graphite} />
         
       </TouchableOpacity>
       

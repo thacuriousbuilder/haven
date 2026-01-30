@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
@@ -59,9 +59,13 @@ export default function ClientDetailScreen() {
   const [cheatDays, setCheatDays] = useState<Array<{ cheat_date: string; planned_calories: number | null }>>([]);  // ← CHANGED
 
 
-  useEffect(() => {
-    fetchClientData();
-  }, [id]);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (id) {
+        fetchClientData();
+      }
+    }, [id])
+  );
 
   const fetchClientData = async () => {
     try {
@@ -197,6 +201,11 @@ export default function ClientDetailScreen() {
     };
   };
 
+  const handleFoodPress = (foodId: string) => {
+    router.push(`/food/${foodId}`);
+  };
+  
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -291,6 +300,7 @@ export default function ClientDetailScreen() {
               <ClientFoodLogs
                 foodLogs={foodLogs}
                 availableDates={getAvailableDates()}
+                onFoodPress={handleFoodPress}
               />
             </View>
           </View>
