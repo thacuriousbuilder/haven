@@ -169,7 +169,7 @@ export default function EditProfileScreen() {
           {/* First Name */}
           <View style={styles.inputGroup}>
             <View style={styles.inputLabel}>
-              <Ionicons name="person-outline" size={20} color="#6B7280" />
+              <Ionicons name="person" size={20} color="#6B7280" />
               <Text style={styles.labelText}>First Name</Text>
             </View>
             <TextInput
@@ -184,7 +184,7 @@ export default function EditProfileScreen() {
           {/* Last Name */}
           <View style={styles.inputGroup}>
             <View style={styles.inputLabel}>
-              <Ionicons name="person-outline" size={20} color="#6B7280" />
+              <Ionicons name="person" size={20} color="#6B7280" />
               <Text style={styles.labelText}>Last Name</Text>
             </View>
             <TextInput
@@ -199,7 +199,7 @@ export default function EditProfileScreen() {
           {/* Email (Read-only) */}
           <View style={styles.inputGroup}>
             <View style={styles.inputLabel}>
-              <Ionicons name="mail-outline" size={20} color="#6B7280" />
+              <Ionicons name="mail" size={20} color="#6B7280" />
               <Text style={styles.labelText}>Email</Text>
             </View>
             <View style={[styles.input, styles.inputDisabled]}>
@@ -210,7 +210,7 @@ export default function EditProfileScreen() {
           {/* Gender */}
           <View style={styles.inputGroup}>
             <View style={styles.inputLabel}>
-              <Ionicons name="male-female-outline" size={20} color="#6B7280" />
+              <Ionicons name="male-female" size={20} color="#6B7280" />
               <Text style={styles.labelText}>Gender</Text>
             </View>
             <View style={styles.genderOptions}>
@@ -264,7 +264,7 @@ export default function EditProfileScreen() {
           {/* Height */}
           <View style={styles.inputGroup}>
             <View style={styles.inputLabel}>
-              <Ionicons name="resize-outline" size={20} color="#6B7280" />
+              <Ionicons name="resize" size={20} color="#6B7280" />
               <Text style={styles.labelText}>Height</Text>
             </View>
 

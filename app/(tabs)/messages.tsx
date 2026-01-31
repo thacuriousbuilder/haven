@@ -488,7 +488,7 @@ if (userType === 'trainer') {
 
       {conversations.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubbles-outline" size={64} color="#D1D5DB" />
+          <Ionicons name="chatbubbles" size={64} color="#D1D5DB" />
           <Text style={styles.emptyTitle}>No Conversations</Text>
           <Text style={styles.emptyDescription}>
             Your clients will appear here once they send you a message
@@ -548,7 +548,7 @@ if (userType === 'trainer') {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubbles-outline" size={64} color={Colors.vividTeal} />
+          <Ionicons name="chatbubbles" size={64} color={Colors.vividTeal} />
           <Text style={styles.emptyTitle}>No Trainer Assigned</Text>
           <Text style={styles.emptyDescription}>
             You need to be assigned to a trainer to send messages
@@ -595,7 +595,7 @@ if (userType === 'trainer') {
           {/* Messages List */}
           {messages.length === 0 ? (
             <View style={styles.emptyMessagesContainer}>
-              <Ionicons name="chatbubble-outline" size={48} color="#D1D5DB" />
+              <Ionicons name="chatbubble" size={48} color="#D1D5DB" />
               <Text style={styles.emptyMessagesText}>No messages yet</Text>
               <Text style={styles.emptyMessagesSubtext}>
                 Start a conversation with your trainer

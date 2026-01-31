@@ -91,7 +91,7 @@ export function BaselineCompleteModal({
             onPress={handleStartTracking}
             activeOpacity={0.8}
           >
-            <Ionicons name="checkmark-outline" size={20} color={Colors.white} />
+            <Ionicons name="checkmark" size={20} color={Colors.white} />
             <Text style={styles.buttonText}>Start Weekly Tracking</Text>
           </TouchableOpacity>
         </View>

@@ -22,17 +22,17 @@ export default function FoodLogScreen() {
 
         <View style={styles.options}>
           <View style={styles.optionCard}>
-            <Ionicons name="create-outline" size={32} color="#3D5A5C" />
+            <Ionicons name="create" size={32} color="#3D5A5C" />
             <Text style={styles.optionText}>Manual input</Text>
           </View>
 
           <View style={styles.optionCard}>
-            <Ionicons name="camera-outline" size={32} color="#3D5A5C" />
+            <Ionicons name="camera" size={32} color="#3D5A5C" />
             <Text style={styles.optionText}>Scan food</Text>
           </View>
 
           <View style={styles.optionCard}>
-            <Ionicons name="search-outline" size={32} color="#3D5A5C" />
+            <Ionicons name="search" size={32} color="#3D5A5C" />
             <Text style={styles.optionText}>Food database</Text>
           </View>
         </View>

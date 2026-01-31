@@ -120,21 +120,21 @@ export default function DailyCheckInScreen() {
   const dayOptions = [
     {
       type: 'normal' as DayType,
-      icon: 'happy-outline',
+      icon: 'happy',
       title: 'Normal eating day',
       description: 'Ate like I usually do',
       color: '#4CAF50',
     },
     {
       type: 'special_occasion' as DayType,
-      icon: 'restaurant-outline',
+      icon: 'restaurant',
       title: 'Special occasion',
       description: 'Ate more than usual',
       color: '#FF9800',
     },
     {
       type: 'off_day' as DayType,
-      icon: 'medical-outline',
+      icon: 'medical',
       title: 'Off day',
       description: 'Sick, traveling, or busy',
       color: '#9E9E9E',

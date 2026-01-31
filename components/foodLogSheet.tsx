@@ -580,10 +580,10 @@ export function FoodLogSheet({
 
 
   const mealTypes: { value: MealType; label: string; icon: string }[] = [
-    { value: 'breakfast', label: 'Breakfast', icon: 'sunny-outline' },
-    { value: 'lunch', label: 'Lunch', icon: 'partly-sunny-outline' },
-    { value: 'dinner', label: 'Dinner', icon: 'moon-outline' },
-    { value: 'snack', label: 'Snack', icon: 'fast-food-outline' },
+    { value: 'breakfast', label: 'Breakfast', icon: 'sunny' },
+    { value: 'lunch', label: 'Lunch', icon: 'partly-sunny' },
+    { value: 'dinner', label: 'Dinner', icon: 'moon' },
+    { value: 'snack', label: 'Snack', icon: 'fast-food' },
   ];
 
   // Method selection screen
@@ -662,7 +662,7 @@ export function FoodLogSheet({
               onPress={() => setSelectedMethod('manual')}
             >
               <View style={[styles.methodIcon, styles.methodIconTeal]}>
-                <Ionicons name="create-outline" size={24} color="#206E6B" />
+                <Ionicons name="create" size={24} color="#206E6B" />
               </View>
               <View style={styles.methodInfo}>
                 <Text style={styles.methodTitle}>Recipe</Text>
@@ -789,7 +789,7 @@ export function FoodLogSheet({
             {searchResults.length > 0 && (
               <View style={styles.searchResultsSection}>
                 <View style={styles.searchResultsHeader}>
-                  <Ionicons name="time-outline" size={18} color="#9CA3AF" />
+                  <Ionicons name="time" size={18} color="#9CA3AF" />
                   <Text style={styles.searchResultsTitle}>Recent</Text>
                 </View>
             
@@ -826,7 +826,7 @@ export function FoodLogSheet({
             {/* No Results */}
             {hasSearched && searchQuery && searchResults.length === 0 && !searching && (
               <View style={styles.noResults}>
-                <Ionicons name="search-outline" size={48} color="#D1D5DB" />
+                <Ionicons name="search" size={48} color="#D1D5DB" />
                 <Text style={styles.noResultsText}>No foods found</Text>
                 <Text style={styles.noResultsSubtext}>
                   Try a different search term or add it manually

@@ -342,7 +342,7 @@ return (
     <SectionHeader title="Notifications" />
       <Card style={styles.card}>
         <ToggleRow
-          icon="phone-portrait-outline"
+          icon="phone-portrait"
           label="Push Notifications"
           description={profile.user_type === 'trainer' 
             ? "Get notified about client activity" 
@@ -356,7 +356,7 @@ return (
           <>
             <View style={styles.divider} />
             <ToggleRow
-              icon="restaurant-outline"
+              icon="restaurant"
               iconColor="#EF7828"
               iconBgColor="#FEF3E8"
               label="Meal Reminders"
@@ -374,7 +374,7 @@ return (
     <SectionHeader title="Goals & Preferences" />
     <Card style={styles.card}>
       <SettingsRow
-        icon="scale-outline"
+        icon="scale"
         label="Weight Goals"
         onPress={handleWeightGoals}
       />
@@ -386,13 +386,13 @@ return (
     <SectionHeader title="Account" />
     <Card style={styles.card}>
       <SettingsRow
-        icon="person-outline"
+        icon="person"
         label="Edit Profile"
         onPress={handleEditProfile}
       />
       <View style={styles.divider} />
       {/* <SettingsRow
-        icon="shield-checkmark-outline"
+        icon="shield-checkmark"
         label="Privacy & Security"
         onPress={handlePrivacySecurity}
       /> */}
@@ -402,13 +402,13 @@ return (
     <SectionHeader title="Support" />
     <Card style={styles.card}>
       <SettingsRow
-        icon="help-circle-outline"
+        icon="help-circle"
         label="Help Center"
         onPress={handleHelpCenter}
       />
       <View style={styles.divider} />
       <SettingsRow
-        icon="document-text-outline"
+        icon="document-text"
         label="Terms & Privacy"
         onPress={handleTermsPrivacy}
       />
@@ -424,7 +424,7 @@ return (
         onPress={handleSignOut}
         activeOpacity={0.7}
       >
-        <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+        <Ionicons name="log-out" size={20} color="#EF4444" />
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
     </View>

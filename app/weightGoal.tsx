@@ -178,7 +178,7 @@ return (
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconContainer}>
-              <Ionicons name="scale-outline" size={24} color="#206E6B" />
+              <Ionicons name="scale" size={24} color="#206E6B" />
             </View>
             <Text style={styles.cardTitle}>Current Weight</Text>
           </View>
@@ -270,7 +270,7 @@ return (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={[styles.iconContainer, { backgroundColor: '#FEF3E8' }]}>
-                <Ionicons name="radio-button-on-outline" size={24} color="#EF7828" />
+                <Ionicons name="radio-button-on" size={24} color="#EF7828" />
               </View>
               <Text style={styles.cardTitle}>Target Weight</Text>
             </View>
@@ -330,7 +330,7 @@ return (
         {/* Timeline */}
         {timeline && (
           <View style={styles.timelineCard}>
-            <Ionicons name="information-circle-outline" size={24} color="#206E6B" />
+            <Ionicons name="information-circle" size={24} color="#206E6B" />
             <View style={styles.timelineContent}>
               <Text style={styles.timelineTitle}>
                 You'll reach {data.targetWeight} {unit}

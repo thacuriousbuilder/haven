@@ -256,7 +256,7 @@ export default function ClientsScreen() {
           {/* Client List */}
           {filteredClients.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={64} color="#D1D5DB" />
+              <Ionicons name="people" size={64} color="#D1D5DB" />
               <Text style={styles.emptyTitle}>
                 {searchQuery.trim() ? 'No matching clients' : 'No clients in this category'}
               </Text>

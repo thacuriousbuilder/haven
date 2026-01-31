@@ -238,7 +238,7 @@ export default function PlanScreen() {
         {cheatDays.length === 0 ? (
           <View style={styles.emptyStateCard}>
             <View style={styles.emptyIconCircle}>
-              <Ionicons name="calendar-outline" size={40} color={Colors.steelBlue} />
+              <Ionicons name="calendar" size={40} color={Colors.steelBlue} />
             </View>
             <Text style={styles.emptyStateText}>No cheat days planned yet</Text>
           </View>
@@ -274,7 +274,7 @@ export default function PlanScreen() {
                       style={styles.actionButton}
                       activeOpacity={0.6}
                     >
-                      <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                      <Ionicons name="trash" size={20} color={Colors.error} />
                     </TouchableOpacity>
                   </View>
                 </View>

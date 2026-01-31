@@ -109,7 +109,7 @@ export default function BirthdateScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.dateButtonContent}>
-              <Ionicons name="calendar-outline" size={24} color="#000" />
+              <Ionicons name="calendar" size={24} color="#000" />
               <Text style={styles.dateButtonText}>{formatDate(selectedDate)}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />

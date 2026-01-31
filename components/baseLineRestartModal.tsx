@@ -27,7 +27,7 @@ export function BaselineRestartModal({
         <View style={styles.modal}>
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+            <Ionicons name="alert-circle" size={48} color="#EF4444" />
           </View>
 
           {/* Title */}
@@ -53,7 +53,7 @@ export function BaselineRestartModal({
             onPress={onRestart}
             activeOpacity={0.8}
           >
-            <Ionicons name="refresh-outline" size={20} color={Colors.white} />
+            <Ionicons name="refresh" size={20} color={Colors.white} />
             <Text style={styles.primaryButtonText}>Restart Baseline</Text>
           </TouchableOpacity>
 

@@ -177,7 +177,7 @@ export default function GoalWeightScreen() {
 
          
           <View style={styles.infoCard}>
-            <Ionicons name="information-circle-outline" size={20} color="#6B7280" />
+            <Ionicons name="information-circle" size={20} color="#6B7280" />
             <Text style={styles.infoText}>
               Don't worry, you can always change it later.
             </Text>

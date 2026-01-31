@@ -94,7 +94,7 @@ export function ClientCardBaseline({
           {
             type: 'view-progress',
             label: 'View Progress',
-            icon: 'eye-outline',
+            icon: 'eye',
             onPress: onViewProgressPress,
           },
         ]}

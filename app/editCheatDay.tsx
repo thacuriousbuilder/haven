@@ -453,7 +453,7 @@ export default function EditCheatDayScreen() {
 
         {/* Info Text */}
         <View style={styles.infoRow}>
-          <Ionicons name="information-circle-outline" size={16} color={Colors.steelBlue} />
+          <Ionicons name="information-circle" size={16} color={Colors.steelBlue} />
           <Text style={styles.infoText}>
             Changes will be reflected in your weekly calorie budget immediately.
           </Text>
@@ -470,7 +470,7 @@ export default function EditCheatDayScreen() {
             <ActivityIndicator color={Colors.white} />
           ) : (
             <>
-              <Ionicons name="checkmark-circle-outline" size={20} color={Colors.white} />
+              <Ionicons name="checkmark-circle" size={20} color={Colors.white} />
               <Text style={styles.saveButtonText}>Save Changes</Text>
             </>
           )}

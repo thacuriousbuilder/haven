@@ -327,7 +327,7 @@ const renderMessage = ({ item, index }: { item: Message; index: number }) => {
         {/* Messages List */}
         {messages.length === 0 ? (
           <View style={styles.emptyMessagesContainer}>
-            <Ionicons name="chatbubble-outline" size={48} color="#D1D5DB" />
+            <Ionicons name="chatbubble" size={48} color="#D1D5DB" />
             <Text style={styles.emptyMessagesText}>No messages yet</Text>
             <Text style={styles.emptyMessagesSubtext}>
               Start a conversation with {clientName}

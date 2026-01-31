@@ -250,7 +250,7 @@ export default function ClientDetailScreen() {
           style={styles.messageButton}
           onPress={() => router.push(`/messageThread/${client.id}`)}
         >
-          <Ionicons name="chatbubble-outline" size={24} color={Colors.graphite} />
+          <Ionicons name="chatbubble" size={24} color={Colors.graphite} />
         </TouchableOpacity>
       </View>
 

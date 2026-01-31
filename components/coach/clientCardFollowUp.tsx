@@ -74,13 +74,13 @@ export function ClientCardFollowUp({
           {
             type: 'view',
             label: 'View',
-            icon: 'eye-outline',
+            icon: 'eye',
             onPress: onViewPress,
           },
           {
             type: 'message',
             label: 'Message',
-            icon: 'chatbubble-outline',
+            icon: 'chatbubble',
             onPress: onMessagePress,
           },
         ]}
