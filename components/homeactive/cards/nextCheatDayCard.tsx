@@ -28,7 +28,7 @@ export function NextCheatDayCard({
       <View style={styles.leftSection}>
         {/* Calendar icon */}
         <View style={styles.iconCircle}>
-          <Ionicons name="calendar-outline" size={24} color={Colors.energyOrange} />
+          <Ionicons name="calendar" size={24} color={Colors.energyOrange} />
         </View>
 
         {/* Text content */}

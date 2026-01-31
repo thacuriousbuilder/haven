@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
@@ -21,9 +20,10 @@ interface TodayStats {
 
 interface TodayCaloriesCardProps {
   todayStats: TodayStats;
+  isBaseline?: boolean; 
 }
 
-export function TodayCaloriesCard({ todayStats }: TodayCaloriesCardProps) {
+export function TodayCaloriesCard({ todayStats, isBaseline = false }: TodayCaloriesCardProps) {
   const { consumed, remaining, macros, goal } = todayStats;
 
   return (
@@ -34,21 +34,26 @@ export function TodayCaloriesCard({ todayStats }: TodayCaloriesCardProps) {
       {/* Main Stats Row */}
       <View style={styles.mainStatsRow}>
         {/* Consumed */}
-        <View style={styles.statColumn}>
+        <View style={[styles.statColumn, isBaseline && styles.statColumnCentered]}>
           <Text style={styles.mainValue}>{formatNumber(consumed)}</Text>
           <Text style={styles.mainLabel}>kcal</Text>
         </View>
 
-        {/* Divider */}
-        <View style={styles.divider} />
+        {/* Only show divider and remaining if NOT in baseline */}
+        {!isBaseline && (
+          <>
+            {/* Divider */}
+            <View style={styles.divider} />
 
-        {/* Remaining */}
-        <View style={styles.statColumn}>
-          <Text style={styles.remainingLabel}>Remaining</Text>
-          <Text style={[styles.mainValue, styles.remainingValue]}>
-            {formatNumber(remaining)}
-          </Text>
-        </View>
+            {/* Remaining */}
+            <View style={styles.statColumn}>
+              <Text style={styles.remainingLabel}>Remaining</Text>
+              <Text style={[styles.mainValue, styles.remainingValue]}>
+                {formatNumber(remaining)}
+              </Text>
+            </View>
+          </>
+        )}
       </View>
 
       {/* Macros Row - Using MacroCircle component */}
@@ -102,6 +107,10 @@ const styles = StyleSheet.create({
   statColumn: {
     flex: 1,
     alignItems: 'center',
+  },
+  statColumnCentered: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mainValue: {
     fontSize: 36,

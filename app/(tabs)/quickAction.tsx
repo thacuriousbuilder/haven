@@ -207,7 +207,7 @@ export default function QuickActionsScreen() {
                   onPress={copyToClipboard}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="copy-outline" size={20} color="#FFFFFF" />
+                  <Ionicons name="copy" size={20} color="#FFFFFF" />
                   <Text style={styles.primaryButtonText}>Copy Code</Text>
                 </TouchableOpacity>
 
@@ -216,7 +216,7 @@ export default function QuickActionsScreen() {
                   onPress={shareInviteCode}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="share-outline" size={20} color={Colors.vividTeal} />
+                  <Ionicons name="share" size={20} color={Colors.vividTeal} />
                   <Text style={styles.secondaryButtonText}>Share</Text>
                 </TouchableOpacity>
               </View>
@@ -227,7 +227,7 @@ export default function QuickActionsScreen() {
                 onPress={regenerateCode}
                 activeOpacity={0.7}
               >
-                <Ionicons name="refresh-outline" size={16} color="#6B7280" />
+                <Ionicons name="refresh" size={16} color="#6B7280" />
                 <Text style={styles.regenerateText}>Regenerate Code</Text>
               </TouchableOpacity>
             </View>
@@ -236,7 +236,7 @@ export default function QuickActionsScreen() {
           {/* How it Works Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="information-circle-outline" size={24} color={Colors.graphite} />
+              <Ionicons name="information-circle" size={24} color={Colors.graphite} />
               <Text style={styles.sectionTitle}>How It Works</Text>
             </View>
 

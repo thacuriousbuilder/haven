@@ -29,22 +29,22 @@ export function QuickLogCard({
       {/* Buttons Grid */}
       <View style={styles.buttonsContainer}>
         <QuickLogButton
-          icon="camera-outline"
+          icon="camera"
           label="Scan"
           onPress={onCamera}
         />
         <QuickLogButton
-          icon="search-outline"
+          icon="search"
           label="Search"
           onPress={onSearch}
         />
         <QuickLogButton
-          icon="image-outline"
+          icon="image"
           label="Photo"
           onPress={onPhoto}
         />
         <QuickLogButton
-          icon="restaurant-outline"
+          icon="restaurant"
           label="Recipe"
           onPress={onRecipe}
         />

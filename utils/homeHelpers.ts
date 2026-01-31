@@ -9,13 +9,13 @@ import { Colors } from '@/constants/colors';
  */
 export function getMealIcon(mealType: string): string {
   const iconMap: Record<string, string> = {
-    breakfast: 'sunny-outline',      // Morning sun
-    lunch: 'partly-sunny-outline',   // Afternoon sun
-    dinner: 'moon-outline',          // Evening moon
-    snack: 'cafe-outline',           // Coffee/snack
+    breakfast: 'sunny',      // Morning sun
+    lunch: 'partly-sunny',   // Afternoon sun
+    dinner: 'moon',          // Evening moon
+    snack: 'cafe',           // Coffee/snack
   };
   
-  return iconMap[mealType.toLowerCase()] || 'restaurant-outline';
+  return iconMap[mealType.toLowerCase()] || 'restaurant';
 }
 
 /**
@@ -23,10 +23,10 @@ export function getMealIcon(mealType: string): string {
  * @param hour - Hour in 24h format (0-23)
  */
 export function getTimeBasedMealIcon(hour: number): string {
-  if (hour >= 5 && hour < 11) return 'sunny-outline';        // Morning
-  if (hour >= 11 && hour < 15) return 'partly-sunny-outline'; // Afternoon
-  if (hour >= 15 && hour < 20) return 'restaurant-outline';   // Evening
-  return 'moon-outline';                                       // Night
+  if (hour >= 5 && hour < 11) return 'sunny';        // Morning
+  if (hour >= 11 && hour < 15) return 'partly-sunny'; // Afternoon
+  if (hour >= 15 && hour < 20) return 'restaurant';   // Evening
+  return 'moon';                                       // Night
 }
 
 /**

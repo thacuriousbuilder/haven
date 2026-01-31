@@ -159,10 +159,10 @@ export default function EditFoodScreen() {
   }
 
   const mealTypes: { value: MealType; label: string; icon: string }[] = [
-    { value: 'breakfast', label: 'Breakfast', icon: 'sunny-outline' },
-    { value: 'lunch', label: 'Lunch', icon: 'partly-sunny-outline' },
-    { value: 'dinner', label: 'Dinner', icon: 'moon-outline' },
-    { value: 'snack', label: 'Snack', icon: 'fast-food-outline' },
+    { value: 'breakfast', label: 'Breakfast', icon: 'sunny' },
+    { value: 'lunch', label: 'Lunch', icon: 'partly-sunny' },
+    { value: 'dinner', label: 'Dinner', icon: 'moon' },
+    { value: 'snack', label: 'Snack', icon: 'fast-food' },
   ];
 
   return (

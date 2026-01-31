@@ -207,7 +207,7 @@ React.useEffect(() => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Instructions */}
         <View style={styles.instructionsCard}>
-          <Ionicons name="information-circle-outline" size={24} color="#206E6B" />
+          <Ionicons name="information-circle" size={24} color="#206E6B" />
           <View style={styles.instructionsTextContainer}>
             <Text style={styles.instructionsTitle}>How it works</Text>
             <Text style={styles.instructionsText}>
@@ -284,7 +284,7 @@ React.useEffect(() => {
           </View>
           
           <View style={styles.recommendedFooter}>
-            <Ionicons name="information-circle-outline" size={16} color="#687C88" />
+            <Ionicons name="information-circle" size={16} color="#687C88" />
             <Text style={styles.recommendedFooterText}>
               This recommendation keeps you on track to hit your weekly budget. It accounts for what you've eaten so far and any other planned cheat days this week.
             </Text>

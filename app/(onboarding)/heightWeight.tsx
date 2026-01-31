@@ -280,7 +280,7 @@ export default function HeightWeightScreen() {
 
           
           <View style={styles.infoCard}>
-            <Ionicons name="information-circle-outline" size={20} color="#6B7280" />
+            <Ionicons name="information-circle" size={20} color="#6B7280" />
             <Text style={styles.infoText}>
               We use your height and weight to calculate your baseline metabolic rate and personalize your calorie targets.
             </Text>

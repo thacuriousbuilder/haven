@@ -64,11 +64,11 @@ export function ClientFoodLogs({ foodLogs, availableDates, onFoodPress  }: Clien
 
   const getMealIcon = (mealType: string) => {
     switch (mealType) {
-      case 'breakfast': return 'sunny-outline';
-      case 'lunch': return 'partly-sunny-outline';
-      case 'dinner': return 'moon-outline';
-      case 'snack': return 'fast-food-outline';
-      default: return 'restaurant-outline';
+      case 'breakfast': return 'sunny';
+      case 'lunch': return 'partly-sunny';
+      case 'dinner': return 'moon';
+      case 'snack': return 'fast-food';
+      default: return 'restaurant';
     }
   };
 
@@ -81,7 +81,7 @@ export function ClientFoodLogs({ foodLogs, availableDates, onFoodPress  }: Clien
       <View style={styles.container}>
         <Text style={styles.sectionTitle}>Recent Food Logs</Text>
         <View style={styles.emptyState}>
-          <Ionicons name="restaurant-outline" size={48} color="#D1D5DB" />
+          <Ionicons name="restaurant" size={48} color="#D1D5DB" />
           <Text style={styles.emptyTitle}>No food logs yet</Text>
           <Text style={styles.emptyDescription}>
             Client hasn't logged any meals recently

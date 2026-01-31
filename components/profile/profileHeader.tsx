@@ -84,7 +84,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             <View style={styles.metricsContainer}>
               {currentWeight !== null && (
                 <View style={styles.weightContainer}>
-                  <Ionicons name="scale-outline" size={16} color="#FFFFFF" />
+                  <Ionicons name="scale" size={16} color="#FFFFFF" />
                   <Text style={styles.weightText}>
                     {Math.round(currentWeight)} {weightUnit}
                   </Text>
@@ -92,7 +92,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               )}
               {goal && (
                 <View style={styles.goalContainer}>
-                  <Ionicons name="flag-outline" size={16} color="#FFFFFF" />
+                  <Ionicons name="flag" size={16} color="#FFFFFF" />
                   <Text style={styles.goalText}>
                     {formatGoal(goal)}
                     {targetWeight !== null && (

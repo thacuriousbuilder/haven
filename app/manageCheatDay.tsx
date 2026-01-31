@@ -183,7 +183,7 @@ export default function ManageCheatDaysScreen() {
 
       {cheatDays.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="calendar-outline" size={64} color={Colors.steelBlue} />
+          <Ionicons name="calendar" size={64} color={Colors.steelBlue} />
           <Text style={styles.emptyText}>No upcoming cheat days planned</Text>
           <Text style={styles.emptySubtext}>
             Plan ahead to stay on track with your weekly budget
@@ -193,7 +193,7 @@ export default function ManageCheatDaysScreen() {
             onPress={() => router.push('/planCheatDay')}
             activeOpacity={0.8}
           >
-            <Ionicons name="add-circle-outline" size={20} color={Colors.white} />
+            <Ionicons name="add-circle" size={20} color={Colors.white} />
             <Text style={styles.emptyAddButtonText}>Plan Your First Cheat Day</Text>
           </TouchableOpacity>
         </View>
@@ -257,7 +257,7 @@ export default function ManageCheatDaysScreen() {
                   onPress={() => handleDelete(item.id, item.cheat_date)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                  <Ionicons name="trash" size={20} color={Colors.error} />
                 </TouchableOpacity>
               </View>
             </View>

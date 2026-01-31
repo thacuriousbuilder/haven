@@ -40,7 +40,7 @@ export function CoachDashboardHeader({
           style={styles.notificationButton}
           onPress={onNotificationPress}
         >
-          <Ionicons name="chatbubbles-outline" size={24} color={Colors.vividTeal} />
+          <Ionicons name="chatbubbles" size={24} color={Colors.vividTeal} />
           {unreadMessagesCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>

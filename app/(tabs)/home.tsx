@@ -761,10 +761,14 @@ const fetchBaselineStats = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-  
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const todayDateStr = `${year}-${month}-${day}`;
       // Use the new RPC function
       const { data: clientsData, error: clientsError } = await supabase
-        .rpc('get_coach_clients_with_status', { coach_id: user.id });
+        .rpc('get_coach_clients_with_status', { coach_id: user.id, today_date: todayDateStr });
   
       if (clientsError) {
         console.error('Error fetching clients:', clientsError);
@@ -792,22 +796,26 @@ const fetchBaselineStats = async () => {
         return;
       }
   
-      const clientStatuses: ClientStatus[] = clientsData.map((client: any) => ({
-        id: client.id,
-        full_name: client.full_name,
-        last_log_time: null,
-        meals_today: client.meals_logged_today || 0,
-        current_streak: client.current_streak || 0,
-        balance_score: null,
-        status: client.status === 'need_followup' ? 'needs_attention' 
-               : client.status === 'in_baseline' ? 'baseline' 
-               : 'on_track',
-        baseline_day: client.baseline_days_completed || null,
-        days_inactive: client.days_inactive || 0,
-        baseline_days_completed: client.baseline_days_completed || 0,
-        baseline_days_remaining: client.baseline_days_remaining || 0,
-        baseline_avg_daily_calories: client.baseline_avg_daily_calories || null,
-      }));
+      const clientStatuses: ClientStatus[] = clientsData.map((client: any) => {    
+        return{
+          id: client.id,
+          full_name: client.full_name,
+          last_log_time: null,
+          meals_today: client.meals_logged_today || 0,
+          current_streak: client.current_streak || 0,
+          balance_score: null,
+          status: client.status === 'need_followup' ? 'needs_attention' 
+                 : client.status === 'in_baseline' ? 'baseline' 
+                 : 'on_track',
+          baseline_day: client.baseline_days_completed || null,
+          days_inactive: client.days_inactive || 0,
+          baseline_days_completed: client.baseline_days_completed || 0,
+          baseline_days_remaining: client.baseline_days_remaining || 0,
+          baseline_avg_daily_calories: client.baseline_avg_daily_calories || null,
+        }
+      } 
+    );
+    
   
       setClients(clientStatuses);
   
@@ -955,34 +963,6 @@ const fetchBaselineStats = async () => {
     });
   };
 
-  const getTimeSinceLog = (timestamp: string | null) => {
-    if (!timestamp) return 'No logs today';
-    
-    const now = new Date();
-    const logTime = new Date(timestamp);
-    const diffMs = now.getTime() - logTime.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return 'Yesterday';
-  };
-
-  const getMealIcon = (mealType: string) => {
-    switch (mealType) {
-      case 'breakfast': return 'sunny-outline';
-      case 'lunch': return 'partly-sunny-outline';
-      case 'dinner': return 'moon-outline';
-      case 'snack': return 'fast-food-outline';
-      default: return 'restaurant-outline';
-    }
-  };
-
-  const capitalizeFirst = (str: string) => {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  };
-
   // ============= LOADING & ERROR STATES =============
 
   if (loading) {
@@ -1082,7 +1062,7 @@ const fetchBaselineStats = async () => {
                     {baselineClients.length > 0 && (
                       <View style={styles.section}>
                         <View style={styles.sectionHeader}>
-                          <Ionicons name="time-outline" size={24} color="#F59E0B" />
+                          <Ionicons name="time" size={24} color="#F59E0B" />
                           <Text style={[styles.sectionTitle, { color: '#F59E0B' }]}>
                             Baseline ({baselineClients.length})
                           </Text>
@@ -1145,7 +1125,7 @@ const fetchBaselineStats = async () => {
 
             {clientStats.total === 0 && (
               <View style={styles.emptyState}>
-                <Ionicons name="people-outline" size={64} color="#D1D5DB" />
+                <Ionicons name="people" size={64} color="#D1D5DB" />
                 <Text style={styles.emptyTitle}>No clients yet</Text>
                 <Text style={styles.emptyDescription}>
                   Share your invite code from the Quick Actions tab to start coaching clients
@@ -1226,6 +1206,20 @@ const fetchBaselineStats = async () => {
                 />
               </View>
 
+               {/* Today's Calories Card */}
+               <View style={styles.cardSpacing}>
+                <TodayCaloriesCard
+                  todayStats={{
+                    consumed: todayCalories,
+                    remaining: todayRemaining,
+                    macros: todayMacros,
+                    goal: todayGoal,
+                  }}
+                  isBaseline={profile?.baseline_complete === false} 
+                />
+              </View>
+
+
               {daysLogged > 0 && (
                   <View style={styles.cardSpacing}>
                     <SummaryStatsCard
@@ -1283,6 +1277,7 @@ const fetchBaselineStats = async () => {
                     macros: todayMacros,
                     goal: todayGoal,
                   }}
+                  isBaseline={profile?.baseline_complete === false} 
                 />
               </View>
 

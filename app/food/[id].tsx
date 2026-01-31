@@ -163,7 +163,7 @@ export default function FoodDetailScreen() {
               style={styles.deleteButton}
              activeOpacity={0.7}
             >
-          <Ionicons name="trash-outline" size={22} color={Colors.error} />
+          <Ionicons name="trash" size={22} color={Colors.error} />
            </TouchableOpacity>
              ) : (
         <View style={styles.deleteButton} />
@@ -232,7 +232,7 @@ export default function FoodDetailScreen() {
 
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
-              <Ionicons name="time-outline" size={20} color={Colors.steelBlue} />
+              <Ionicons name="time" size={20} color={Colors.steelBlue} />
               <Text style={styles.metaLabel}>Logged At</Text>
             </View>
             <Text style={styles.metaValue}>{foodLog.time}</Text>
@@ -246,7 +246,7 @@ export default function FoodDetailScreen() {
     onPress={handleEdit}
     activeOpacity={0.7}
   >
-    <Ionicons name="create-outline" size={20} color={Colors.white} />
+    <Ionicons name="create" size={20} color={Colors.white} />
     <Text style={styles.editButtonText}>Edit Details</Text>
   </TouchableOpacity>
 )}

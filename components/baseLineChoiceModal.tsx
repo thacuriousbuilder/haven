@@ -29,7 +29,7 @@ export function BaselineChoiceModal({
         <View style={styles.modal}>
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <Ionicons name="timer-outline" size={48} color={Colors.energyOrange} />
+            <Ionicons name="timer" size={48} color={Colors.energyOrange} />
           </View>
 
           {/* Title */}
@@ -56,7 +56,7 @@ export function BaselineChoiceModal({
             activeOpacity={0.8}
             disabled={alreadyExtended}
           >
-           <Ionicons name="time-outline" size={20} color={Colors.white} />
+           <Ionicons name="time" size={20} color={Colors.white} />
             <Text style={styles.primaryButtonText}>
               {alreadyExtended ? 'Already Extended' : 'Extend 3 More Days'}
             </Text>

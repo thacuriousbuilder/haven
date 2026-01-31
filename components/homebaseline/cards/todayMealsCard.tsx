@@ -54,7 +54,7 @@ export function TodayMealsCard({
       <View style={styles.mealsList}>
         {displayedMeals.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="restaurant-outline" size={32} color={Colors.steelBlue} />
+            <Ionicons name="restaurant" size={32} color={Colors.steelBlue} />
             <Text style={styles.emptyText}>No meals logged yet today</Text>
             {onAddMeal && (
               <TouchableOpacity

@@ -73,7 +73,7 @@ export const MyCoachCard: React.FC<MyCoachCardProps> = ({
               onPress={onMessagePress}
               activeOpacity={0.7}
             >
-              <Ionicons name="chatbubble-outline" size={20} color="#206E6B" />
+              <Ionicons name="chatbubble" size={20} color="#206E6B" />
             </TouchableOpacity>
             
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
