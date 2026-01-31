@@ -761,10 +761,14 @@ const fetchBaselineStats = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-  
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const todayDateStr = `${year}-${month}-${day}`;
       // Use the new RPC function
       const { data: clientsData, error: clientsError } = await supabase
-        .rpc('get_coach_clients_with_status', { coach_id: user.id });
+        .rpc('get_coach_clients_with_status', { coach_id: user.id, today_date: todayDateStr });
   
       if (clientsError) {
         console.error('Error fetching clients:', clientsError);
@@ -792,22 +796,26 @@ const fetchBaselineStats = async () => {
         return;
       }
   
-      const clientStatuses: ClientStatus[] = clientsData.map((client: any) => ({
-        id: client.id,
-        full_name: client.full_name,
-        last_log_time: null,
-        meals_today: client.meals_logged_today || 0,
-        current_streak: client.current_streak || 0,
-        balance_score: null,
-        status: client.status === 'need_followup' ? 'needs_attention' 
-               : client.status === 'in_baseline' ? 'baseline' 
-               : 'on_track',
-        baseline_day: client.baseline_days_completed || null,
-        days_inactive: client.days_inactive || 0,
-        baseline_days_completed: client.baseline_days_completed || 0,
-        baseline_days_remaining: client.baseline_days_remaining || 0,
-        baseline_avg_daily_calories: client.baseline_avg_daily_calories || null,
-      }));
+      const clientStatuses: ClientStatus[] = clientsData.map((client: any) => {    
+        return{
+          id: client.id,
+          full_name: client.full_name,
+          last_log_time: null,
+          meals_today: client.meals_logged_today || 0,
+          current_streak: client.current_streak || 0,
+          balance_score: null,
+          status: client.status === 'need_followup' ? 'needs_attention' 
+                 : client.status === 'in_baseline' ? 'baseline' 
+                 : 'on_track',
+          baseline_day: client.baseline_days_completed || null,
+          days_inactive: client.days_inactive || 0,
+          baseline_days_completed: client.baseline_days_completed || 0,
+          baseline_days_remaining: client.baseline_days_remaining || 0,
+          baseline_avg_daily_calories: client.baseline_avg_daily_calories || null,
+        }
+      } 
+    );
+    
   
       setClients(clientStatuses);
   
