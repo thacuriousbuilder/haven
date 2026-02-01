@@ -20,45 +20,60 @@ export default function EmailSignup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handleSignUp() {
-   
-    if (!email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
 
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
 
-    setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email: email,
-      password: password,
-    });
+async function handleSignUp() {
 
-    setLoading(false);
-
-    if (error) {
-      Alert.alert('Error', error.message);
-      return;
-    }
-
-   
-    if (data.user || data.session) {
-      router.replace('/(onboarding)/accountType');
-    }
+  if (!fullName || !email || !password || !confirmPassword) {
+    Alert.alert('Error', 'Please fill in all fields');
+    return;
   }
 
+  if (fullName.trim().length < 2) {
+    Alert.alert('Error', 'Please enter your full name');
+    return;
+  }
+
+  if (password.length < 6) {
+    Alert.alert('Error', 'Password must be at least 6 characters');
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    Alert.alert('Error', 'Passwords do not match');
+    return;
+  }
+
+  setLoading(true);
+
+
+  const { data, error } = await supabase.auth.signUp({
+    email: email,
+    password: password,
+    options: {
+      data: {
+        full_name: fullName.trim(),
+      }
+    }
+  });
+
+  setLoading(false);
+
+  if (error) {
+    Alert.alert('Error', error.message);
+    return;
+  }
+
+ 
+  if (data.user || data.session) {
+    router.replace('/(onboarding)/accountType');
+  }
+}
   return (
     <KeyboardAvoidingView 
       style={styles.container}
@@ -77,6 +92,15 @@ export default function EmailSignup() {
           <View style={styles.formContainer}>
             <TextInput
               style={styles.input}
+              value={fullName}
+              onChangeText={setFullName}
+              autoCapitalize="words"
+              placeholder="Full Name"
+              placeholderTextColor="#999"
+              editable={!loading}
+            />
+            <TextInput
+              style={styles.input}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -88,6 +112,8 @@ export default function EmailSignup() {
 
             <TextInput
               style={styles.input}
+               textContentType='newPassword'
+               autoComplete='off'
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -99,6 +125,8 @@ export default function EmailSignup() {
             <TextInput
               style={styles.input}
               value={confirmPassword}
+              textContentType='newPassword'
+               autoComplete='off'
               onChangeText={setConfirmPassword}
               secureTextEntry
               placeholder="Re-enter password"

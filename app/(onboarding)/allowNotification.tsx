@@ -20,7 +20,7 @@ export default function NotificationPermissionScreen() {
         console.error('No user found');
         return;
       }
-
+      const fullName = user.user_metadata?.full_name || '';
       // Calculate birth date
       const birthDate = new Date(
         data.birthYear || 1990,
@@ -32,6 +32,7 @@ export default function NotificationPermissionScreen() {
         .from('profiles')
         .upsert({
           id: user.id,
+          full_name:fullName,
           gender: data.gender,
           birth_date: birthDate.toISOString().split('T')[0],
           unit_system: 'imperial',
