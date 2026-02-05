@@ -11,6 +11,8 @@ export default function LogScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
+  const dateParam = params.date as string | undefined;
+
   const handleSuccess = () => {
     // Navigate back to home after successful log
     router.push('/home');
@@ -26,6 +28,7 @@ export default function LogScreen() {
           onSuccess={handleSuccess}
           initialMethod={params.method as 'camera' | 'photo' | 'search' | 'manual' | null}
           initialImageBase64={params.imageBase64 as string | null}
+          initialDate={dateParam}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>

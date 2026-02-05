@@ -29,6 +29,7 @@ export interface UserProfile {
   avatar_url: string | null;
   push_notifications_enabled: boolean;
   meal_reminders_enabled: boolean;
+  daily_checkin_time: string; // Time string (HH:MM:SS)
 
 }
 
@@ -67,16 +68,45 @@ export interface DailySummary {
   updated_at: string;
 }
 
-// CHECK-INS
-export interface CheckIn {
+// ============= CHECK IN START =============
+export type CheckIn = {
   id: string;
   user_id: string;
-  check_in_date: string; // ISO date
-  day_type: string; // 'baseline' | 'different' | 'same'
-  notes: string | null;
+  check_in_date: string; // ISO date string (YYYY-MM-DD)
+  has_unlogged_food: boolean;
+  workout_planned: boolean;
+  workout_time: string | null; // Time string (HH:MM:SS) or null
+  workout_completed: boolean;
+  workout_calories_burned: number | null;
+  workout_intensity: 'light' | 'moderate' | 'intense' | null;
+  workout_duration_minutes: number | null;
   created_at: string;
   updated_at: string;
-}
+};
+// For creating a new check-in (morning)
+export type CheckInCreate = {
+  user_id: string;
+  check_in_date: string;
+  has_unlogged_food: boolean;
+  workout_planned: boolean;
+  workout_time: string | null;
+};
+// For updating check-in with workout confirmation (evening)
+export type WorkoutConfirmation = {
+  workout_completed: boolean;
+  workout_calories_burned: number | null;
+  workout_intensity: 'light' | 'moderate' | 'intense' | null;
+  workout_duration_minutes: number | null;
+};
+// For the workout confirmation screen form state
+export type WorkoutConfirmationForm = {
+  completed: boolean;
+  knowsCalories: boolean;
+  caloriesBurned: string; // string for TextInput
+  intensity: 'light' | 'moderate' | 'intense';
+  duration: string; // string for TextInput
+};
+// ============= CHECK IN END =============
 
 // WEEKLY PERIODS
 export interface WeeklyPeriod {

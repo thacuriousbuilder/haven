@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import WeeklyCalendar from '@/components/weeklyCalendar';
-import { calculateMetrics } from '@/utils/metrics';
 import { BaselineCompleteModal } from '@/components/baseLineCompleteModal';
-import { getLocalDateString } from '@/utils/timezone';
+import { 
+  getLocalDateString, 
+  getCurrentWeekDates,
+  formatLocalDate,
+  getSunday 
+} from '@/utils/timezone';
 import { BaselineProgressCard } from '@/components/homebaseline/cards/baselineProgressCard';
 import { SummaryStatsCard } from '@/components/homebaseline/cards/summaryStatsCard';
 import { QuickLogCard } from '@/components/homebaseline/cards/quickLogCard';
@@ -21,6 +25,7 @@ import { ClientCardBaseline } from '@/components/coach/clientCardBaseline';
 import { BaselineChoiceModal } from '@/components/baseLineChoiceModal';
 import { BaselineRestartModal } from '@/components/baseLineRestartModal';
 import * as ImagePicker from 'expo-image-picker';
+import { completeBaseline, getActivityLevelLabel } from '@/lib/baselineCompletion';
 
 // Type imports
 import type { MealLogItem, MacroData } from '@/types/home';
@@ -36,6 +41,18 @@ interface ProfileData {
   baseline_extended: boolean;
   weekly_calorie_bank: number;
   user_type: 'client' | 'trainer';
+  activity_level: string | null;
+  baseline_avg_daily_calories: number | null;
+  weekly_budget: number | null;
+  weekly_period_id: string | null;
+  days_used: number | null;
+  is_manual: boolean | null;
+  baseline_total_exercise: number | null;
+  actual_activity_level: string | null;
+  tdee: number | null;
+  daily_target: number | null;
+  baseline_completion_at: string | null;
+  updated_at: string | null;
 }
 
 interface FoodLog {
@@ -51,13 +68,12 @@ interface FoodLog {
 }
 
 interface MetricsData {
-  balance_score: number;
-  consistency_score: number;
-  drift_score: number;
+  weekly_budget: number;
   total_consumed: number;
   total_remaining: number;
   calories_reserved: number;
-  weekly_budget: number;
+  projected_end: number;
+  on_track: boolean;
 }
 
 // interface ClientStatus {
@@ -91,6 +107,7 @@ export default function HomeScreen() {
   const [daysLogged, setDaysLogged] = useState(0);
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [cheatDates, setCheatDates] = useState<string[]>([]);
+  const [todayBurned, setTodayBurned] = useState<number>(0);
   const [baselineAverage, setBaselineAverage] = useState<number>(0);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     unreadMessagesCount: 0,
@@ -135,6 +152,15 @@ export default function HomeScreen() {
     }
   }, [profile]);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      if (profile && profile.user_type !== 'trainer') {
+        // Refresh data whenever screen comes into focus
+        fetchRecentLogs();
+      }
+    }, [profile])
+  );
+
   // ============= HELPER FUNCTIONS =============
 
   const getMonday = (date: Date): Date => {
@@ -164,6 +190,93 @@ export default function HomeScreen() {
     }));
   };
 
+  const calculateMetricsClientSide = async (
+    userId: string,
+    weekStartDate: string,
+    profile: any
+  ): Promise<MetricsData> => {
+    try {
+      console.log('📊 Calculating metrics client-side for week:', weekStartDate);
+      
+      // ✅ Use timezone utilities
+      const startDate = new Date(weekStartDate + 'T00:00:00');
+      const endDate = getSunday(startDate);
+      const sundayStr = formatLocalDate(endDate);
+      const todayStr = getLocalDateString();
+  
+      // Get daily summaries for this week (up to today)
+      const { data: summaries, error: summariesError } = await supabase
+        .from('daily_summaries')
+        .select('calories_consumed, summary_date')
+        .eq('user_id', userId)
+        .gte('summary_date', weekStartDate)
+        .lte('summary_date', todayStr);
+  
+      if (summariesError) {
+        console.error('Error loading summaries:', summariesError);
+        throw summariesError;
+      }
+  
+      // Calculate total consumed
+      const total_consumed = summaries?.reduce((sum, day) => 
+        sum + (day.calories_consumed || 0), 0
+      ) || 0;
+  
+      console.log('  - Total consumed:', total_consumed);
+  
+      // Get upcoming cheat days (after today)
+      const { data: cheatDays, error: cheatError } = await supabase
+        .from('planned_cheat_days')
+        .select('planned_calories, cheat_date')
+        .eq('user_id', userId)
+        .gte('cheat_date', weekStartDate)
+        .lte('cheat_date', sundayStr)
+        .gt('cheat_date', todayStr);
+  
+      if (cheatError) {
+        console.error('Error loading cheat days:', cheatError);
+      }
+  
+      const calories_reserved = cheatDays?.reduce((sum, cd) => 
+        sum + (cd.planned_calories || 0), 0
+      ) || 0;
+  
+      console.log('  - Calories reserved:', calories_reserved);
+  
+      const weekly_budget = profile.weekly_budget || 0;
+      const total_remaining = weekly_budget - total_consumed;
+  
+      console.log('  - Weekly budget:', weekly_budget);
+      console.log('  - Remaining:', total_remaining);
+  
+      // Simple projection (can enhance later with trend analysis)
+      const projected_end = total_consumed;
+      
+      // On track if within 10% of budget
+      const on_track = total_consumed <= weekly_budget * 1.1;
+  
+      return {
+        weekly_budget,
+        total_consumed,
+        total_remaining,
+        calories_reserved,
+        projected_end,
+        on_track,
+      };
+      
+    } catch (error) {
+      console.error('Error calculating metrics:', error);
+      return {
+        weekly_budget: profile.weekly_budget || 0,
+        total_consumed: 0,
+        total_remaining: profile.weekly_budget || 0,
+        calories_reserved: 0,
+        projected_end: 0,
+        on_track: true,
+      };
+    }
+  };
+
   // Calculate total macros from food logs
   const calculateTotalMacros = (logs: FoodLog[]): MacroData => {
     return logs.reduce(
@@ -191,6 +304,7 @@ export default function HomeScreen() {
   };
 
 
+
   const fetchCompletedBaselineDays = async () => {
     if (!profile?.baseline_start_date) {
       setCompletedBaselineDays([false, false, false, false, false, false, false]);
@@ -206,23 +320,25 @@ export default function HomeScreen() {
     // Get all daily summaries for this baseline period
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 6);
-    const endDateStr = endDate.toISOString().split('T')[0];
+    
+
+    const endDateStr = formatLocalDate(endDate);
   
     const { data: summaries } = await supabase
       .from('daily_summaries')
-      .select('summary_date')
+      .select('summary_date, calories_consumed')
       .eq('user_id', user.id)
       .gte('summary_date', profile.baseline_start_date)
-      .lte('summary_date', endDateStr)
-      .gt('calories_consumed', 0);
+      .lte('summary_date', endDateStr);
   
     if (summaries) {
-      // Mark each day that has a summary as completed
       summaries.forEach(summary => {
-        const summaryDate = new Date(summary.summary_date + 'T00:00:00');
-        const dayIndex = Math.floor((summaryDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (dayIndex >= 0 && dayIndex < 7) {
-          completed[dayIndex] = true;
+        if (summary.calories_consumed > 0) {
+          const summaryDate = new Date(summary.summary_date + 'T00:00:00');
+          const dayIndex = Math.floor((summaryDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (dayIndex >= 0 && dayIndex < 7) {
+            completed[dayIndex] = true;
+          }
         }
       });
     }
@@ -272,9 +388,6 @@ export default function HomeScreen() {
     };
   };
 
-  // ============= DATA FETCHING FUNCTIONS =============
-  // ============= BASELINE STATUS CHECKING (NEW SYSTEM) =============
-
   const checkBaselineStatus = async () => {
     try {  
       // Only run for clients with active baseline
@@ -295,10 +408,11 @@ export default function HomeScreen() {
         endDate.setDate(startDate.getDate() + 6); // 7 days (0-indexed = 6)
       }
       
+    
       console.log('📅 Baseline dates:', {
-        start: startDate.toISOString().split('T')[0],
-        end: endDate.toISOString().split('T')[0],
-        today: today.toISOString().split('T')[0],
+        start: formatLocalDate(startDate),
+        end: formatLocalDate(endDate),
+        today: getLocalDateString(),
         extended: profile.baseline_extended || false,
       });
       
@@ -355,99 +469,86 @@ const handleBaselineEnded = async () => {
   }
 };
 
+const completeBaselineNow = async () => {
+  try {
+    console.log('🎯 Completing baseline...');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !profile?.baseline_start_date) return;
+    
+    // Calculate end date
+    const startDate = new Date(profile.baseline_start_date + 'T00:00:00');
+    const endDate = new Date(startDate);
+    if (profile.baseline_extended) {
+      endDate.setDate(startDate.getDate() + 9); // 10 days
+    } else {
+      endDate.setDate(startDate.getDate() + 6); // 7 days
+    }
+    
+    
+    const endDateStr = formatLocalDate(endDate);
+    
+    // Call completion helper (handles any number of days >= 5)
+    const result = await completeBaseline(
+      user.id,
+      profile.baseline_start_date,
+      endDateStr
+    );
+    
+    if (!result.success) {
+      Alert.alert('Error', result.error || 'Failed to complete baseline');
+      return;
+    }
+    
+    console.log('✅ Baseline completed:', result.data);
+    
+    // Build completion message
+    let message = '';
+    
+    // Activity level comparison
+    if (result?.data?.actualActivityLevel !== profile.activity_level) {
+      const actualLabel = getActivityLevelLabel(result?.data?.actualActivityLevel || '');
+      const reportedLabel = getActivityLevelLabel(profile.activity_level || '');
+      message += `Your actual activity level (${actualLabel}) differs from what you reported (${reportedLabel}). We've adjusted your plan accordingly.\n\n`;
+    }
+    
+    // Partial data warning
+    if (result?.data?.daysUsed && result?.data?.daysUsed < 7) {
+      message += `We calculated your baseline from ${result?.data?.daysUsed} days you logged. For best results, try to log daily going forward.`;
+    } else {
+      message += 'Great job completing all 7 days! Your plan is now personalized to your actual habits.';
+    }
+    
+    // Set data for completion modal
+    setBaselineAverage(result?.data?.finalTDEE || 0);
+    setBaselineCompletionMessage(message);
+    
+    // Show completion modal
+    setBaselineModalType('complete');
+    
+    // Refresh profile to show updated data
+    await fetchProfile();
+    
+  } catch (error) {
+    console.error('❌ Error in completeBaselineNow:', error);
+    Alert.alert('Error', 'Something went wrong. Please try again.');
+  }
+};
+
 const completeBaselineAuto = async (
   summaries: { calories_consumed: number; summary_date: string }[],
   daysLogged: number
 ) => {
-  try {
-    console.log('🎯 Auto-completing baseline...');
-    
-    // Calculate average for display
-    const totalCalories = summaries.reduce((sum, day) => sum + day.calories_consumed, 0);
-    const average = Math.round(totalCalories / summaries.length);
-
-    console.log(`📊 Baseline stats: ${daysLogged} days, ${average} cal/day average`);
-
-    // Set data for completion modal (don't call Edge Function yet!)
-    setBaselineAverage(average);
-    
-    // Add message if partial completion
-    if (daysLogged < 7) {
-      setBaselineCompletionMessage(
-        `We calculated your baseline from the ${daysLogged} days you logged. For best results, try to log daily going forward.`
-      );
-    }
-    
-    // Show completion modal (Edge Function will be called when user clicks button)
-    setBaselineModalType('complete');
-    
-  } catch (error) {
-    console.error('❌ Error in completeBaselineAuto:', error);
-    Alert.alert('Error', 'Something went wrong. Please try again.');
-  }
+  // Just call the unified function
+  await completeBaselineNow();
 };
 
-// ============= BASELINE ACTION HANDLERS =============
 
 const completeBaselineWithPartialData = async () => {
-  try {
-    console.log('🎯 Completing baseline with partial data...');
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user || !profile?.baseline_start_date) return;
-
-    // Get all available summaries (just for count/display)
-    const { data: summaries, error } = await supabase
-      .from('daily_summaries')
-      .select('calories_consumed, summary_date')
-      .eq('user_id', user.id)
-      .gte('summary_date', profile.baseline_start_date)
-      .gt('calories_consumed', 0);
-
-    if (error || !summaries || summaries.length === 0) {
-      console.error('❌ No data to complete baseline with');
-      Alert.alert('Error', 'No baseline data found to calculate average.');
-      return;
-    }
-
-    // Calculate average for display
-    const totalCalories = summaries.reduce((sum, day) => sum + day.calories_consumed, 0);
-    const average = Math.round(totalCalories / summaries.length);
-
-    console.log(`📊 Completing with ${summaries.length} days, average: ${average} cal/day`);
-
-    // Call Edge Function to complete baseline
-    const { data: functionData, error: functionError } = await supabase.functions.invoke('calculateWeeklyBudget');
-
-    if (functionError) {
-      console.error('❌ Edge Function error:', functionError);
-      Alert.alert('Error', 'Failed to complete baseline. Please try again.');
-      return;
-    }
-
-    if (!functionData.success) {
-      console.error('❌ Edge Function failed:', functionData.error);
-      Alert.alert('Error', functionData.error || 'Failed to complete baseline.');
-      return;
-    }
-
-    console.log('✅ Baseline completed with partial data:', functionData.data);
-
-    // Set data for completion modal
-    setBaselineAverage(functionData.data.baseline_average_daily);
-    setBaselineCompletionMessage(
-      `We calculated your baseline from the ${summaries.length} days you logged. This may be less accurate than a full 7-day baseline.`
-    );
-    
-    // Close choice modal, show completion modal
-    setBaselineModalType('complete');
-    
-    // Refresh profile
-    await fetchProfile();
-  } catch (error) {
-    console.error('❌ Error in completeBaselineWithPartialData:', error);
-    Alert.alert('Error', 'Something went wrong. Please try again.');
-  }
+  // Just call the unified function
+  await completeBaselineNow();
 };
+
+
 
 const extendBaseline = async () => {
   try {
@@ -465,8 +566,8 @@ const extendBaseline = async () => {
       return;
     }
 
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    // ✅ Use timezone utility
+    const todayStr = getLocalDateString();
 
     // Mark as extended in database
     const { error } = await supabase
@@ -502,17 +603,14 @@ const extendBaseline = async () => {
   }
 };
 
+
 const restartBaseline = async () => {
   try {
     console.log('🔄 Restarting baseline...');
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const todayStr = `${year}-${month}-${day}`;
+    const todayStr = getLocalDateString();
 
     console.log(`📅 Restarting baseline from: ${todayStr}`);
 
@@ -550,9 +648,7 @@ const restartBaseline = async () => {
   }
 };
 
-// ============= END BASELINE ACTION HANDLERS =============
 
-// ============= END BASELINE STATUS CHECKING =============
 const fetchBaselineStats = async () => {
   if (!profile?.baseline_start_date) {
     setBaselineStats({
@@ -682,55 +778,49 @@ const fetchBaselineStats = async () => {
         setCurrentDay(Math.max(1, Math.min(diffDays, 7)));
       }
 
-    // Load metrics if client and baseline complete
-      if (data.user_type !== 'trainer' && data.baseline_complete) {
-        try {
-          const today = new Date();
-          const monday = getMonday(today);
-          const year = monday.getFullYear();
-          const month = String(monday.getMonth() + 1).padStart(2, '0');
-          const day = String(monday.getDate()).padStart(2, '0');
-          const weekStartDate = `${year}-${month}-${day}`;
+  
+   // Load metrics if client and baseline complete
+if (data.user_type !== 'trainer' && data.baseline_complete) {
+  try {
+   
+    const { weekStart: weekStartDate } = getCurrentWeekDates();
 
-          const { data: weeklyPeriod } = await supabase
-            .from('weekly_periods')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('week_start_date', weekStartDate)
-            .single();
+    const { data: weeklyPeriod } = await supabase
+      .from('weekly_periods')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('week_start_date', weekStartDate)
+      .single();
 
-          // Only auto-create period for baseline users (not manual setup users)
-          // if (!weeklyPeriod && data.baseline_start_date) {
-          //   await calculateWeeklyBudget();
-          // } else if (!weeklyPeriod && !data.baseline_start_date) {
-          //   // Manual users should have had their period created during onboarding
-          //   // Don't try to auto-create as it will fail without baseline data
-          // }
+    // Calculate metrics client-side
+    const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, data);
+    setMetrics(metricsData);
 
-          const metricsData = await calculateMetrics();
-          setMetrics(metricsData);
+    // Get cheat days
+    const { weekEnd: sundayDateStr } = getCurrentWeekDates();
+    
+    const { data: cheatDays } = await supabase
+      .from('planned_cheat_days')
+      .select('cheat_date')
+      .eq('user_id', user.id)
+      .gte('cheat_date', weekStartDate)
+      .lte('cheat_date', sundayDateStr);
 
-          const sunday = new Date(monday);
-          sunday.setDate(monday.getDate() + 6);
-          const sundayYear = sunday.getFullYear();
-          const sundayMonth = String(sunday.getMonth() + 1).padStart(2, '0');
-          const sundayDay = String(sunday.getDate()).padStart(2, '0');
-          const sundayDateStr = `${sundayYear}-${sundayMonth}-${sundayDay}`; 
-          
-          const { data: cheatDays } = await supabase
-            .from('planned_cheat_days')
-            .select('cheat_date')
-            .eq('user_id', user.id)
-            .gte('cheat_date', weekStartDate)
-            .lte('cheat_date', sundayDateStr);
-
-          if (cheatDays) {
-            setCheatDates(cheatDays.map(cd => cd.cheat_date));
-          }
-        } catch (metricsError) {
-          console.error('Metrics error:', metricsError);
-        }
-      }
+    if (cheatDays) {
+      setCheatDates(cheatDays.map(cd => cd.cheat_date));
+    }
+  } catch (metricsError) {
+    console.error('Metrics error:', metricsError);
+    setMetrics({
+      weekly_budget: data.weekly_budget || 0,
+      total_consumed: 0,
+      total_remaining: data.weekly_budget || 0,
+      calories_reserved: 0,
+      projected_end: 0,
+      on_track: true,
+    });
+  }
+}
             setLoading(false);
             setRefreshing(false);
           } catch (error) {
@@ -1334,6 +1424,7 @@ const fetchBaselineStats = async () => {
       <BaselineCompleteModal
   visible={baselineModalType === 'complete'}
   baselineAverage={baselineAverage}
+  message={baselineCompletionMessage}
   onComplete={() => {
     setBaselineModalType(null);
     setBaselineCompletionMessage(undefined);

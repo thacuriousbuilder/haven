@@ -116,7 +116,6 @@ async function handleSignUp() {
                autoComplete='off'
               value={password}
               onChangeText={setPassword}
-              secureTextEntry
               placeholder="Password"
               placeholderTextColor="#999"
               editable={!loading}
@@ -128,7 +127,6 @@ async function handleSignUp() {
               textContentType='newPassword'
                autoComplete='off'
               onChangeText={setConfirmPassword}
-              secureTextEntry
               placeholder="Re-enter password"
               placeholderTextColor="#999"
               editable={!loading}
