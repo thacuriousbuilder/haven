@@ -7,7 +7,7 @@ import { useOnboarding } from '@/contexts/onboardingContext';
 import { supabase } from '@/lib/supabase';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
-import { calculateWeeklyBudget } from '@/utils/weeklyBudget';
+
 import {
   calculateBMR,
   calculateTDEE,
@@ -16,6 +16,7 @@ import {
   calculateMacros,
   estimateTargetDate,
 } from '@/utils/calorieCalculator';
+import { getCurrentWeekDates } from '@/utils/timezone';
 
 export default function ManualPlanScreen() {
   const { data } = useOnboarding();
@@ -32,6 +33,15 @@ export default function ManualPlanScreen() {
   useEffect(() => {
     calculateAndSavePlan();
   }, []);
+
+  const getMonday = (date: Date): Date => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setDate(diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
 
   const calculateAndSavePlan = async () => {
     try {
@@ -126,6 +136,8 @@ export default function ManualPlanScreen() {
         data.birthDay || 1
       ).toISOString().split('T')[0];
   
+      const dailyTarget = Math.round(weeklyCalories / 7);
+  
       // Save profile
       const { error: profileError } = await supabase
         .from('profiles')
@@ -143,8 +155,8 @@ export default function ManualPlanScreen() {
           activity_level: data.activityLevel || 'lightly_active',
           baseline_start_date: null,
           baseline_complete: true,
-          baseline_avg_daily_calories: Math.round(weeklyCalories / 7),
-          weekly_calorie_bank: weeklyCalories,
+          baseline_avg_daily_calories: dailyTarget,
+          weekly_budget: weeklyCalories,  // 🆕 Use consistent field name
           onboarding_completed: true,
           updated_at: new Date().toISOString(),
         });
@@ -154,15 +166,64 @@ export default function ManualPlanScreen() {
         throw profileError;
       }
   
-      // Small delay to ensure profile is committed
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('✅ Profile saved for manual user');
   
-      // Create weekly period with manual budget
-      await calculateWeeklyBudget(weeklyCalories);
+      
+      await createManualWeeklyPeriod(user.id, weeklyCalories);
   
     } catch (error) {
       console.error('Error in saveOnboardingData:', error);
       throw error;
+    }
+  };
+  
+ 
+  const createManualWeeklyPeriod = async (
+    userId: string,
+    weeklyBudget: number
+  ) => {
+    try {
+      console.log('📅 Creating weekly period for manual user...');
+      
+      // ✅ Use timezone utility
+      const { weekStart, weekEnd } = getCurrentWeekDates();
+      
+      console.log('  Week:', weekStart, 'to', weekEnd);
+      
+      // Check if period already exists
+      const { data: existing } = await supabase
+        .from('weekly_periods')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('week_start_date', weekStart)
+        .maybeSingle();
+      
+      if (existing) {
+        console.log('✅ Weekly period already exists');
+        return;
+      }
+      
+      // Create new weekly period
+      const { error } = await supabase
+        .from('weekly_periods')
+        .insert({
+          user_id: userId,
+          week_start_date: weekStart,
+          week_end_date: weekEnd,
+          weekly_budget: weeklyBudget,
+          budget_remaining: weeklyBudget,
+          created_at: new Date().toISOString(),
+        });
+      
+      if (error) {
+        console.error('❌ Error creating weekly period:', error);
+        throw error;
+      }
+      
+      console.log('✅ Weekly period created for manual user');
+    } catch (error) {
+      console.error('❌ Error in createManualWeeklyPeriod:', error);
+      console.warn('⚠️ Manual user can still use app, period will be created on first home screen load');
     }
   };
 

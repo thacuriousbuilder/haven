@@ -23,6 +23,7 @@ export function BaselineCompleteModal({
   message,
   onComplete 
 }: BaselineCompleteModalProps) {
+  
   const handleStartTracking = () => {
     // Calculate days remaining in this week for the message
     const today = new Date();

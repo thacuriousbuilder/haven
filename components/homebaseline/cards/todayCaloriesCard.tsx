@@ -1,9 +1,11 @@
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
 import { formatNumber } from '@/utils/homeHelpers';
 import { MacroCircle } from '@/components/homebaseline/ui/macroCircle';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 interface MacroData {
   protein: number;
@@ -16,6 +18,7 @@ interface TodayStats {
   remaining: number;
   macros: MacroData;
   goal: number;
+  burned?: number;
 }
 
 interface TodayCaloriesCardProps {
@@ -24,8 +27,9 @@ interface TodayCaloriesCardProps {
 }
 
 export function TodayCaloriesCard({ todayStats, isBaseline = false }: TodayCaloriesCardProps) {
-  const { consumed, remaining, macros, goal } = todayStats;
+  const { consumed, remaining, macros, goal, burned = 0 } = todayStats;
 
+  
   return (
     <View style={styles.card}>
       {/* Header */}
@@ -37,8 +41,12 @@ export function TodayCaloriesCard({ todayStats, isBaseline = false }: TodayCalor
         <View style={[styles.statColumn, isBaseline && styles.statColumnCentered]}>
           <Text style={styles.mainValue}>{formatNumber(consumed)}</Text>
           <Text style={styles.mainLabel}>kcal</Text>
+          <TouchableOpacity onPress={()=>router.push('/dailyCheckin')}>
+            <Text >
+            Click here for daily checkin
+            </Text>
+          </TouchableOpacity>
         </View>
-
         {/* Only show divider and remaining if NOT in baseline */}
         {!isBaseline && (
           <>
@@ -47,13 +55,28 @@ export function TodayCaloriesCard({ todayStats, isBaseline = false }: TodayCalor
 
             {/* Remaining */}
             <View style={styles.statColumn}>
-              <Text style={styles.remainingLabel}>Remaining</Text>
               <Text style={[styles.mainValue, styles.remainingValue]}>
                 {formatNumber(remaining)}
               </Text>
+              <Text style={styles.remainingLabel}>Remaining</Text>
             </View>
           </>
         )}
+        {burned > 0 && (
+          <>
+            <View style={styles.divider}>
+            </View>
+            <View style={styles.statColumn}>
+              <View style={styles.burnedValueRow}>
+                <Text style={[styles.mainValue, styles.burnedValue]}>
+                  {formatNumber(burned)}
+                </Text>
+              </View>
+              <Text style={styles.burnedLabel}>Burned</Text>
+            </View>
+          </>
+        )}
+
       </View>
 
       {/* Macros Row - Using MacroCircle component */}
@@ -113,7 +136,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   mainValue: {
-    fontSize: 36,
+    fontSize: 30,
     fontWeight: '700',
     color: Colors.graphite,
     marginBottom: 4,
@@ -144,5 +167,23 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+  },
+  burnedDivider: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 8,
+  },
+  burnedValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  burnedValue: {
+    color: '#EF7828',
+  },
+  burnedLabel: {
+    fontSize: 14,
+    color: '#EF7828',
+    fontWeight: '500',
   },
 });

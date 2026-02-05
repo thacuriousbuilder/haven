@@ -23,6 +23,7 @@ interface FoodLogSheetProps {
   onSuccess: () => void;
   initialMethod?: 'camera' | 'photo' | 'search' | 'manual' | null;
   initialImageBase64?: string | null;
+  initialDate?: string;
 }
 
 type LogMethod = 'manual' | 'search' | 'image' | null;
@@ -48,7 +49,8 @@ interface RecentFood {
 export function FoodLogSheet({ 
   onSuccess, 
   initialMethod = null,
-  initialImageBase64 = null 
+  initialImageBase64 = null,
+  initialDate = undefined
 }: FoodLogSheetProps) {
   const [selectedMethod, setSelectedMethod] = useState<LogMethod>(
     initialMethod === 'camera' || initialMethod === 'photo' ? 'image' : initialMethod || null
@@ -77,6 +79,8 @@ export function FoodLogSheet({
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const RECENT_DISPLAY_LIMIT = 3;
+  //daily checkin log state
+  const [logDate, setLogDate] = useState<string>(initialDate || getLocalDateString());
 
   useEffect(() => {
     loadRecentFoods();
@@ -189,7 +193,7 @@ export function FoodLogSheet({
           protein_grams: selectedFood?.protein || null,
           carbs_grams: selectedFood?.carbs || null,
           fat_grams: selectedFood?.fat || null,
-          log_date:  getLocalDateString(),
+          log_date: logDate,
           meal_type: mealType,
           entry_method: selectedMethod === 'search' 
                                   ? 'database' 
@@ -214,7 +218,7 @@ export function FoodLogSheet({
 
     if (profile && !profile.baseline_complete && !profile.baseline_start_date) {
       // This is the first food log - set baseline start date to today
-      const today = getLocalDateString();
+      const today = logDate;
       await supabase
         .from('profiles')
         .update({ baseline_start_date: today })
