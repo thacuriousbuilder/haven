@@ -27,7 +27,7 @@ export default function GoalScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={8} totalSteps={14} />
+      <ProgressBar currentStep={6} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 

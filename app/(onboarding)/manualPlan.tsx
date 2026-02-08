@@ -16,7 +16,7 @@ import {
   calculateMacros,
   estimateTargetDate,
 } from '@/utils/calorieCalculator';
-import { getCurrentWeekDates } from '@/utils/timezone';
+import { formatDateComponents, getCurrentWeekDates } from '@/utils/timezone';
 
 export default function ManualPlanScreen() {
   const { data } = useOnboarding();
@@ -60,11 +60,7 @@ export default function ManualPlanScreen() {
       const goalWeight = data.goalWeight || currentWeight;
   
       // Calculate birth date
-      const birthDate = new Date(
-        birthYear,
-        birthMonth - 1,
-        birthDay
-      ).toISOString().split('T')[0];
+      const birthDate = formatDateComponents(birthYear, birthMonth, birthDay);
   
       // Step 1: Calculate BMR
       const bmr = calculateBMR(
@@ -130,11 +126,12 @@ export default function ManualPlanScreen() {
       }
   
       // Calculate birth date
-      const birthDate = new Date(
+      const birthDate = formatDateComponents(
         data.birthYear || 1990,
-        (data.birthMonth || 1) - 1,
+        data.birthMonth || 1,
         data.birthDay || 1
-      ).toISOString().split('T')[0];
+      );
+  
   
       const dailyTarget = Math.round(weeklyCalories / 7);
   
@@ -156,7 +153,7 @@ export default function ManualPlanScreen() {
           baseline_start_date: null,
           baseline_complete: true,
           baseline_avg_daily_calories: dailyTarget,
-          weekly_budget: weeklyCalories,  // 🆕 Use consistent field name
+          weekly_budget: weeklyCalories, 
           onboarding_completed: true,
           updated_at: new Date().toISOString(),
         });
@@ -185,7 +182,7 @@ export default function ManualPlanScreen() {
     try {
       console.log('📅 Creating weekly period for manual user...');
       
-      // ✅ Use timezone utility
+      
       const { weekStart, weekEnd } = getCurrentWeekDates();
       
       console.log('  Week:', weekStart, 'to', weekEnd);
@@ -211,7 +208,7 @@ export default function ManualPlanScreen() {
           week_start_date: weekStart,
           week_end_date: weekEnd,
           weekly_budget: weeklyBudget,
-          budget_remaining: weeklyBudget,
+          baseline_average_daily:null,
           created_at: new Date().toISOString(),
         });
       
@@ -245,7 +242,7 @@ export default function ManualPlanScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={16} totalSteps={16} />
+      <ProgressBar currentStep={14} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 

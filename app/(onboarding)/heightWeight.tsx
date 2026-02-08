@@ -95,7 +95,7 @@ export default function HeightWeightScreen() {
       currentWeight: finalWeight,
     });
     
-    router.push('/(onboarding)/activityLevel');
+    router.push('/(onboarding)/whyWorks1');
   };
 
   const handleFeetChange = (text: string) => {
@@ -144,7 +144,7 @@ export default function HeightWeightScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={5} totalSteps={14} />
+      <ProgressBar currentStep={4} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 

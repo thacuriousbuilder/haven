@@ -1083,7 +1083,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
     const onTrackClients = clients.filter(c => c.status === 'on_track');
 
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top','bottom']}>
         {/* <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logoCircle} />

@@ -21,13 +21,13 @@ export default function WorkoutsScreen() {
       Alert.alert('Selection Required', 'Please select your workout frequency to continue');
       return;
     }
-    router.push('/(onboarding)/goal');
+    router.push('/(onboarding)/activityLevel');
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={7} totalSteps={16} />
+      <ProgressBar currentStep={10} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 

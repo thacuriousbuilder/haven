@@ -3,14 +3,22 @@ import { TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-export function BackButton() {
+interface BackButtonProps {
+  backgroundColor?: string; 
+  iconColor?: string;       
+}
+
+export function BackButton({ 
+  backgroundColor = '#206E6B',  
+  iconColor = '#fff'            
+}: BackButtonProps) {
   return (
     <TouchableOpacity
-      style={styles.button}
+      style={[styles.button, { backgroundColor }]}
       onPress={() => router.back()}
       activeOpacity={0.7}
     >
-      <Ionicons name="arrow-back" size={24} color="#ffff" />
+      <Ionicons name="arrow-back" size={24} color={iconColor} />
     </TouchableOpacity>
   );
 }
@@ -20,7 +28,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#206E6B',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 20,

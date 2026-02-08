@@ -25,7 +25,7 @@ export default function TrainerCodeScreen() {
 
   const skipTrainer = () => {
     if (!loading) {
-      router.push('/(onboarding)/gender');
+      router.push('/(onboarding)/whyWorks3');
     }
   };
 
@@ -88,7 +88,7 @@ export default function TrainerCodeScreen() {
       console.log('✅ Successfully linked to trainer');
       
       
-      router.push('/(onboarding)/gender');
+      router.push('/(onboarding)/whyWorks3');
 
     } catch (error: any) {
       console.error('Error linking trainer:', error);
@@ -112,7 +112,7 @@ export default function TrainerCodeScreen() {
           showsVerticalScrollIndicator={false}
         >
           <BackButton />
-          <ProgressBar currentStep={2} totalSteps={14} />
+          <ProgressBar currentStep={12} totalSteps={15} />
           
           <View style={styles.content}>
             <Text style={styles.title}>Do you have a coach?</Text>

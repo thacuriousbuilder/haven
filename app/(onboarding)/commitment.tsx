@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +18,7 @@ export default function CommitmentScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={13} totalSteps={14} />
+      <ProgressBar currentStep={14} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 
@@ -30,14 +29,22 @@ export default function CommitmentScreen() {
           <Text style={styles.title}>Your 7-Day Baseline</Text>
           
           <Text style={styles.description}>
-            For the next 7 days, eat exactly how you normally do.
+            Most apps guess your calories with a formula. HAVEN learns your calories your body needs from how you actually eat and move.
+          </Text>
+
+          <Text style={styles.description}>
+            For the next 7 days, just log what you normally eat and exercise.
           </Text>
 
           <View style={styles.features}>
             <Text style={styles.featureTitle}>No restrictions.</Text>
-            <Text style={styles.featureTitle}>No goals.</Text>
-            <Text style={styles.featureTitle}>No Judgment.</Text>
+            <Text style={styles.featureTitle}>No guesswork.</Text>
+            <Text style={styles.featureTitle}>No judgement.</Text>
           </View>
+
+          <Text style={styles.finalDescription}>
+            After 7 days, HAVEN will calculate a weekly budget based on your body, not a generic estimate.
+          </Text>
         </ScrollView>
 
         <View style={styles.footer}>
@@ -87,18 +94,26 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 16,
-    color: '#000',
+    color: '#666',
     lineHeight: 24,
-    marginBottom: 48,
+    marginBottom: 20,
   },
   features: {
-    gap: 16,
+    marginTop: 12,
+    marginBottom: 32,
   },
   featureTitle: {
     fontSize: 32,
     fontWeight: '700',
     color: '#000',
-    lineHeight: 40,
+    lineHeight: 44,
+    marginBottom: 4,
+  },
+  finalDescription: {
+    fontSize: 16,
+    color: '#666',
+    lineHeight: 24,
+    marginTop: 8,
   },
   footer: {
     paddingBottom: 24,
@@ -128,7 +143,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#000',
     textDecorationLine: 'underline',
   },
 });

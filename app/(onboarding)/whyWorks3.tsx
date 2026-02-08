@@ -1,10 +1,10 @@
-
 import React from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
+import { Colors } from '@/constants/colors';
 
 export default function WhyWorks3Screen() {
   const handleContinue = () => {
@@ -13,8 +13,16 @@ export default function WhyWorks3Screen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <BackButton />
-      <ProgressBar currentStep={12} totalSteps={16} />
+      <BackButton 
+        backgroundColor="#000"
+        iconColor="#fff"
+      />
+      <ProgressBar 
+        currentStep={13} 
+        totalSteps={15}
+        backgroundColor="rgba(255, 255, 255, 0.3)"
+        fillColor="#fff"
+      />
       
       <View style={styles.content}>
         <ScrollView 
@@ -22,23 +30,24 @@ export default function WhyWorks3Screen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+        
+          <Text style={styles.label}>The HAVEN Approach</Text>
+          
           <Text style={styles.title}>First, we learn you</Text>
           
           <Text style={styles.description}>
             Before giving advice, HAVEN needs to understand how you normally eat.
           </Text>
 
-          {/* Illustration */}
           <View style={styles.illustration}>
             <Image 
-               source={require('@/assets/images/whyWorks/whyWorks3.png')}
+              source={require('@/assets/images/whyWorks/whyWorks3.png')}
               style={styles.illustrationImage}
               resizeMode="contain"
             />
           </View>
         </ScrollView>
 
-        {/* Continue Button */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={styles.continueButton}
@@ -56,7 +65,7 @@ export default function WhyWorks3Screen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#206E6B',
   },
   content: {
     flex: 1,
@@ -69,16 +78,23 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#EF7828', 
+    marginBottom: 12,
+    letterSpacing: 0.5,
+  },
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff', 
     lineHeight: 36,
     marginBottom: 24,
   },
   description: {
     fontSize: 16,
-    color: '#000',
+    color: '#fff',
     lineHeight: 24,
     marginBottom: 16,
   },
@@ -97,7 +113,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   continueButton: {
-    backgroundColor: '#206E6B',
+    backgroundColor: '#fff', 
     paddingVertical: 18,
     borderRadius: 50,
     alignItems: 'center',
@@ -108,7 +124,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   continueButtonText: {
-    color: '#fff',
+    color: Colors.graphite, 
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: 0.3,

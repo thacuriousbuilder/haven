@@ -27,7 +27,7 @@ export default function GenderScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={3} totalSteps={16} />
+      <ProgressBar currentStep={2} totalSteps={15} />
       
       <View style={styles.content}>
         <View style={styles.topSection}>

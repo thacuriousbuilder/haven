@@ -1,64 +1,120 @@
-
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { useOnboarding } from '@/contexts/onboardingContext';
 import { supabase } from '@/lib/supabase';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
+import { Colors } from '@/constants/colors';
+import { calculateBMR, calculateTDEE, adjustForGoal } from '@/utils/calorieCalculator';
+import { formatDateComponents, getLocalDateString } from '@/utils/timezone';
 
 export default function NotificationPermissionScreen() {
   const { data } = useOnboarding();
 
+  
   const saveOnboardingData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
         console.error('No user found');
-        return;
+        throw new Error('No user found');
       }
+  
+      // Validate required data
+      if (!data.gender || !data.currentWeight || !data.heightFeet || !data.birthYear) {
+        throw new Error('Missing required onboarding data');
+      }
+  
       const fullName = user.user_metadata?.full_name || '';
+      
       // Calculate birth date
-      const birthDate = new Date(
+      const birthDate = formatDateComponents(
         data.birthYear || 1990,
-        (data.birthMonth || 1) - 1,
+        data.birthMonth || 1,
         data.birthDay || 1
       );
-
+  
+  
+      // ✅ STEP 1: Calculate BMR
+      const bmr = calculateBMR(
+        data.gender,
+        data.currentWeight,
+        data.heightFeet,
+        data.heightInches || 0,
+        birthDate
+      );
+  
+      console.log('📊 Calculated BMR:', bmr);
+  
+      // ✅ STEP 2: Calculate TDEE (for deficit calculation)
+      const tdee = calculateTDEE(bmr, data.activityLevel || 'lightly_active');
+  
+      console.log('📊 Calculated TDEE:', tdee);
+  
+      // ✅ STEP 3: Calculate adjusted daily calories
+      const adjustedDailyCalories = adjustForGoal(
+        tdee,
+        data.goal || 'maintain',
+        data.goalWeight,
+        data.currentWeight
+      );
+  
+      console.log('📊 Adjusted Daily Calories:', adjustedDailyCalories);
+  
+      // ✅ STEP 4: Calculate deficit (TDEE - adjusted)
+      const dailyDeficit = tdee - adjustedDailyCalories;
+  
+      console.log('📊 Daily Deficit:', dailyDeficit);
+  
+      // Save to database
       const { error } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
-          full_name:fullName,
+          user_type: data.accountType,
+          full_name: fullName,
           gender: data.gender,
-          birth_date: birthDate.toISOString().split('T')[0],
-          unit_system: 'imperial',
+          birth_date: birthDate,
+          unit_system: data.unitSystem || 'imperial',
           height_ft: data.heightFeet,
-          height_in: data.heightInches,
+          height_in: data.heightInches || 0,
           weight_lbs: data.currentWeight,
-          target_weight_lbs: data.goalWeight,
+          target_weight_lbs: data.goalWeight || data.currentWeight,
+          weekly_weight_goal: data.weeklyGoalRate,
           goal: data.goal,
           workouts_per_week: data.workoutFrequency,
           activity_level: data.activityLevel,
-          baseline_start_date: new Date().toISOString().split('T')[0],
+          
+          // ✅ Calculated values (needed for baseline completion)
+          bmr: bmr,
+          daily_deficit: dailyDeficit,
+          
+          // Baseline flags
+          baseline_start_date: getLocalDateString(),
           baseline_complete: false,
           onboarding_completed: true,
+          
+          // Timestamps
+          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
-
+  
       if (error) {
-        console.error('Error saving profile:', error);
+        console.error('❌ Error saving profile:', error);
         throw error;
       }
+  
+      console.log('✅ Profile saved successfully with BMR:', bmr, 'and Deficit:', dailyDeficit);
     } catch (error) {
-      console.error('Error in saveOnboardingData:', error);
+      console.error('❌ Error in saveOnboardingData:', error);
       throw error;
     }
   };
-
   const handleAllowNotifications = async () => {
     try {
       // Request notification permission
@@ -80,7 +136,7 @@ export default function NotificationPermissionScreen() {
       // Save onboarding data
       await saveOnboardingData();
 
-      // Navigate to complete screen (baseline week flow)
+      // Navigate to home screen (baseline week flow)
       router.replace('/(tabs)/home');
     } catch (error) {
       console.error('Error in handleAllowNotifications:', error);
@@ -104,7 +160,7 @@ export default function NotificationPermissionScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={16} totalSteps={16} />
+      <ProgressBar currentStep={15} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 
@@ -112,6 +168,13 @@ export default function NotificationPermissionScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Bell Icon */}
+          <View style={styles.iconContainer}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="notifications-outline" size={40} color="#206E6B" />
+            </View>
+          </View>
+
           <Text style={styles.title}>
             Don't miss out on important updates to hit your goals
           </Text>
@@ -161,19 +224,32 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
+    paddingBottom: 40,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#E6F3F2',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
     color: '#000',
     textAlign: 'center',
     marginBottom: 48,
-    lineHeight: 32,
+    lineHeight: 28,
     paddingHorizontal: 16,
   },
   permissionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
     padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -184,7 +260,7 @@ const styles = StyleSheet.create({
   permissionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: Colors.graphite,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 24,
@@ -200,25 +276,23 @@ const styles = StyleSheet.create({
   denyButton: {
     flex: 1,
     paddingVertical: 16,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     alignItems: 'center',
-    borderRightWidth: 1,
-    borderRightColor: '#E5E5E5',
   },
   denyButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: Colors.graphite,
   },
   allowButton: {
     flex: 1,
     paddingVertical: 16,
-    backgroundColor: '#206E6B',
+    backgroundColor: Colors.vividTeal,
     alignItems: 'center',
   },
   allowButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.white,
   },
 });

@@ -17,7 +17,8 @@
       ]
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.thacuriousbuilder.haven"
     },
     "android": {
       "adaptiveIcon": {
@@ -35,6 +36,13 @@
     "plugins": [
       "expo-router",
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c4c2ea3b-3057-4367-8c23-1923327c23ca"
+      }
+    },
+    "owner": "thacuriousbuilder"
   }
 }
