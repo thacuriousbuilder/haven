@@ -198,7 +198,7 @@ export default function HomeScreen() {
     try {
       console.log('📊 Calculating metrics client-side for week:', weekStartDate);
       
-      // ✅ Use timezone utilities
+      
       const startDate = new Date(weekStartDate + 'T00:00:00');
       const endDate = getSunday(startDate);
       const sundayStr = formatLocalDate(endDate);
@@ -538,13 +538,13 @@ const completeBaselineAuto = async (
   summaries: { calories_consumed: number; summary_date: string }[],
   daysLogged: number
 ) => {
-  // Just call the unified function
+  
   await completeBaselineNow();
 };
 
 
 const completeBaselineWithPartialData = async () => {
-  // Just call the unified function
+
   await completeBaselineNow();
 };
 
@@ -566,7 +566,7 @@ const extendBaseline = async () => {
       return;
     }
 
-    // ✅ Use timezone utility
+  
     const todayStr = getLocalDateString();
 
     // Mark as extended in database
