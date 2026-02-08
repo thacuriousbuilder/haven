@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
@@ -13,7 +12,7 @@ import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
 interface BaselineCompleteModalProps {
   visible: boolean;
   baselineAverage: number;
-  message?: string;
+  message?: string; 
   onComplete: () => void;
 }
 
@@ -24,37 +23,21 @@ export function BaselineCompleteModal({
   onComplete 
 }: BaselineCompleteModalProps) {
   
-  const handleStartTracking = () => {
-    // Calculate days remaining in this week for the message
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
-    const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-    const daysRemaining = daysUntilSunday + 1; // Include today
-
-    const weeklyBudget = baselineAverage * 7;
-    
-    const midWeekMessage = daysRemaining < 7 
-      ? `\n\nYou're starting mid-week with ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} to track. Fresh start next Monday!`
-      : '';
-
-    Alert.alert(
-      '🎉 Welcome to Active Tracking!',
-      `Your weekly budget: ${weeklyBudget.toLocaleString()} calories\n\nBased on your baseline average of ${baselineAverage} cal/day${midWeekMessage}`,
-      [
-        {
-          text: 'Start Tracking',
-          onPress: onComplete,
-        }
-      ]
-    );
-  };
+  // Calculate weekly budget and mid-week status
+  const weeklyBudget = baselineAverage * 7;
+  
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+  const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+  const daysRemaining = daysUntilSunday + 1; // Include today
+  const isMidWeek = daysRemaining < 7;
 
   return (
     <Modal
       visible={visible}
       transparent={true}
       animationType="fade"
-      onRequestClose={() => {}} // Prevent dismissal
+      onRequestClose={() => {}} 
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
@@ -71,14 +54,34 @@ export function BaselineCompleteModal({
             You've successfully tracked your natural eating habits.
           </Text>
 
-          {/* Stats Card - Baseline Average */}
-          <View style={styles.statsCard}>
-            <Text style={styles.statsLabel}>Your Daily Average</Text>
-            <Text style={styles.statsValue}>{baselineAverage.toLocaleString()}</Text>
-            <Text style={styles.statsUnit}>calories/day</Text>
+          {/* Stats Cards Row */}
+          <View style={styles.statsRow}>
+            {/* Daily Average */}
+            <View style={[styles.statsCard, styles.statsCardHalf]}>
+              <Text style={styles.statsLabel}>Daily Average</Text>
+              <Text style={styles.statsValue}>{baselineAverage.toLocaleString()}</Text>
+              <Text style={styles.statsUnit}>cal/day</Text>
+            </View>
+
+            {/* Weekly Budget */}
+            <View style={[styles.statsCard, styles.statsCardHalf]}>
+              <Text style={styles.statsLabel}>Weekly Budget</Text>
+              <Text style={styles.statsValue}>{weeklyBudget.toLocaleString()}</Text>
+              <Text style={styles.statsUnit}>cal/week</Text>
+            </View>
           </View>
 
-          {/* Optional Warning Message (for partial completion) */}
+          {/* Mid-Week Message */}
+          {isMidWeek && (
+            <View style={styles.infoBox}>
+              <Ionicons name="calendar-outline" size={20} color={Colors.vividTeal} />
+              <Text style={styles.infoText}>
+                You're starting mid-week with {daysRemaining} day{daysRemaining === 1 ? '' : 's'} to track. Fresh start next Monday!
+              </Text>
+            </View>
+          )}
+
+          {/* Optional Message (for activity level adjustments, partial completion, etc.) */}
           {message && (
             <View style={styles.warningBox}>
               <Ionicons name="information-circle" size={20} color={Colors.energyOrange} />
@@ -89,7 +92,7 @@ export function BaselineCompleteModal({
           {/* Start Button */}
           <TouchableOpacity
             style={styles.button}
-            onPress={handleStartTracking}
+            onPress={onComplete}
             activeOpacity={0.8}
           >
             <Ionicons name="checkmark" size={20} color={Colors.white} />
@@ -135,34 +138,61 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 24,
   },
+  statsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+    marginBottom: 20,
+  },
   statsCard: {
     backgroundColor: Colors.lightCream,
     borderRadius: BorderRadius.lg,
-    padding: 24,
-    width: '100%',
+    padding: 20,
     alignItems: 'center',
-    marginBottom: 20,
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  statsCardHalf: {
+    flex: 1,
+  },
   statsLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.steelBlue,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    textAlign: 'center',
   },
   statsValue: {
-    fontSize: 48,
+    fontSize: 32,
     fontWeight: '700',
     color: Colors.vividTeal,
     marginBottom: 4,
   },
   statsUnit: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '500',
     color: Colors.steelBlue,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#E0F2F1',
+    padding: 16,
+    borderRadius: BorderRadius.md,
+    marginBottom: 12,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#B2DFDB',
+    width: '100%',
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#00695C',
+    lineHeight: 20,
+    fontWeight: '500',
   },
   warningBox: {
     flexDirection: 'row',

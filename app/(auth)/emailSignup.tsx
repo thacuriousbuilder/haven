@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { BackButton } from '../../components/onboarding/backButton';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function EmailSignup() {
   const [email, setEmail] = useState('');
@@ -22,6 +23,8 @@ export default function EmailSignup() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
 
 
@@ -110,28 +113,56 @@ async function handleSignUp() {
               editable={!loading}
             />
 
-            <TextInput
-              style={styles.input}
-               textContentType='newPassword'
-               autoComplete='off'
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Password"
-              placeholderTextColor="#999"
-              editable={!loading}
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                textContentType='newPassword'
+                autoComplete='off'
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Password"
+                placeholderTextColor="#999"
+                editable={!loading}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity 
+                style={styles.eyeIcon}
+                onPress={() => setShowPassword(!showPassword)}
+                disabled={loading}
+              >
+                <Ionicons 
+                  name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                  size={22} 
+                  color="#666" 
+                />
+              </TouchableOpacity>
+            </View>
 
-            <TextInput
-              style={styles.input}
-              value={confirmPassword}
-              textContentType='newPassword'
-               autoComplete='off'
-              onChangeText={setConfirmPassword}
-              placeholder="Re-enter password"
-              placeholderTextColor="#999"
-              editable={!loading}
-            />
-          </View>
+
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                value={confirmPassword}
+                textContentType='newPassword'
+                autoComplete='off'
+                onChangeText={setConfirmPassword}
+                placeholder="Re-enter password"
+                placeholderTextColor="#999"
+                editable={!loading}
+                secureTextEntry={!showConfirmPassword}
+              />
+              <TouchableOpacity 
+                style={styles.eyeIcon}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                disabled={loading}
+              >
+                <Ionicons 
+                  name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} 
+                  size={22} 
+                  color="#666" 
+                />
+              </TouchableOpacity>
+            </View>
 
           <TouchableOpacity
             style={[styles.primaryButton, loading && styles.buttonDisabled]}
@@ -157,6 +188,7 @@ async function handleSignUp() {
               </Text>
             </Text>
           </View>
+        </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -236,5 +268,30 @@ const styles = StyleSheet.create({
   footerLink: {
     fontWeight: '600',
     color: '#206E6B',
+  },
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    backgroundColor: '#fff',
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    paddingRight: 56, // Extra space for the icon
+    borderRadius: 16,
+    fontSize: 16,
+    color: '#000',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 20,
+    top: 20,
+    padding: 4,
   },
 });
