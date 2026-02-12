@@ -29,6 +29,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { completeBaseline, completeBaselineWithEstimatedData } from '@/lib/baselineCompletion';
 import { useOverageCalculation } from '@/hooks/useOverageCalculation';
 
+
 // Type imports
 import type { MealLogItem, MacroData } from '@/types/home';
 import { Colors } from '@/constants/colors';
@@ -79,22 +80,6 @@ interface MetricsData {
   on_track: boolean;
 }
 
-// interface ClientStatus {
-//   id: string;
-//   full_name: string | null;
-//   last_log_time: string | null;
-//   meals_today: number;
-//   current_streak: number;
-//   balance_score: number | null;
-//   status: 'needs_attention' | 'on_track' | 'baseline';
-//   baseline_day: number | null;
-//   // Add these new fields from RPC
-//   days_inactive?: number;
-//   baseline_days_completed?: number;
-//   baseline_days_remaining?: number;
-//   baseline_avg_daily_calories?: number;
-// }
-
 interface DashboardStats {
   unreadMessagesCount: number;
   clientsNeedingAttention: number;
@@ -110,6 +95,7 @@ export default function HomeScreen() {
   const [daysLogged, setDaysLogged] = useState(0);
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [cheatDates, setCheatDates] = useState<string[]>([]);
+  const [cheatDaysData, setCheatDaysData] = useState<Map<string, number>>(new Map());
   const [todayBurned, setTodayBurned] = useState<number>(0);
   const [baselineAverage, setBaselineAverage] = useState<number>(0);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
@@ -131,6 +117,7 @@ export default function HomeScreen() {
   const [showCheckInReminder, setShowCheckInReminder] = useState(false);
   const [showDay7Banner, setShowDay7Banner] = useState(false);
   const [currentPeriod, setCurrentPeriod] = useState<any>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   
   
   // Trainer-specific state
@@ -196,6 +183,7 @@ export default function HomeScreen() {
     monday.setHours(0, 0, 0, 0);
     return monday;
   };
+
 
   // Transform FoodLog to MealLogItem format
   const transformMealsData = (logs: FoodLog[]): MealLogItem[] => {
@@ -301,6 +289,58 @@ export default function HomeScreen() {
     }
   };
 
+  const getSelectedDateString = (): string => {
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  const isSelectedDateToday = (): boolean => {
+    const today = new Date();
+    return selectedDate.toDateString() === today.toDateString();
+  };
+  const isSelectedDateFuture = (): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    
+    return selected > today;
+  };
+  
+  
+  const getSelectedDateLabel = (): string => {
+  if (isSelectedDateToday()) {
+    return "Today";
+  }
+  
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (selectedDate.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+  
+  // Format as "Mon, Jan 15"
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  return `${dayNames[selectedDate.getDay()]}, ${months[selectedDate.getMonth()]} ${selectedDate.getDate()}`;
+};
+
+const isSelectedDateCheatDay = (): boolean => {
+  const dateStr = getSelectedDateString();
+  return cheatDates.includes(dateStr);
+};
+
+const getSelectedDateCheatCalories = (): number | null => {
+  if (!isSelectedDateCheatDay()) return null;
+  
+  const dateStr = getSelectedDateString();
+  return cheatDaysData.get(dateStr) || null;
+};
+
   // Calculate total macros from food logs
   const calculateTotalMacros = (logs: FoodLog[]): MacroData => {
     return logs.reduce(
@@ -314,19 +354,18 @@ export default function HomeScreen() {
   };
 
   // Calculate today's total calories
-  const calculateTodayCalories = (): number => {
-    const today = getLocalDateString();
-    const todayLogs = recentLogs.filter(log => log.log_date === today);
-    return todayLogs.reduce((sum, log) => sum + (log.calories || 0), 0);
-  };
+const calculateTodayCalories = (): number => {
+  const dateStr = getSelectedDateString(); 
+  const dateLogs = recentLogs.filter(log => log.log_date === dateStr); 
+  return dateLogs.reduce((sum, log) => sum + (log.calories || 0), 0);
+};
 
-  // Add this function for today's macros:
-  const calculateTodayMacros = (): MacroData => {
-    const today = getLocalDateString();
-    const todayLogs = recentLogs.filter(log => log.log_date === today);
-    return calculateTotalMacros(todayLogs);
-  };
-
+// calculateTodayMacros 
+const calculateTodayMacros = (): MacroData => {
+  const dateStr = getSelectedDateString(); 
+  const dateLogs = recentLogs.filter(log => log.log_date === dateStr); 
+  return calculateTotalMacros(dateLogs);
+};
 
 
   const fetchCompletedBaselineDays = async () => {
@@ -989,13 +1028,18 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
     
     const { data: cheatDays } = await supabase
       .from('planned_cheat_days')
-      .select('cheat_date')
+      .select('cheat_date, planned_calories')
       .eq('user_id', user.id)
       .gte('cheat_date', weekStartDate)
       .lte('cheat_date', sundayDateStr);
 
     if (cheatDays) {
       setCheatDates(cheatDays.map(cd => cd.cheat_date));
+      const caloriesMap = new Map<string, number>();
+      cheatDays.forEach(cd => {
+        caloriesMap.set(cd.cheat_date, cd.planned_calories || 0);
+      });
+      setCheatDaysData(caloriesMap);
     }
   } catch (metricsError) {
     console.error('Metrics error:', metricsError);
@@ -1431,14 +1475,15 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
 
   const todayCalories = calculateTodayCalories();
   const todayMacros = calculateTodayMacros();
+  const selectedCheatCalories = getSelectedDateCheatCalories();
   const todayGoal = profile?.baseline_complete 
-  ? (isCheatDay 
-      ? (cheatDayCalories || 2000)
-      : (adjustedBudget || Math.round((metrics?.weekly_budget || 14000) / 7))) 
-  : Math.round((metrics?.weekly_budget || 14000) / 7);
+    ? (selectedCheatCalories !== null
+        ? selectedCheatCalories
+        : (adjustedBudget || Math.round((metrics?.weekly_budget || 14000) / 7))) 
+    : Math.round((metrics?.weekly_budget || 14000) / 7);
   const todayRemaining = todayGoal - todayCalories;
 
-  const todayLogs = recentLogs.filter(log => log.log_date === getLocalDateString());
+  const todayLogs = recentLogs.filter(log => log.log_date === getSelectedDateString());
 
   return (
     <SafeAreaView style={styles.container} edges={['top','bottom']}>
@@ -1539,6 +1584,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                     goal: todayGoal,
                   }}
                   isBaseline={profile?.baseline_complete === false} 
+                  dateLabel={getSelectedDateLabel()}
                 />
               </View>
 
@@ -1560,6 +1606,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                   meals={transformMealsData(todayLogs)}
                   onAddMeal={handleLogFood}
                   onMealPress={handleMealPress}
+                  dateLabel={getSelectedDateLabel()}
                 />
               </View>
 
@@ -1585,7 +1632,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
               </View>
 
              {/* Budget Adjustment Banner */}
-          {!isCheatDay && adjustment < 0 && cumulativeOverage > 0 && (
+          {isSelectedDateToday() && !isSelectedDateCheatDay() && adjustment < 0 && cumulativeOverage > 0 && (
             <TouchableOpacity
               style={styles.budgetAdjustmentBanner}
               activeOpacity={0.9}
@@ -1604,21 +1651,29 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
             </TouchableOpacity>
             )}
             {/*  Cheat Day Banner */}
-            {isCheatDay && cheatDayCalories && (
-              <View style={styles.cheatDayBanner}>
-                <View style={styles.bannerContent}>
-                  <Ionicons name="restaurant" size={24} color="#10B981" />
-                  <View style={styles.bannerTextContainer}>
-                    <Text style={styles.cheatDayBannerTitle}>
-                      Today is your "cheat" day!
-                    </Text>
-                    <Text style={styles.cheatDayBannerSubtext}>
-                      You have {cheatDayCalories.toLocaleString()} calories to enjoy
-                    </Text>
+            {isSelectedDateCheatDay() && selectedCheatCalories && (
+                  <View style={styles.cheatDayBanner}>
+                    <View style={styles.bannerContent}>
+                      <Ionicons name="restaurant" size={24} color="#10B981" />
+                      <View style={styles.bannerTextContainer}>
+                        <Text style={styles.cheatDayBannerTitle}>
+                          {isSelectedDateToday() 
+                            ? "Today is your" 
+                            : isSelectedDateFuture()
+                              ? "This will be your"
+                              : "This was your"} "cheat" day!
+                        </Text>
+                        <Text style={styles.cheatDayBannerSubtext}>
+                          You {isSelectedDateToday() 
+                            ? "have" 
+                            : isSelectedDateFuture()
+                              ? "will have"
+                              : "had"} {selectedCheatCalories.toLocaleString()} calories to enjoy
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </View>
-            )}
+                )}
 
               {/* Weekly Calendar */}
               <View style={styles.cardSpacing}>
@@ -1627,6 +1682,8 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                   cheatDates={cheatDates}
                   loggedDates={getLoggedDates()}
                   weekInfo={getWeekInfo()}
+                  selectedDate={selectedDate}
+                  onDateSelect={(date) => setSelectedDate(date)}
                 />
               </View>
                  {/* Today's Calories Card */}
@@ -1639,6 +1696,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                     goal: todayGoal,
                   }}
                   isBaseline={profile?.baseline_complete === false} 
+                  dateLabel={getSelectedDateLabel()}
                 />
               </View>
 
@@ -1673,6 +1731,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                   meals={transformMealsData(todayLogs)}
                   onAddMeal={handleLogFood}
                   onMealPress={handleMealPress}
+                  dateLabel={getSelectedDateLabel()}
                 />
               </View>
 

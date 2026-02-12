@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
 import { WeekInfo } from '@/utils/weekHelpers';
 import { formatLocalDate } from '@/utils/timezone';
@@ -9,6 +9,8 @@ interface WeeklyCalendarProps {
   cheatDates: string[]; // Array of ISO date strings (YYYY-MM-DD)
   loggedDates?: string[]; // Array of ISO date strings for days with logs
   weekInfo?: WeekInfo | null; // Optional: for partial week handling
+  selectedDate?: Date; 
+  onDateSelect?: (date: Date) => void; 
 }
 
 export default function WeeklyCalendar({ 
@@ -16,7 +18,10 @@ export default function WeeklyCalendar({
   cheatDates, 
   loggedDates = [],
   weekInfo,
+  selectedDate,
+  onDateSelect,
 }: WeeklyCalendarProps) {
+
   const getWeekDays = () => {
     const monday = new Date(currentDate);
     const day = monday.getDay();
@@ -66,6 +71,11 @@ export default function WeeklyCalendar({
     return dateStr < userStartStr;
   };
 
+  const isSelected = (date: Date) => {
+    if (!selectedDate) return false;
+    return date.toDateString() === selectedDate.toDateString();
+  };
+
   return (
     <View style={styles.container}>
       {weekDays.map((date, index) => {
@@ -73,9 +83,16 @@ export default function WeeklyCalendar({
         const cheat = isCheatDay(date);
         const logged = hasLogs(date);
         const beforeTracking = isBeforeTracking(date);
+        const selected = isSelected(date);
 
         return (
-          <View key={index} style={styles.dayContainer}>
+          <TouchableOpacity
+          key={index}
+          style={styles.dayContainer}
+          onPress={() => onDateSelect?.(date)}
+          activeOpacity={0.7}
+          disabled={beforeTracking}
+        >
             <Text 
               style={[
                 styles.dayName,
@@ -90,6 +107,7 @@ export default function WeeklyCalendar({
                 today && styles.todayCircle,
                 cheat && !today && styles.cheatCircle,
                 beforeTracking && styles.inactiveCircle,
+                selected && !today && !cheat && styles.selectedCircle,
               ]}
             >
               <Text
@@ -97,6 +115,7 @@ export default function WeeklyCalendar({
                   styles.dateText,
                   (today || cheat) && !beforeTracking && styles.highlightedText,
                   beforeTracking && styles.dimmedText,
+                  selected && !today && !cheat && styles.selectedText,
                 ]}
               >
                 {date.getDate()}
@@ -116,7 +135,7 @@ export default function WeeklyCalendar({
             {beforeTracking && (
               <View style={styles.inactiveDash} />
             )}
-          </View>
+          </TouchableOpacity>
         );
       })}
     </View>
@@ -191,5 +210,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fatSteel,
     opacity: 0.3,
     borderRadius: 1,
+  },
+  selectedCircle: {
+    backgroundColor: Colors.vividTeal,
+    borderWidth: 2,
+    borderColor: Colors.vividTeal,
+    opacity: 0.8,
+  },
+  selectedText: {
+    color: Colors.white,
+    fontWeight: '700',
   },
 });
