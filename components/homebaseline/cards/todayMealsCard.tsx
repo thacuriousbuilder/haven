@@ -10,12 +10,14 @@ interface TodayMealsCardProps {
   meals: MealLogItem[];
   onAddMeal?: () => void;
   onMealPress?: (meal: MealLogItem) => void;
+  dateLabel?: string;
 }
 
 export function TodayMealsCard({
   meals,
   onAddMeal,
   onMealPress,
+  dateLabel = "Today"
 }: TodayMealsCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -39,7 +41,7 @@ export function TodayMealsCard({
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Today's Meals</Text>
+        <Text style={styles.title}>{dateLabel}'s Meals</Text>
         {hasMore && (
           <TouchableOpacity 
             onPress={() => setIsExpanded(!isExpanded)} 

@@ -24,16 +24,17 @@ interface TodayStats {
 interface TodayCaloriesCardProps {
   todayStats: TodayStats;
   isBaseline?: boolean; 
+  dateLabel?: string;
 }
 
-export function TodayCaloriesCard({ todayStats, isBaseline = false }: TodayCaloriesCardProps) {
+export function TodayCaloriesCard({ todayStats, isBaseline = false, dateLabel= "Today", }: TodayCaloriesCardProps) {
   const { consumed, remaining, macros, goal, burned = 0 } = todayStats;
 
   
   return (
     <View style={styles.card}>
       {/* Header */}
-      <Text style={styles.headerLabel}>Today's Calories</Text>
+      <Text style={styles.headerLabel}>{dateLabel}'s Calories</Text>
 
       {/* Main Stats Row */}
       <View style={styles.mainStatsRow}>
