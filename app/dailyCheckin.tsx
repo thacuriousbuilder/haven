@@ -37,6 +37,7 @@ export default function DailyCheckInScreen() {
     loadUserProfile();
     checkIfAlreadyCheckedIn();
   }, []);
+
   const loadUserProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -252,6 +253,11 @@ export default function DailyCheckInScreen() {
       Alert.alert('Error', 'Something went wrong');
       setSaving(false);
     }
+  };
+
+  const handleSkip = () => {
+    // Just go back - we won't prompt again today since the check ran once
+    router.back();
   };
 
   // Check if save button should be enabled
@@ -640,6 +646,12 @@ export default function DailyCheckInScreen() {
 
       {/* Footer */}
       <View style={styles.footer}>
+          <TouchableOpacity
+        style={styles.skipButton}
+        onPress={handleSkip}
+      >
+        <Text style={styles.skipButtonText}>Skip for now</Text>
+      </TouchableOpacity>
         <TouchableOpacity
           style={[
             styles.saveButton,
@@ -867,6 +879,21 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 20,
     paddingVertical: 16,
+    gap:12,
+  },
+  skipButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  skipButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.graphite,
   },
   saveButton: {
     backgroundColor: '#206E6B',

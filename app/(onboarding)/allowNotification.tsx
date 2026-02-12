@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,7 +40,6 @@ export default function NotificationPermissionScreen() {
       );
   
   
-      // ✅ STEP 1: Calculate BMR
       const bmr = calculateBMR(
         data.gender,
         data.currentWeight,
@@ -51,12 +50,12 @@ export default function NotificationPermissionScreen() {
   
       console.log('📊 Calculated BMR:', bmr);
   
-      // ✅ STEP 2: Calculate TDEE (for deficit calculation)
+     
       const tdee = calculateTDEE(bmr, data.activityLevel || 'lightly_active');
   
       console.log('📊 Calculated TDEE:', tdee);
   
-      // ✅ STEP 3: Calculate adjusted daily calories
+      
       const adjustedDailyCalories = adjustForGoal(
         tdee,
         data.goal || 'maintain',
@@ -66,7 +65,7 @@ export default function NotificationPermissionScreen() {
   
       console.log('📊 Adjusted Daily Calories:', adjustedDailyCalories);
   
-      // ✅ STEP 4: Calculate deficit (TDEE - adjusted)
+      
       const dailyDeficit = tdee - adjustedDailyCalories;
   
       console.log('📊 Daily Deficit:', dailyDeficit);
@@ -89,8 +88,7 @@ export default function NotificationPermissionScreen() {
           goal: data.goal,
           workouts_per_week: data.workoutFrequency,
           activity_level: data.activityLevel,
-          
-          // ✅ Calculated values (needed for baseline completion)
+         
           bmr: bmr,
           daily_deficit: dailyDeficit,
           
@@ -117,25 +115,43 @@ export default function NotificationPermissionScreen() {
   };
   const handleAllowNotifications = async () => {
     try {
+      // Set up Android notification channel FIRST (required for Android 8.0+)
+      console.log('🔔 Starting notification permission flow...');
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'HAVEN Updates',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#206E6B',
+        });
+      }
+  
       // Request notification permission
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      console.log('📱 Existing permission status:', existingStatus);
       let finalStatus = existingStatus;
-
+  
       if (existingStatus !== 'granted') {
+        console.log('🔔 Requesting permissions...');
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
+        console.log('📱 New permission status:', finalStatus);
+      }else{
+        console.log('✅ Permissions already granted!');
       }
-
+  
       if (finalStatus !== 'granted') {
         Alert.alert(
           'Notifications Disabled',
           'You can enable notifications later in Settings.'
         );
+      } else {
+        console.log('✅ Notifications enabled!');
       }
-
+  
       // Save onboarding data
       await saveOnboardingData();
-
+  
       // Navigate to home screen (baseline week flow)
       router.replace('/(tabs)/home');
     } catch (error) {

@@ -12,6 +12,7 @@ interface SummaryStatsCardProps {
   daysLogged: number;       // Number of days with logs (e.g., 4)
   avgPerDay: number;        // Average per day (e.g., 1823)
   macros: MacroData;        // Total macros across all logged days
+  totalBurned: number;      //Total calories burned from workouts
 }
 
 export function SummaryStatsCard({
@@ -19,7 +20,10 @@ export function SummaryStatsCard({
   daysLogged,
   avgPerDay,
   macros,
+  totalBurned,
 }: SummaryStatsCardProps) {
+
+
   return (
     <View style={styles.card}>
       <View style={styles.topSection}>
@@ -35,17 +39,30 @@ export function SummaryStatsCard({
           />
         </View>
 
-        {/* Right: Stats box (positioned with auto flex) */}
-        <View style={styles.statsBox}>
-          <Text style={styles.daysLoggedLabel}>
-            {daysLogged} {daysLogged === 1 ? 'DAY' : 'DAYS'}
-          </Text>
-          <Text style={styles.loggedText}>LOGGED</Text>
-          
-          <Text style={styles.avgValue}>
-            {formatNumber(avgPerDay)}
-          </Text>
-          <Text style={styles.avgLabel}>avg/day</Text>
+        {/* Right: Column with Days Logged + Burned */}
+        <View style={styles.rightColumn}>
+          {/* Days Logged Stats */}
+          <View style={styles.statsBox}>
+            <Text style={styles.daysLoggedLabel}>
+              {daysLogged} {daysLogged === 1 ? 'DAY' : 'DAYS'}
+            </Text>
+            <Text style={styles.loggedText}>LOGGED</Text>
+            
+            <Text style={styles.avgValue}>
+              {formatNumber(avgPerDay)}
+            </Text>
+            <Text style={styles.avgLabel}>avg/day</Text>
+          </View>
+
+          {/* Burned Calories Box */}
+          {totalBurned > 0 && (
+            <View style={styles.burnedBox}>
+              <Text style={styles.statLabel}>BURNED CALORIES</Text>
+              <Text style={styles.burnedValue}>
+                {formatNumber(totalBurned)}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -84,7 +101,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
-    paddingTop: Spacing.xxl,        // Extra top padding
+    paddingTop: Spacing.xxl,
     paddingBottom: Spacing.xl,
     paddingHorizontal: Spacing.xl,
     borderWidth: 1,
@@ -93,12 +110,15 @@ const styles = StyleSheet.create({
   },
   topSection: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start', // Changed to flex-start for column layout
     justifyContent: 'space-between',
     marginBottom: Spacing.lg,
   },
   ringContainer: {
     // No extra margin needed
+  },
+  rightColumn: {
+    gap: Spacing.md, // Space between boxes
   },
   statsBox: {
     backgroundColor: Colors.lightCream,
@@ -130,6 +150,35 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.steelBlue,
   },
+  
+  // Burned box styles
+  burnedBox: {
+    backgroundColor: Colors.lightCream,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.steelBlue,
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  burnedValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: Colors.energyOrange,
+    marginBottom: 4,
+  },
+  statSubtext: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: Colors.steelBlue,
+  },
+
+  // Macro row styles
   macrosRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',

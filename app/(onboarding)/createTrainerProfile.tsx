@@ -23,6 +23,17 @@ export default function CreateTrainerProfileScreen() {
           id: user.id,
           user_type: 'trainer',
           onboarding_completed: true,
+          gender: "",
+          birth_date: null,
+          unit_system: "",
+          height_ft: null,
+          height_in: null,
+          weight_lbs: null,
+          target_weight_lbs: null,
+          weekly_weight_goal: null,
+          goal:"",
+          workouts_per_week: null,
+          activity_level: "",
           updated_at: new Date().toISOString(),
         });
 

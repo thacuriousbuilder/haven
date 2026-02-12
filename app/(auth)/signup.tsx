@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { signInWithGoogle } from '../../lib/auth';
 import { BackButton } from '../../components/onboarding/backButton';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function Signup() {
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -25,7 +26,7 @@ export default function Signup() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top','bottom']}>
       <BackButton />
       
       <View style={styles.content}>
@@ -88,7 +89,7 @@ export default function Signup() {
       <Text style={styles.disclaimer}>
         We will collect personal information from and about you and use it for various purposes, including customize your HAVEN experience. Read more about your rights in our Privacy Policy.
       </Text>
-    </View>
+    </SafeAreaView>
   );
 }
 

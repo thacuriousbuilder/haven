@@ -84,8 +84,8 @@ export default function ManageCheatDaysScreen() {
 
   const handleDelete = (id: string, date: string) => {
     Alert.alert(
-      'Delete Cheat Day',
-      `Are you sure you want to delete this cheat day for ${formatDateShort(date)}?`,
+      'Delete "Cheat" Day',
+      `Are you sure you want to delete this "cheat" day for ${formatDateShort(date)}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -102,7 +102,7 @@ export default function ManageCheatDaysScreen() {
               loadCheatDays();
             } catch (error) {
               console.error('Error deleting cheat day:', error);
-              Alert.alert('Error', 'Failed to delete cheat day');
+              Alert.alert('Error', 'Failed to delete "cheat" day');
             }
           },
         },
@@ -155,7 +155,7 @@ export default function ManageCheatDaysScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.white} />
         </TouchableOpacity>
         
-        <Text style={styles.headerTitle}>Manage Cheat Days</Text>
+        <Text style={styles.headerTitle}>Manage "Cheat" Days</Text>
         
         <TouchableOpacity 
           style={styles.addButton}
@@ -176,7 +176,7 @@ export default function ManageCheatDaysScreen() {
         <View style={styles.summaryDivider} />
         
         <View style={styles.summarySection}>
-          <Text style={styles.summaryLabel}>Cheat Days</Text>
+          <Text style={styles.summaryLabel}>"Cheat" Days</Text>
           <Text style={styles.summaryValue}>{cheatDays.length}</Text>
         </View>
       </View>
@@ -184,7 +184,7 @@ export default function ManageCheatDaysScreen() {
       {cheatDays.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="calendar" size={64} color={Colors.steelBlue} />
-          <Text style={styles.emptyText}>No upcoming cheat days planned</Text>
+          <Text style={styles.emptyText}>No upcoming "cheat" days planned</Text>
           <Text style={styles.emptySubtext}>
             Plan ahead to stay on track with your weekly budget
           </Text>
@@ -194,7 +194,7 @@ export default function ManageCheatDaysScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="add-circle" size={20} color={Colors.white} />
-            <Text style={styles.emptyAddButtonText}>Plan Your First Cheat Day</Text>
+            <Text style={styles.emptyAddButtonText}>Plan Your First "Cheat" Day</Text>
           </TouchableOpacity>
         </View>
      ) : (
@@ -272,7 +272,7 @@ export default function ManageCheatDaysScreen() {
           />
         }
         ListHeaderComponent={
-          <Text style={styles.sectionTitle}>UPCOMING CHEAT DAYS</Text>
+          <Text style={styles.sectionTitle}>UPCOMING "CHEAT" DAYS</Text>
         }
       />
     )}

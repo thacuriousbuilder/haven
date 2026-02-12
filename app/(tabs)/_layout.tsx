@@ -1,9 +1,8 @@
-
-
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet,Text } from 'react-native';
 import { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
 
@@ -19,6 +18,7 @@ function TabBarBadge({ count }: { count: number }) {
 }
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   const [userType, setUserType] = useState<'client' | 'trainer' | null>(null);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -122,8 +122,8 @@ export default function TabLayout() {
             backgroundColor: '#FFFFFF',
             borderTopWidth: 1,
             borderTopColor: '#E0E0E0',
-            height: 90,
-            paddingBottom: 30,
+            height: 60 + insets.bottom,
+            paddingBottom: insets.bottom,
             paddingTop: 10,
           },
           tabBarLabelStyle: {
@@ -214,8 +214,8 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#E0E0E0',
-          height: 90,
-          paddingBottom: 30,
+          height: 65 + insets.bottom,
+          paddingBottom: insets.bottom,
           paddingTop: 15,
           position: 'absolute',
           bottom: 0,

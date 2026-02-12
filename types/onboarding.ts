@@ -3,7 +3,7 @@ export type Gender = 'male' | 'female' | 'other';
 export type Goal = 'lose' | 'maintain' | 'gain';
 export type ActivityLevel = 'not_very_active' | 'lightly_active' | 'active' | 'very_active';
 export type WorkoutFrequency = '0-2' | '3-5' | '6+';
-export type UnitSystem = 'imperial' | 'metric';  // NEW
+export type UnitSystem = 'imperial' | 'metric'; 
 export type WeeklyGoalRate = 0.5 | 1 | 1.5 | 2;  
 
 export interface OnboardingData {

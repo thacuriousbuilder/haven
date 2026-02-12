@@ -7,6 +7,7 @@ import { useOnboarding } from '@/contexts/onboardingContext';
 import { supabase } from '@/lib/supabase';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
+import { createWeeklyPeriodForUser } from '@/lib/weeklyPeriod';
 
 import {
   calculateBMR,
@@ -16,7 +17,7 @@ import {
   calculateMacros,
   estimateTargetDate,
 } from '@/utils/calorieCalculator';
-import { formatDateComponents, getCurrentWeekDates } from '@/utils/timezone';
+import { formatDateComponents } from '@/utils/timezone';
 
 export default function ManualPlanScreen() {
   const { data } = useOnboarding();
@@ -34,14 +35,6 @@ export default function ManualPlanScreen() {
     calculateAndSavePlan();
   }, []);
 
-  const getMonday = (date: Date): Date => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    d.setDate(diff);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  };
 
   const calculateAndSavePlan = async () => {
     try {
@@ -166,7 +159,20 @@ export default function ManualPlanScreen() {
       console.log('✅ Profile saved for manual user');
   
       
-      await createManualWeeklyPeriod(user.id, weeklyCalories);
+      console.log('🎯 Creating first weekly period...');
+      const periodResult = await createWeeklyPeriodForUser(user.id);
+      
+      if (!periodResult.success) {
+        console.error('⚠️  Warning: Failed to create weekly period:', periodResult.error);
+        // Don't fail onboarding - just log the warning
+        // User can still proceed, cron will create it later
+      }
+      
+      if (periodResult.reason === 'created') {
+        console.log('✅ First weekly period created!');
+      } else if (periodResult.reason === 'already_exists') {
+        console.log('ℹ️  Weekly period already exists');
+      }
   
     } catch (error) {
       console.error('Error in saveOnboardingData:', error);
@@ -174,56 +180,6 @@ export default function ManualPlanScreen() {
     }
   };
   
- 
-  const createManualWeeklyPeriod = async (
-    userId: string,
-    weeklyBudget: number
-  ) => {
-    try {
-      console.log('📅 Creating weekly period for manual user...');
-      
-      
-      const { weekStart, weekEnd } = getCurrentWeekDates();
-      
-      console.log('  Week:', weekStart, 'to', weekEnd);
-      
-      // Check if period already exists
-      const { data: existing } = await supabase
-        .from('weekly_periods')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('week_start_date', weekStart)
-        .maybeSingle();
-      
-      if (existing) {
-        console.log('✅ Weekly period already exists');
-        return;
-      }
-      
-      // Create new weekly period
-      const { error } = await supabase
-        .from('weekly_periods')
-        .insert({
-          user_id: userId,
-          week_start_date: weekStart,
-          week_end_date: weekEnd,
-          weekly_budget: weeklyBudget,
-          baseline_average_daily:null,
-          created_at: new Date().toISOString(),
-        });
-      
-      if (error) {
-        console.error('❌ Error creating weekly period:', error);
-        throw error;
-      }
-      
-      console.log('✅ Weekly period created for manual user');
-    } catch (error) {
-      console.error('❌ Error in createManualWeeklyPeriod:', error);
-      console.warn('⚠️ Manual user can still use app, period will be created on first home screen load');
-    }
-  };
-
   const handleContinue = () => {
     router.replace('/(tabs)/home');
   };

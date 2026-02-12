@@ -123,8 +123,8 @@ export default function PlanScreen() {
 
   const handleDeleteCheatDay = async (cheatDayId: string) => {
     Alert.alert(
-      'Delete Cheat Day',
-      'Are you sure you want to delete this planned cheat day?',
+      'Delete "Cheat" Day',
+      'Are you sure you want to delete this planned "cheat" day?',
       [
         {
           text: 'Cancel',
@@ -145,7 +145,7 @@ export default function PlanScreen() {
               loadData();
             } catch (error) {
               console.error('Error deleting cheat day:', error);
-              Alert.alert('Error', 'Failed to delete cheat day. Please try again.');
+              Alert.alert('Error', 'Failed to delete "cheat" day. Please try again.');
             }
           },
         },
@@ -186,7 +186,7 @@ export default function PlanScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Plan</Text>
-          <Text style={styles.subtitle}>Manage your weekly cheat days</Text>
+          <Text style={styles.subtitle}>Manage your weekly "cheat" days</Text>
         </View>
 
         {/* Baseline Banner */}
@@ -198,7 +198,7 @@ export default function PlanScreen() {
                 <Text style={styles.bannerTitle}>Complete your baseline week first</Text>
                 <Text style={styles.bannerSubtitle}>
                   Track {baselineProgress.daysNeeded - baselineProgress.daysLogged} more{' '}
-                  {baselineProgress.daysNeeded - baselineProgress.daysLogged === 1 ? 'day' : 'days'} to unlock cheat day planning
+                  {baselineProgress.daysNeeded - baselineProgress.daysLogged === 1 ? 'day' : 'days'} to unlock "cheat" day planning
                 </Text>
               </View>
             </View>
@@ -240,7 +240,7 @@ export default function PlanScreen() {
             <View style={styles.emptyIconCircle}>
               <Ionicons name="calendar" size={40} color={Colors.steelBlue} />
             </View>
-            <Text style={styles.emptyStateText}>No cheat days planned yet</Text>
+            <Text style={styles.emptyStateText}>No "cheat" days planned yet</Text>
           </View>
         ) : (
           <View style={styles.cheatDaysList}>
@@ -290,7 +290,7 @@ export default function PlanScreen() {
             if (isInBaseline) {
               Alert.alert(
                 'Complete Baseline First',
-                'Finish tracking your baseline week to unlock cheat day planning.'
+                'Finish tracking your baseline week to unlock "cheat" day planning.'
               );
             } else {
               router.push('/planCheatDay');
@@ -299,7 +299,7 @@ export default function PlanScreen() {
           activeOpacity={0.8}
         >
           <Ionicons name="add" size={24} color={Colors.white} />
-          <Text style={styles.primaryButtonText}>Plan Cheat Day</Text>
+          <Text style={styles.primaryButtonText}>Plan "Cheat" Day</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -308,7 +308,7 @@ export default function PlanScreen() {
             if (isInBaseline) {
               Alert.alert(
                 'Complete Baseline First',
-                'Finish tracking your baseline week to unlock cheat day planning.'
+                'Finish tracking your baseline week to unlock "cheat" day planning.'
               );
             } else {
               router.push('/manageCheatDay');
@@ -328,10 +328,10 @@ export default function PlanScreen() {
           </View>
           <View style={styles.tipsList}>
             <Text style={styles.tipText}>
-              • Plan cheat days in advance to help HAVEN adjust your weekly budget
+              • Plan "cheat" days in advance to help HAVEN adjust your weekly budget
             </Text>
             <Text style={styles.tipText}>
-              • Don't feel guilty - cheat days are part of the plan!
+              • Don't feel guilty - "cheat" days are part of the plan!
             </Text>
           </View>
         </View>
