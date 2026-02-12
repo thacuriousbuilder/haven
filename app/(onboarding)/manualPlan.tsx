@@ -7,6 +7,7 @@ import { useOnboarding } from '@/contexts/onboardingContext';
 import { supabase } from '@/lib/supabase';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
+import { createWeeklyPeriodForUser } from '@/lib/weeklyPeriod';
 
 import {
   calculateBMR,
@@ -16,7 +17,7 @@ import {
   calculateMacros,
   estimateTargetDate,
 } from '@/utils/calorieCalculator';
-import { getCurrentWeekDates } from '@/utils/timezone';
+import { formatDateComponents } from '@/utils/timezone';
 
 export default function ManualPlanScreen() {
   const { data } = useOnboarding();
@@ -34,14 +35,6 @@ export default function ManualPlanScreen() {
     calculateAndSavePlan();
   }, []);
 
-  const getMonday = (date: Date): Date => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    d.setDate(diff);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  };
 
   const calculateAndSavePlan = async () => {
     try {
@@ -60,11 +53,7 @@ export default function ManualPlanScreen() {
       const goalWeight = data.goalWeight || currentWeight;
   
       // Calculate birth date
-      const birthDate = new Date(
-        birthYear,
-        birthMonth - 1,
-        birthDay
-      ).toISOString().split('T')[0];
+      const birthDate = formatDateComponents(birthYear, birthMonth, birthDay);
   
       // Step 1: Calculate BMR
       const bmr = calculateBMR(
@@ -130,11 +119,12 @@ export default function ManualPlanScreen() {
       }
   
       // Calculate birth date
-      const birthDate = new Date(
+      const birthDate = formatDateComponents(
         data.birthYear || 1990,
-        (data.birthMonth || 1) - 1,
+        data.birthMonth || 1,
         data.birthDay || 1
-      ).toISOString().split('T')[0];
+      );
+  
   
       const dailyTarget = Math.round(weeklyCalories / 7);
   
@@ -156,7 +146,7 @@ export default function ManualPlanScreen() {
           baseline_start_date: null,
           baseline_complete: true,
           baseline_avg_daily_calories: dailyTarget,
-          weekly_budget: weeklyCalories,  // 🆕 Use consistent field name
+          weekly_budget: weeklyCalories, 
           onboarding_completed: true,
           updated_at: new Date().toISOString(),
         });
@@ -169,7 +159,20 @@ export default function ManualPlanScreen() {
       console.log('✅ Profile saved for manual user');
   
       
-      await createManualWeeklyPeriod(user.id, weeklyCalories);
+      console.log('🎯 Creating first weekly period...');
+      const periodResult = await createWeeklyPeriodForUser(user.id);
+      
+      if (!periodResult.success) {
+        console.error('⚠️  Warning: Failed to create weekly period:', periodResult.error);
+        // Don't fail onboarding - just log the warning
+        // User can still proceed, cron will create it later
+      }
+      
+      if (periodResult.reason === 'created') {
+        console.log('✅ First weekly period created!');
+      } else if (periodResult.reason === 'already_exists') {
+        console.log('ℹ️  Weekly period already exists');
+      }
   
     } catch (error) {
       console.error('Error in saveOnboardingData:', error);
@@ -177,56 +180,6 @@ export default function ManualPlanScreen() {
     }
   };
   
- 
-  const createManualWeeklyPeriod = async (
-    userId: string,
-    weeklyBudget: number
-  ) => {
-    try {
-      console.log('📅 Creating weekly period for manual user...');
-      
-      // ✅ Use timezone utility
-      const { weekStart, weekEnd } = getCurrentWeekDates();
-      
-      console.log('  Week:', weekStart, 'to', weekEnd);
-      
-      // Check if period already exists
-      const { data: existing } = await supabase
-        .from('weekly_periods')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('week_start_date', weekStart)
-        .maybeSingle();
-      
-      if (existing) {
-        console.log('✅ Weekly period already exists');
-        return;
-      }
-      
-      // Create new weekly period
-      const { error } = await supabase
-        .from('weekly_periods')
-        .insert({
-          user_id: userId,
-          week_start_date: weekStart,
-          week_end_date: weekEnd,
-          weekly_budget: weeklyBudget,
-          budget_remaining: weeklyBudget,
-          created_at: new Date().toISOString(),
-        });
-      
-      if (error) {
-        console.error('❌ Error creating weekly period:', error);
-        throw error;
-      }
-      
-      console.log('✅ Weekly period created for manual user');
-    } catch (error) {
-      console.error('❌ Error in createManualWeeklyPeriod:', error);
-      console.warn('⚠️ Manual user can still use app, period will be created on first home screen load');
-    }
-  };
-
   const handleContinue = () => {
     router.replace('/(tabs)/home');
   };
@@ -245,7 +198,7 @@ export default function ManualPlanScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={16} totalSteps={16} />
+      <ProgressBar currentStep={14} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 

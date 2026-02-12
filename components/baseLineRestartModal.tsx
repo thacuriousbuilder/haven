@@ -1,21 +1,45 @@
+
+
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  ActivityIndicator,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface BaselineRestartModalProps {
   visible: boolean;
   daysLogged: number;
   onRestart: () => void;
-  onCompleteAnyway: () => void;
+  onUseEstimatedData: () => void;
 }
 
 export function BaselineRestartModal({
   visible,
   daysLogged,
   onRestart,
-  onCompleteAnyway,
+  onUseEstimatedData,
 }: BaselineRestartModalProps) {
+  const [loading, setLoading] = React.useState(false);
+
+  const handleRestart = async () => {
+    setLoading(true);
+    await onRestart();
+    setLoading(false);
+  };
+
+  const handleUseEstimated = async () => {
+    setLoading(true);
+    await onUseEstimatedData();
+    setLoading(false);
+  };
+
   return (
     <Modal
       visible={visible}
@@ -23,134 +47,159 @@ export function BaselineRestartModal({
       animationType="fade"
       onRequestClose={() => {}}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
-          {/* Icon */}
-          <View style={styles.iconContainer}>
-            <Ionicons name="alert-circle" size={48} color="#EF4444" />
-          </View>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <View style={styles.overlay}>
+          <View style={styles.modal}>
+            {/* Warning Icon */}
+            <View style={styles.iconContainer}>
+              <Ionicons name="warning" size={56} color="#EF4444" />
+            </View>
 
-          {/* Title */}
-          <Text style={styles.title}>Baseline Incomplete</Text>
+            {/* Title */}
+            <Text style={styles.title}>Insufficient Data</Text>
 
-          {/* Description */}
-          <Text style={styles.description}>
-            You only logged <Text style={styles.highlight}>{daysLogged} of 7 days</Text>. 
-            Your baseline will be highly inaccurate with this little data.
-          </Text>
-
-          {/* Warning box */}
-          <View style={styles.warningBox}>
-            <Ionicons name="warning" size={20} color="#EF4444" />
-            <Text style={styles.warningText}>
-              We strongly recommend restarting when you're ready to commit to logging daily for a full week.
+            {/* Description */}
+            <Text style={styles.description}>
+              You've only logged {daysLogged} day{daysLogged === 1 ? '' : 's'}. We need at least 3 days for an accurate baseline.
             </Text>
+
+            {/* Warning Box */}
+            <View style={styles.warningBox}>
+              <Ionicons name="information-circle" size={18} color="#DC2626" />
+              <Text style={styles.warningText}>
+                Your weekly budget will be estimated from your onboarding info, not your actual eating habits.
+              </Text>
+            </View>
+
+            {/* Buttons */}
+            <View style={styles.buttonsContainer}>
+              {/* Restart Button (Primary) */}
+              <TouchableOpacity
+                style={[styles.button, styles.restartButton]}
+                onPress={handleRestart}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <>
+                    <Ionicons name="refresh" size={20} color={Colors.white} />
+                    <Text style={styles.buttonText}>Restart Baseline</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* Use Estimated Data Button (Secondary) */}
+              <TouchableOpacity
+                style={[styles.button, styles.estimatedButton]}
+                onPress={handleUseEstimated}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#6B7280" />
+                ) : (
+                  <>
+                    <Ionicons name="calculator-outline" size={20} color="#6B7280" />
+                    <Text style={styles.estimatedButtonText}>Use Estimated Data</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-
-          {/* Buttons */}
-          <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
-            onPress={onRestart}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="refresh" size={20} color={Colors.white} />
-            <Text style={styles.primaryButtonText}>Restart Baseline</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
-            onPress={onCompleteAnyway}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.secondaryButtonText}>
-              Complete anyway (not recommended)
-            </Text>
-          </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    paddingHorizontal: 20,
   },
   modal: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
-    padding: 32,
+    padding: 24,
     width: '100%',
     maxWidth: 400,
+    alignItems: 'center',
     ...Shadows.large,
   },
   iconContainer: {
-    alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
     color: Colors.graphite,
+    marginBottom: 8,
     textAlign: 'center',
-    marginBottom: 12,
   },
   description: {
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.steelBlue,
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 20,
-  },
-  highlight: {
-    fontWeight: '700',
-    color: '#EF4444',
+    marginBottom: 16,
+    lineHeight: 22,
   },
   warningBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#FEF2F2',
-    padding: 16,
+    backgroundColor: '#FEE2E2',
+    padding: 12,
     borderRadius: BorderRadius.md,
-    marginBottom: 24,
-    gap: 12,
+    marginBottom: 20,
+    gap: 8,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+    width: '100%',
   },
   warningText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: '#991B1B',
-    lineHeight: 20,
+    lineHeight: 18,
     fontWeight: '500',
+  },
+  buttonsContainer: {
+    width: '100%',
+    gap: 12,
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
     borderRadius: BorderRadius.lg,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    width: '100%',
     gap: 8,
   },
-  primaryButton: {
+  restartButton: {
     backgroundColor: Colors.vividTeal,
-    marginBottom: 12,
   },
-  primaryButtonText: {
+  buttonText: {
     fontSize: 16,
     fontWeight: '700',
     color: Colors.white,
   },
-  secondaryButton: {
+  estimatedButton: {
     backgroundColor: Colors.lightCream,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
   },
-  secondaryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.steelBlue,
+  estimatedButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#6B7280',
   },
 });

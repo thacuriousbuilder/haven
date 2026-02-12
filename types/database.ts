@@ -64,9 +64,11 @@ export interface DailySummary {
   calories_consumed: number;
   calories_burned: number; 
   net_calories: number;
+  budget_adjustment: number; 
   created_at: string;
   updated_at: string;
 }
+
 
 // ============= CHECK IN START =============
 export type CheckIn = {
@@ -116,6 +118,7 @@ export interface WeeklyPeriod {
   week_end_date: string; // ISO date (Sunday)
   baseline_average_daily: number;
   weekly_budget: number;
+  cumulative_overage: number
   created_at: string;
 }
 
@@ -140,8 +143,66 @@ export interface PlannedCheatDay {
   user_id: string;
   cheat_date: string; // ISO date
   planned_calories: number;
+  actual_calories: number | null;
+  is_completed: boolean;
   notes: string | null;
   created_at: string;
+}
+
+export interface CheatDayRecommendation {
+  light: number;        // Base × 1.3 (e.g., 2,200 cal)
+  moderate: number;     // Base × 1.5 (recommended, e.g., 2,600 cal)
+  celebration: number;  // Base × 1.75 (e.g., 3,200 cal)
+  minimum: number;      // Base + 200 (must feel special)
+  maximum: number;      // Max that keeps other days above 1,200 cal
+}
+
+// For validating cheat day plans
+export interface CheatDayValidation {
+  isValid: boolean;
+  otherDaysAverage: number; // What non-cheat days will be after this plan
+  status: 'safe' | 'challenging' | 'unsafe';
+  message: string;
+  suggestion?: string;
+}
+
+// For displaying today's adjusted budget
+export interface AdjustedDailyBudget {
+  baseBudget: number;           // Original daily budget (e.g., 1,705)
+  adjustment: number;           // Penalty from overage (e.g., -145)
+  adjustedBudget: number;       // What user actually has today (e.g., 1,560)
+  isCheatDay: boolean;          // Is today a planned cheat day?
+  cheatDayCalories?: number;    // If cheat day, the planned amount
+  remainingRegularDays: number; // How many non-cheat days left this week
+}
+
+// For weekly overview with cheat days
+export interface WeeklyOverview {
+  weeklyPeriod: WeeklyPeriod;
+  cheatDays: PlannedCheatDay[];
+  dailySummaries: DailySummary[];
+  totalConsumed: number;
+  totalBurned: number;
+  totalRemaining: number;
+  cumulativeOverage: number;
+  regularDaysAverage: number;   // Average budget for non-cheat days
+}
+
+// For creating a new cheat day
+export interface InsertPlannedCheatDay {
+  user_id: string;
+  weekly_period_id: string;
+  cheat_date: string; // YYYY-MM-DD
+  planned_calories: number;
+  notes?: string | null;
+}
+
+// For updating a cheat day
+export interface UpdatePlannedCheatDay {
+  planned_calories?: number;
+  actual_calories?: number | null;
+  is_completed?: boolean;
+  notes?: string | null;
 }
 
 // ENUMS & CONSTANTS

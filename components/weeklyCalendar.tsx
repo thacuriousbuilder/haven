@@ -1,17 +1,21 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
+import { WeekInfo } from '@/utils/weekHelpers';
+import { formatLocalDate } from '@/utils/timezone';
 
 interface WeeklyCalendarProps {
   currentDate: Date;
   cheatDates: string[]; // Array of ISO date strings (YYYY-MM-DD)
   loggedDates?: string[]; // Array of ISO date strings for days with logs
+  weekInfo?: WeekInfo | null; // Optional: for partial week handling
 }
 
 export default function WeeklyCalendar({ 
   currentDate, 
   cheatDates, 
-  loggedDates = [] 
+  loggedDates = [],
+  weekInfo,
 }: WeeklyCalendarProps) {
   const getWeekDays = () => {
     const monday = new Date(currentDate);
@@ -36,7 +40,6 @@ export default function WeeklyCalendar({
     return date.toDateString() === today.toDateString();
   };
 
-  
   const isCheatDay = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -45,7 +48,6 @@ export default function WeeklyCalendar({
     return cheatDates.includes(dateStr);
   };
 
-  
   const hasLogs = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -54,16 +56,32 @@ export default function WeeklyCalendar({
     return loggedDates.includes(dateStr);
   };
 
+  // Check if day is before user started tracking (for partial weeks)
+  const isBeforeTracking = (date: Date): boolean => {
+    if (!weekInfo?.isPartialWeek) return false;
+    
+    const dateStr = formatLocalDate(date);
+    const userStartStr = formatLocalDate(weekInfo.userStartDate);
+    
+    return dateStr < userStartStr;
+  };
+
   return (
     <View style={styles.container}>
       {weekDays.map((date, index) => {
         const today = isToday(date);
         const cheat = isCheatDay(date);
         const logged = hasLogs(date);
+        const beforeTracking = isBeforeTracking(date);
 
         return (
           <View key={index} style={styles.dayContainer}>
-            <Text style={styles.dayName}>
+            <Text 
+              style={[
+                styles.dayName,
+                beforeTracking && styles.dimmedText,
+              ]}
+            >
               {dayNames[date.getDay() === 0 ? 6 : date.getDay() - 1]}
             </Text>
             <View
@@ -71,19 +89,21 @@ export default function WeeklyCalendar({
                 styles.dateCircle,
                 today && styles.todayCircle,
                 cheat && !today && styles.cheatCircle,
+                beforeTracking && styles.inactiveCircle,
               ]}
             >
               <Text
                 style={[
                   styles.dateText,
-                  (today || cheat) && styles.highlightedText,
+                  (today || cheat) && !beforeTracking && styles.highlightedText,
+                  beforeTracking && styles.dimmedText,
                 ]}
               >
                 {date.getDate()}
               </Text>
             </View>
             {/* Dot indicator for logged days */}
-            {logged && (
+            {logged && !beforeTracking && (
               <View 
                 style={[
                   styles.logDot,
@@ -91,6 +111,10 @@ export default function WeeklyCalendar({
                   cheat && !today && styles.logDotCheat,
                 ]} 
               />
+            )}
+            {/* Dash for inactive days */}
+            {beforeTracking && (
+              <View style={styles.inactiveDash} />
             )}
           </View>
         );
@@ -133,6 +157,10 @@ const styles = StyleSheet.create({
   cheatCircle: {
     backgroundColor: Colors.energyOrange,
   },
+  inactiveCircle: {
+    backgroundColor: Colors.fatSteel,
+    opacity: 0.4,
+  },
   dateText: {
     fontSize: 14,
     color: Colors.graphite,
@@ -141,6 +169,10 @@ const styles = StyleSheet.create({
   highlightedText: {
     color: Colors.white,
   },
+  dimmedText: {
+    color: Colors.graphite,
+    opacity: 0.5,
+  },
   logDot: {
     width: 6,
     height: 6,
@@ -148,9 +180,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.vividTeal,
   },
   logDotToday: {
-    backgroundColor: Colors.vividTeal, // White dot on teal background
+    backgroundColor: Colors.vividTeal,
   },
   logDotCheat: {
-    backgroundColor: Colors.energyOrange, // Teal dot on orange background
+    backgroundColor: Colors.energyOrange,
+  },
+  inactiveDash: {
+    width: 12,
+    height: 2,
+    backgroundColor: Colors.fatSteel,
+    opacity: 0.3,
+    borderRadius: 1,
   },
 });

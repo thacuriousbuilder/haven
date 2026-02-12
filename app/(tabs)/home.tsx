@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -10,7 +10,8 @@ import {
   getLocalDateString, 
   getCurrentWeekDates,
   formatLocalDate,
-  getSunday 
+  getSunday,
+  getDaysDifference
 } from '@/utils/timezone';
 import { BaselineProgressCard } from '@/components/homebaseline/cards/baselineProgressCard';
 import { SummaryStatsCard } from '@/components/homebaseline/cards/summaryStatsCard';
@@ -25,13 +26,15 @@ import { ClientCardBaseline } from '@/components/coach/clientCardBaseline';
 import { BaselineChoiceModal } from '@/components/baseLineChoiceModal';
 import { BaselineRestartModal } from '@/components/baseLineRestartModal';
 import * as ImagePicker from 'expo-image-picker';
-import { completeBaseline, getActivityLevelLabel } from '@/lib/baselineCompletion';
+import { completeBaseline, completeBaselineWithEstimatedData } from '@/lib/baselineCompletion';
+import { useOverageCalculation } from '@/hooks/useOverageCalculation';
 
 // Type imports
 import type { MealLogItem, MacroData } from '@/types/home';
 import { Colors } from '@/constants/colors';
 import { CoachDashboardHeader } from '@/components/coach/coachDashboardHeader';
 import { ClientOverview } from '@/components/coach/clientOverview';
+import { analyzeWeekPeriod, WeekInfo } from '@/utils/weekHelpers';
 
 interface ProfileData {
   full_name: string | null;
@@ -123,7 +126,11 @@ export default function HomeScreen() {
     totalCalories: 0,
     avgCalories: 0,
     macros: { protein: 0, carbs: 0, fat: 0 },
+    totalBurned:0,
   });
+  const [showCheckInReminder, setShowCheckInReminder] = useState(false);
+  const [showDay7Banner, setShowDay7Banner] = useState(false);
+  const [currentPeriod, setCurrentPeriod] = useState<any>(null);
   
   
   // Trainer-specific state
@@ -135,10 +142,20 @@ export default function HomeScreen() {
     baseline: 0,
   });
 
+  const {
+    baseBudget,
+    adjustment,
+    adjustedBudget,
+    isCheatDay,
+    cheatDayCalories,
+    cumulativeOverage,
+    isLoading: overageLoading,
+  } = useOverageCalculation();
+
   useEffect(() => {
     fetchProfile();
   }, []);
-
+ 
   useEffect(() => {
     if (profile) {
       if (profile.user_type === 'trainer') {
@@ -157,9 +174,16 @@ export default function HomeScreen() {
       if (profile && profile.user_type !== 'trainer') {
         // Refresh data whenever screen comes into focus
         fetchRecentLogs();
+        checkBaselineStatus();
       }
     }, [profile])
   );
+  useFocusEffect(
+    useCallback(() => {
+      checkDailyCheckIn();
+    }, [])
+  );
+  
 
   // ============= HELPER FUNCTIONS =============
 
@@ -198,7 +222,7 @@ export default function HomeScreen() {
     try {
       console.log('📊 Calculating metrics client-side for week:', weekStartDate);
       
-      // ✅ Use timezone utilities
+      
       const startDate = new Date(weekStartDate + 'T00:00:00');
       const endDate = getSunday(startDate);
       const sundayStr = formatLocalDate(endDate);
@@ -231,7 +255,7 @@ export default function HomeScreen() {
         .eq('user_id', userId)
         .gte('cheat_date', weekStartDate)
         .lte('cheat_date', sundayStr)
-        .gt('cheat_date', todayStr);
+        .gte('cheat_date', todayStr);
   
       if (cheatError) {
         console.error('Error loading cheat days:', cheatError);
@@ -356,11 +380,40 @@ export default function HomeScreen() {
 
   // Calculate days into current week (for avg calculation)
   const getDaysIntoWeek = (): number => {
-    const today = new Date();
-    const monday = getMonday(today);
-    const diffTime = today.getTime() - monday.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    return Math.max(1, diffDays);
+    // If no period loaded yet, fall back to Monday calculation
+    if (!currentPeriod) {
+      const today = new Date();
+      const monday = getMonday(today);
+      const diffTime = today.getTime() - monday.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      return Math.max(1, diffDays);
+    }
+  
+    // Use actual period dates to calculate days
+    const weekInfo = analyzeWeekPeriod(
+      currentPeriod.week_start_date,
+      currentPeriod.week_end_date,
+      currentPeriod.created_at
+    );
+  
+    // Calculate which day of tracking we're on
+    const todayStr = getLocalDateString();
+    const userStartStr = formatLocalDate(weekInfo.userStartDate);
+    
+    const diffDays = getDaysDifference(userStartStr, todayStr) + 1;
+    
+    // Return day number, clamped to valid range
+    return Math.max(1, Math.min(diffDays, weekInfo.daysTracked));
+  };
+
+  const getWeekInfo = (): WeekInfo | null => {
+    if (!currentPeriod) return null;
+    
+    return analyzeWeekPeriod(
+      currentPeriod.week_start_date,
+      currentPeriod.week_end_date,
+      currentPeriod.created_at
+    );
   };
 
   // Get next cheat day info (detailed version for card)
@@ -386,6 +439,35 @@ export default function HomeScreen() {
       dateString: `${months[nextDate.getMonth()]} ${nextDate.getDate()}`,
       date: nextDate,
     };
+  };
+
+  const getSubGreeting = (): string => {
+    const weekInfo = getWeekInfo();
+    
+    if (!weekInfo) {
+      return "You're doing great this week!";
+    }
+    
+    if (weekInfo.isPartialWeek) {
+      return "Welcome to your first week!";
+    }
+    
+    // Optional: Encourage users based on progress
+    if (metrics) {
+      const percentUsed = (metrics.total_consumed / metrics.weekly_budget) * 100;
+      
+      if (percentUsed < 70) {
+        return "You're doing great this week!";
+      } else if (percentUsed < 90) {
+        return "Staying on track nicely!";
+      } else if (percentUsed <= 100) {
+        return "Almost there for the week!";
+      } else {
+        return "You went over, but that's okay!";
+      }
+    }
+    
+    return "You're doing great this week!";
   };
 
   const checkBaselineStatus = async () => {
@@ -415,13 +497,17 @@ export default function HomeScreen() {
         today: getLocalDateString(),
         extended: profile.baseline_extended || false,
       });
+
+      const isDay7 = today.getTime() === endDate.getTime();
       
       // Check if the period has ended
       const baselinePeriodEnded = today > endDate;
       
       if (baselinePeriodEnded) {
+        setShowDay7Banner(false)
         await handleBaselineEnded();
-      } else {
+      } else if (isDay7) {
+        setShowDay7Banner(true)
         console.log('✅ Baseline still active');
       }
     } catch (error) {
@@ -484,10 +570,9 @@ const completeBaselineNow = async () => {
       endDate.setDate(startDate.getDate() + 6); // 7 days
     }
     
-    
     const endDateStr = formatLocalDate(endDate);
     
-    // Call completion helper (handles any number of days >= 5)
+    // Call completion helper
     const result = await completeBaseline(
       user.id,
       profile.baseline_start_date,
@@ -501,26 +586,8 @@ const completeBaselineNow = async () => {
     
     console.log('✅ Baseline completed:', result.data);
     
-    // Build completion message
-    let message = '';
-    
-    // Activity level comparison
-    if (result?.data?.actualActivityLevel !== profile.activity_level) {
-      const actualLabel = getActivityLevelLabel(result?.data?.actualActivityLevel || '');
-      const reportedLabel = getActivityLevelLabel(profile.activity_level || '');
-      message += `Your actual activity level (${actualLabel}) differs from what you reported (${reportedLabel}). We've adjusted your plan accordingly.\n\n`;
-    }
-    
-    // Partial data warning
-    if (result?.data?.daysUsed && result?.data?.daysUsed < 7) {
-      message += `We calculated your baseline from ${result?.data?.daysUsed} days you logged. For best results, try to log daily going forward.`;
-    } else {
-      message += 'Great job completing all 7 days! Your plan is now personalized to your actual habits.';
-    }
-    
     // Set data for completion modal
-    setBaselineAverage(result?.data?.finalTDEE || 0);
-    setBaselineCompletionMessage(message);
+    setBaselineAverage(result?.data?.dailyTarget || 0);
     
     // Show completion modal
     setBaselineModalType('complete');
@@ -538,15 +605,46 @@ const completeBaselineAuto = async (
   summaries: { calories_consumed: number; summary_date: string }[],
   daysLogged: number
 ) => {
-  // Just call the unified function
+  
   await completeBaselineNow();
 };
 
 
 const completeBaselineWithPartialData = async () => {
-  // Just call the unified function
+
   await completeBaselineNow();
 };
+
+const useEstimatedData = async () => {
+  try {
+    console.log('🔮 Using estimated data for baseline...');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const result = await completeBaselineWithEstimatedData(user.id);
+
+    if (!result.success) {
+      Alert.alert('Error', result.error || 'Failed to complete baseline');
+      return;
+    }
+
+    console.log('✅ Baseline completed with estimated data:', result.data);
+
+    // Set data for completion modal
+    setBaselineAverage(result?.data?.dailyTarget || 0);
+
+    // Show completion modal
+    setBaselineModalType('complete');
+
+    // Refresh profile
+    await fetchProfile();
+
+  } catch (error) {
+    console.error('❌ Error in useEstimatedData:', error);
+    Alert.alert('Error', 'Something went wrong. Please try again.');
+  }
+};
+
 
 
 
@@ -566,7 +664,7 @@ const extendBaseline = async () => {
       return;
     }
 
-    // ✅ Use timezone utility
+  
     const todayStr = getLocalDateString();
 
     // Mark as extended in database
@@ -648,6 +746,85 @@ const restartBaseline = async () => {
   }
 };
 
+const checkDailyCheckIn = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // 1. Check if user is in baseline phase
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('baseline_start_date, baseline_completion_at')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError) {
+      console.error('Error loading profile:', profileError);
+      return;
+    }
+
+    // Only show check-in for baseline users
+    if (!profile.baseline_start_date || profile.baseline_completion_at) {
+      setShowCheckInReminder(false);
+      return;
+    }
+
+    // 2. Check if it's Day 1 of baseline
+    const todayDate = getLocalDateString();
+    
+    if (profile.baseline_start_date === todayDate) {
+      setShowCheckInReminder(false);
+      return;
+    }
+
+    // 3. Check if user has checked in today
+    const { data: checkIn, error: checkInError } = await supabase
+      .from('check_ins')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('check_in_date', todayDate)
+      .maybeSingle();
+
+    if (checkInError) {
+      console.error('Error checking check-in status:', checkInError);
+      return;
+    }
+
+    // Show reminder if not checked in
+    setShowCheckInReminder(!checkIn);
+
+  } catch (error) {
+    console.error('Error in checkDailyCheckIn:', error);
+  }
+};
+
+const fetchBurnedCalories = async (userId: string, startDate: string, endDate: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('check_ins')
+      .select('workout_calories_burned')
+      .eq('user_id', userId)
+      .gte('check_in_date', startDate)
+      .lte('check_in_date', endDate);
+
+    if (error) {
+      console.error('Error fetching burned calories:', error);
+      return 0;
+    }
+
+    // Sum all burned calories
+    const totalBurned = data.reduce((sum, checkIn) => {
+      return sum + (checkIn.workout_calories_burned || 0);
+    }, 0);
+
+    console.log('🔥 Total burned calories:', totalBurned);
+    return totalBurned;
+  } catch (error) {
+    console.error('Error in fetchBurnedCalories:', error);
+    return 0;
+  }
+};
+
 
 const fetchBaselineStats = async () => {
   if (!profile?.baseline_start_date) {
@@ -655,6 +832,7 @@ const fetchBaselineStats = async () => {
       totalCalories: 0,
       avgCalories: 0,
       macros: { protein: 0, carbs: 0, fat: 0 },
+      totalBurned: 0,  // ← NEW
     });
     return;
   }
@@ -689,6 +867,7 @@ const fetchBaselineStats = async () => {
       totalCalories: 0,
       avgCalories: 0,
       macros: { protein: 0, carbs: 0, fat: 0 },
+      totalBurned: 0,  // ← NEW
     });
     return;
   }
@@ -703,6 +882,13 @@ const fetchBaselineStats = async () => {
   const uniqueDays = new Set(foodLogs.map(log => log.log_date)).size;
   const avgCalories = uniqueDays > 0 ? Math.round(totalCalories / uniqueDays) : 0;
 
+  // NEW: Fetch burned calories
+  const totalBurned = await fetchBurnedCalories(
+    user.id,
+    profile.baseline_start_date,
+    endDateStr
+  );
+
   setBaselineStats({
     totalCalories,
     avgCalories,
@@ -711,6 +897,7 @@ const fetchBaselineStats = async () => {
       carbs: totalCarbs,
       fat: totalFat,
     },
+    totalBurned, 
   });
 };
 
@@ -791,7 +978,8 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
       .eq('user_id', user.id)
       .eq('week_start_date', weekStartDate)
       .single();
-
+    
+    setCurrentPeriod(weeklyPeriod);
     // Calculate metrics client-side
     const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, data);
     setMetrics(metricsData);
@@ -1083,7 +1271,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
     const onTrackClients = clients.filter(c => c.status === 'on_track');
 
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top','bottom']}>
         {/* <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logoCircle} />
@@ -1243,13 +1431,17 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
 
   const todayCalories = calculateTodayCalories();
   const todayMacros = calculateTodayMacros();
-  const todayGoal = metrics?.weekly_budget ? Math.round(metrics.weekly_budget / 7) : 2000;
+  const todayGoal = profile?.baseline_complete 
+  ? (isCheatDay 
+      ? (cheatDayCalories || 2000)
+      : (adjustedBudget || Math.round((metrics?.weekly_budget || 14000) / 7))) 
+  : Math.round((metrics?.weekly_budget || 14000) / 7);
   const todayRemaining = todayGoal - todayCalories;
 
   const todayLogs = recentLogs.filter(log => log.log_date === getLocalDateString());
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top','bottom']}>
       <View style={styles.header}>
         <View style={styles.logoContainer}>
           <Text style={styles.logo}>HAVEN</Text>
@@ -1282,6 +1474,47 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                   Let's keep building your baseline
                 </Text>
               </View>
+
+              {/* Check-in Reminder Banner */}
+              {showCheckInReminder && (
+                <TouchableOpacity
+                  style={styles.checkInBanner}
+                  onPress={() => router.push('/dailyCheckin')}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.bannerContent}>
+                    <Ionicons name="fitness" size={20} color="#EF7828" />
+                    <View style={styles.bannerTextContainer}>
+                      <Text style={styles.bannerTitle}>Daily check-in</Text>
+                      <Text style={styles.bannerSubtext}>
+                        Quick update on yesterday's activity
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#EF7828" />
+                </TouchableOpacity>
+              )}
+              { showDay7Banner && !showCheckInReminder && (
+                    <TouchableOpacity
+                      style={styles.day7Banner}
+                      onPress={async () => {
+                        setShowDay7Banner(false);
+                        await handleBaselineEnded();
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.bannerContent}>
+                        <Ionicons name="checkmark-done" size={24} color="#10B981" />
+                        <View style={styles.bannerTextContainer}>
+                          <Text style={styles.bannerTitleD7}>Finished logging for Day 7?</Text>
+                          <Text style={styles.bannerSubtextD7}>
+                            Tap to see your baseline results
+                          </Text>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#10B981" />
+                    </TouchableOpacity>
+                  )}
 
               <View style={styles.cardSpacing}>
                 <BaselineProgressCard
@@ -1317,6 +1550,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                       daysLogged={daysLogged}
                       avgPerDay={baselineStats.avgCalories}
                       macros={baselineStats.macros}
+                      totalBurned={baselineStats.totalBurned}
                     />
                   </View>
               )}
@@ -1346,9 +1580,45 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                   Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {firstName}
                 </Text>
                 <Text style={styles.subGreeting}>
-                  You're doing great this week!
+                 {getSubGreeting()}
                 </Text>
               </View>
+
+             {/* Budget Adjustment Banner */}
+          {!isCheatDay && adjustment < 0 && cumulativeOverage > 0 && (
+            <TouchableOpacity
+              style={styles.budgetAdjustmentBanner}
+              activeOpacity={0.9}
+            >
+              <View style={styles.bannerContent}>
+                <Ionicons name="alert-circle" size={20} color="#EF7828" />
+                <View style={styles.bannerTextContainer}>
+                  <Text style={styles.budgetBannerTitle}>
+                    Budget adjusted for this week
+                  </Text>
+                  <Text style={styles.budgetBannerSubtext}>
+                    You're {cumulativeOverage} cal slightly over. Haven recommends eating: {adjustedBudget.toLocaleString()} cal rather than your normal {baseBudget.toLocaleString()} cal
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+            )}
+            {/*  Cheat Day Banner */}
+            {isCheatDay && cheatDayCalories && (
+              <View style={styles.cheatDayBanner}>
+                <View style={styles.bannerContent}>
+                  <Ionicons name="restaurant" size={24} color="#10B981" />
+                  <View style={styles.bannerTextContainer}>
+                    <Text style={styles.cheatDayBannerTitle}>
+                      Today is your "cheat" day!
+                    </Text>
+                    <Text style={styles.cheatDayBannerSubtext}>
+                      You have {cheatDayCalories.toLocaleString()} calories to enjoy
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
 
               {/* Weekly Calendar */}
               <View style={styles.cardSpacing}>
@@ -1356,6 +1626,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                   currentDate={new Date()} 
                   cheatDates={cheatDates}
                   loggedDates={getLoggedDates()}
+                  weekInfo={getWeekInfo()}
                 />
               </View>
                  {/* Today's Calories Card */}
@@ -1379,6 +1650,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                     totalConsumed={metrics.total_consumed}
                     totalRemaining={metrics.total_remaining}
                     daysIntoWeek={getDaysIntoWeek()}
+                    weekInfo={getWeekInfo()}
                   />
                 </View>
               )}
@@ -1400,9 +1672,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
                 <TodayMealsCard
                   meals={transformMealsData(todayLogs)}
                   onAddMeal={handleLogFood}
-                  onMealPress={(meal) => {
-                    console.log('Meal pressed:', meal.name);
-                  }}
+                  onMealPress={handleMealPress}
                 />
               </View>
 
@@ -1424,7 +1694,9 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
       <BaselineCompleteModal
   visible={baselineModalType === 'complete'}
   baselineAverage={baselineAverage}
-  message={baselineCompletionMessage}
+  reportedActivityLevel={profile?.activity_level || undefined}
+  actualActivityLevel={profile?.actual_activity_level || undefined}
+  daysUsed={baselineDaysLogged}
   onComplete={() => {
     setBaselineModalType(null);
     setBaselineCompletionMessage(undefined);
@@ -1434,6 +1706,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
     {/* Choice Modal */}
     <BaselineChoiceModal
       visible={baselineModalType === 'choice'}
+      
       daysLogged={baselineDaysLogged}
       alreadyExtended={profile?.baseline_extended || false}
       onCompleteNow={completeBaselineWithPartialData}
@@ -1445,7 +1718,7 @@ if (data.user_type !== 'trainer' && data.baseline_complete) {
       visible={baselineModalType === 'restart'}
       daysLogged={baselineDaysLogged}
       onRestart={restartBaseline}
-      onCompleteAnyway={completeBaselineWithPartialData}
+      onUseEstimatedData={useEstimatedData}
     />
     </SafeAreaView>
   );
@@ -1689,4 +1962,117 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.graphite,
   },
+  checkInBanner: {
+    backgroundColor: '#FFF7ED',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 12,         
+    marginBottom: 16,           
+    borderWidth: 1,              
+    borderColor: '#FFEDD5', 
+  },
+  bannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  bannerTextContainer: {
+    flex: 1,
+  },
+  bannerTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#EA580C',
+    marginBottom: 2,
+  },
+  bannerSubtext: {
+    fontSize: 13,
+    color: '#9A3412',
+  },
+  bannerTitleD7: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.vividTeal,
+    marginBottom: 2,
+  },
+  bannerSubtextD7: {
+    fontSize: 13,
+    color: Colors.vividTeal,
+  },
+  day7Banner: {
+    backgroundColor: Colors.tealOverlay,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  budgetAdjustmentBanner: {
+  backgroundColor: '#FFF7ED',
+  paddingVertical: 16,
+  paddingHorizontal: 20,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  borderRadius: 12,         
+  marginBottom: 16,           
+  borderWidth: 1,              
+  borderColor: '#FFEDD5',
+  shadowColor: '#EF7828',
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.05,
+  shadowRadius: 2,
+  elevation: 1,
+},
+budgetBannerTitle: {
+  fontSize: 15,
+  fontWeight: '600',
+  color: '#EA580C',
+  marginBottom: 4,
+},
+budgetBannerSubtext: {
+  fontSize: 13,
+  color: '#9A3412',
+  lineHeight: 18,
+},
+cheatDayBanner: {
+  backgroundColor: '#ECFDF5',
+  paddingVertical: 16,
+  paddingHorizontal: 20,
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderRadius: 12,
+  marginBottom: 16,
+  borderWidth: 2,
+  borderColor: '#10B981',
+  shadowColor: '#10B981',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 2,
+},
+cheatDayBannerTitle: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#059669',
+  marginBottom: 4,
+},
+cheatDayBannerSubtext: {
+  fontSize: 14,
+  color: '#047857',
+  lineHeight: 20,
+},
 });

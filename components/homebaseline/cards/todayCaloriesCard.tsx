@@ -41,11 +41,6 @@ export function TodayCaloriesCard({ todayStats, isBaseline = false }: TodayCalor
         <View style={[styles.statColumn, isBaseline && styles.statColumnCentered]}>
           <Text style={styles.mainValue}>{formatNumber(consumed)}</Text>
           <Text style={styles.mainLabel}>kcal</Text>
-          <TouchableOpacity onPress={()=>router.push('/dailyCheckin')}>
-            <Text >
-            Click here for daily checkin
-            </Text>
-          </TouchableOpacity>
         </View>
         {/* Only show divider and remaining if NOT in baseline */}
         {!isBaseline && (
@@ -62,21 +57,6 @@ export function TodayCaloriesCard({ todayStats, isBaseline = false }: TodayCalor
             </View>
           </>
         )}
-        {burned > 0 && (
-          <>
-            <View style={styles.divider}>
-            </View>
-            <View style={styles.statColumn}>
-              <View style={styles.burnedValueRow}>
-                <Text style={[styles.mainValue, styles.burnedValue]}>
-                  {formatNumber(burned)}
-                </Text>
-              </View>
-              <Text style={styles.burnedLabel}>Burned</Text>
-            </View>
-          </>
-        )}
-
       </View>
 
       {/* Macros Row - Using MacroCircle component */}
@@ -167,23 +147,5 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-  },
-  burnedDivider: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 8,
-  },
-  burnedValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  burnedValue: {
-    color: '#EF7828',
-  },
-  burnedLabel: {
-    fontSize: 14,
-    color: '#EF7828',
-    fontWeight: '500',
   },
 });

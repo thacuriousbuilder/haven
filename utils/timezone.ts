@@ -158,6 +158,21 @@ export function formatTime(timestamp: string): string {
     hour12: true,
   });
 }
+/**
+ * Format date components to YYYY-MM-DD string
+ * Use this for: birth dates from user input
+ * Avoids timezone issues by never creating a Date object
+ */
+export function formatDateComponents(
+  year: number,
+  month: number,  // 1-12
+  day: number
+): string {
+  const yearStr = String(year);
+  const monthStr = String(month).padStart(2, '0');
+  const dayStr = String(day).padStart(2, '0');
+  return `${yearStr}-${monthStr}-${dayStr}`;
+}
 
 /**
  * Format date for display (e.g., "Today", "Yesterday", "Jan 6")

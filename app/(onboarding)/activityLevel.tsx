@@ -21,13 +21,13 @@ export default function ActivityLevelScreen() {
       Alert.alert('Selection Required', 'Please select your activity level to continue');
       return;
     }
-    router.push('/(onboarding)/workouts');
+    router.push('/(onboarding)/trainerCode');
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={6} totalSteps={14} />
+      <ProgressBar currentStep={11} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 

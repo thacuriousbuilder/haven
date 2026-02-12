@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, FlatList, ViewToken, Image } 
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import WelcomeSlide from '@/components/welcomeSlide';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const welcomeImages = {
   slide1: require('@/assets/images/welcome/welcome1.png'),
@@ -18,7 +19,7 @@ const WELCOME_SLIDES = [
   },
   {
     id: '2',
-    title: 'Plan cheat days into your week — on purpose.',
+    title: 'Plan "cheat" days into your week — on purpose.',
     image: welcomeImages.slide2,
   },
   {
@@ -47,7 +48,7 @@ export default function Welcome() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top','bottom']}>
      
       <View style={styles.logoContainer}>
         <Text style={styles.welcomeText}>Welcome to</Text>
@@ -104,7 +105,7 @@ export default function Welcome() {
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

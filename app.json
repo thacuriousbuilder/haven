@@ -1,40 +1,45 @@
 {
   "expo": {
-    "name": "haven",
+    "name": "HAVEN",
     "slug": "haven",
-    "scheme": "haven",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff",
-      "plugins": [
-        "@react-native-google-signin/google-signin"
-      ]
-    },
-    "ios": {
-      "supportsTablet": true
+      "backgroundColor": "#ffffff"
     },
     "android": {
+      "package": "co.tryhaven.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.thacuriousbuilder.haven"
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
-    "package": "com.haven.app",
-    "web": {
-      "favicon": "./assets/favicon.png"
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#206E6B",
+      "androidMode": "default",
+      "androidCollapsedTitle": "HAVEN Updates"
     },
     "plugins": [
-      "expo-router",
-      "expo-web-browser"
-    ]
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#206E6B"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c4c2ea3b-3057-4367-8c23-1923327c23ca"
+      }
+    }
   }
 }

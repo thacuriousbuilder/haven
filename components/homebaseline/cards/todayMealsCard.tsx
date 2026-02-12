@@ -1,6 +1,4 @@
-
-
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
@@ -10,21 +8,23 @@ import type { MealLogItem } from '@/types/home';
 
 interface TodayMealsCardProps {
   meals: MealLogItem[];
-  onSeeAll?: () => void;
   onAddMeal?: () => void;
   onMealPress?: (meal: MealLogItem) => void;
 }
 
 export function TodayMealsCard({
   meals,
-  onSeeAll,
   onAddMeal,
   onMealPress,
 }: TodayMealsCardProps) {
-  // Show max 3 meals, plus "not logged yet" if less than 4 meals
-  const displayedMeals = meals.slice(0, 3);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Show max 3 meals when collapsed, all meals when expanded
+  const displayedMeals = isExpanded ? meals : meals.slice(0, 3);
   const hasMore = meals.length > 3;
-  const showNotLogged = meals.length < 4;
+  
+  // Only show "not logged yet" when collapsed and less than 4 meals
+  const showNotLogged = !isExpanded && meals.length < 4;
 
   // Get current hour for "not logged yet" icon
   const currentHour = new Date().getHours();
@@ -40,11 +40,20 @@ export function TodayMealsCard({
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Today's Meals</Text>
-        {hasMore && onSeeAll && (
-          <TouchableOpacity onPress={onSeeAll} activeOpacity={0.7}>
-            <View style={styles.seeAllButton}>
-              <Text style={styles.seeAllText}>See all</Text>
-              <Ionicons name="chevron-forward" size={16} color={Colors.vividTeal} />
+        {hasMore && (
+          <TouchableOpacity 
+            onPress={() => setIsExpanded(!isExpanded)} 
+            activeOpacity={0.7}
+          >
+            <View style={styles.toggleButton}>
+              <Text style={styles.toggleText}>
+                {isExpanded ? 'Show less' : 'Show more'}
+              </Text>
+              <Ionicons 
+                name={isExpanded ? "chevron-up" : "chevron-down"} 
+                size={16} 
+                color={Colors.vividTeal} 
+              />
             </View>
           </TouchableOpacity>
         )}
@@ -201,5 +210,15 @@ const styles = StyleSheet.create({
   },
   addIconContainer: {
     // Container for add icon
+  },
+  toggleButton: {  // renamed from seeAllButton
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  toggleText: {  // renamed from seeAllText
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.vividTeal,
   },
 });

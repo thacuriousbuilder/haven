@@ -71,7 +71,7 @@ export default function GoalWeightScreen() {
     }
 
     updateData({ goalWeight: finalGoalWeight });
-    router.push('/(onboarding)/whyWorks1');
+    router.push('/(onboarding)/weeklyGoal');
   };
 
   const handleLbsChange = (text: string) => {
@@ -99,7 +99,7 @@ export default function GoalWeightScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={9} totalSteps={14} />
+      <ProgressBar currentStep={7} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 

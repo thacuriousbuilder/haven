@@ -3,12 +3,14 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
 import { ProgressRing } from '@/components/homebaseline/ui/progressRing';
 import { formatNumber } from '@/utils/homeHelpers';
+import { WeekInfo } from '@/utils/weekHelpers';
 
 interface WeeklyBudgetCardProps {
   weeklyBudget: number;      // Total weekly budget (e.g., 14000)
   totalConsumed: number;     // Calories used so far (e.g., 11430)
   totalRemaining: number;    // Calories remaining (e.g., 2570)
   daysIntoWeek: number;      // How many days into the week (for avg calculation)
+  weekInfo?: WeekInfo | null; // Optional: for partial week handling
 }
 
 export function WeeklyBudgetCard({
@@ -16,12 +18,23 @@ export function WeeklyBudgetCard({
   totalConsumed,
   totalRemaining,
   daysIntoWeek,
+  weekInfo,
 }: WeeklyBudgetCardProps) {
   // Calculate avg per day
   const avgPerDay = daysIntoWeek > 0 ? Math.round(totalConsumed / daysIntoWeek) : 0;
   
   // Calculate percentage for ring
   const percentage = weeklyBudget > 0 ? (totalConsumed / weeklyBudget) * 100 : 0;
+
+  // Determine label based on partial week
+  const budgetLabel = weekInfo?.isPartialWeek 
+    ? `${weekInfo.daysTracked}-DAY BUDGET`
+    : 'WEEKLY BUDGET';
+
+  // Show subtext for partial weeks
+  const budgetSubtext = weekInfo?.isPartialWeek
+    ? `First week • Started mid-week`
+    : `${formatNumber(avgPerDay)} avg/day`;
 
   return (
     <View style={styles.card}>
@@ -41,12 +54,12 @@ export function WeeklyBudgetCard({
 
         {/* Right: Stats boxes */}
         <View style={styles.statsContainer}>
-          {/* Used so far */}
+          {/* Weekly Budget */}
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>WEEKLY BUDGET</Text>
+            <Text style={styles.statLabel}>{budgetLabel}</Text>
             <Text style={styles.statValue}>{formatNumber(weeklyBudget)}</Text>
             <Text style={styles.statSubtext}>
-              {formatNumber(avgPerDay)} avg/day
+              {budgetSubtext}
             </Text>
           </View>
 
@@ -56,6 +69,11 @@ export function WeeklyBudgetCard({
             <Text style={[styles.statValue, styles.remainingValue]}>
               {formatNumber(totalRemaining)}
             </Text>
+            {weekInfo?.isPartialWeek && (
+              <Text style={styles.partialWeekHint}>
+                Extra flexibility this week!
+              </Text>
+            )}
           </View>
         </View>
       </View>
@@ -114,5 +132,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: Colors.steelBlue,
+  },
+  partialWeekHint: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: Colors.vividTeal,
+    marginTop: 4,
   },
 });
