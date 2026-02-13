@@ -146,7 +146,6 @@ export default function GoalWeightScreen() {
                   textContentType='oneTimeCode'
                   autoCorrect={false}
                   autoCapitalize='none'
-                  returnKeyType="done"
                   onSubmitEditing={handleContinue}
                 />
                 <Text style={styles.unitLabel}>lbs</Text>

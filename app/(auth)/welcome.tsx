@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import WelcomeSlide from '@/components/welcomeSlide';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '@/constants/colors';
 
 const welcomeImages = {
   slide1: require('@/assets/images/welcome/welcome1.png'),
@@ -125,8 +126,8 @@ const styles = StyleSheet.create({
     marginTop: 20, 
   },
   welcomeText: {
-    fontSize: 16,
-    color: '#999',
+    fontSize: 20,
+    color: Colors.steelBlue,
     marginBottom: 8,
     fontWeight: '400',
   },

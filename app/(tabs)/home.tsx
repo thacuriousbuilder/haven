@@ -162,9 +162,12 @@ export default function HomeScreen() {
         // Refresh data whenever screen comes into focus
         fetchRecentLogs();
         checkBaselineStatus();
+        fetchCompletedBaselineDays();
+        fetchMetrics(); 
       }
     }, [profile])
   );
+
   useFocusEffect(
     useCallback(() => {
       checkDailyCheckIn();
@@ -940,6 +943,57 @@ const fetchBaselineStats = async () => {
   });
 };
 
+const fetchMetrics = async () => {
+  if (!profile || profile.user_type === 'trainer') return;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  try {
+    // For baseline users - fetch baseline stats
+    if (!profile.baseline_complete) {
+      await fetchBaselineStats();
+      return;
+    }
+
+    // For active users - fetch weekly metrics and cheat days
+    const { weekStart: weekStartDate, weekEnd: sundayDateStr } = getCurrentWeekDates();
+
+    // Fetch weekly period
+    const { data: weeklyPeriod } = await supabase
+      .from('weekly_periods')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('week_start_date', weekStartDate)
+      .single();
+    
+    setCurrentPeriod(weeklyPeriod);
+
+    // Calculate metrics
+    const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, profile);
+    setMetrics(metricsData);
+
+    // Fetch cheat days
+    const { data: cheatDays } = await supabase
+      .from('planned_cheat_days')
+      .select('cheat_date, planned_calories')
+      .eq('user_id', user.id)
+      .gte('cheat_date', weekStartDate)
+      .lte('cheat_date', sundayDateStr);
+
+    if (cheatDays) {
+      setCheatDates(cheatDays.map(cd => cd.cheat_date));
+      const caloriesMap = new Map<string, number>();
+      cheatDays.forEach(cd => {
+        caloriesMap.set(cd.cheat_date, cd.planned_calories || 0);
+      });
+      setCheatDaysData(caloriesMap);
+    }
+  } catch (error) {
+    console.error('Error fetching metrics:', error);
+  }
+};
+
   const fetchProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -991,7 +1045,8 @@ const fetchBaselineStats = async () => {
           .from('daily_summaries')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
-          .gte('summary_date', data.baseline_start_date);
+          .gte('summary_date', data.baseline_start_date)
+          .gt('calories_consumed', 0);
       
         setDaysLogged(count || 0);
       
@@ -1006,53 +1061,53 @@ const fetchBaselineStats = async () => {
 
   
    // Load metrics if client and baseline complete
-if (data.user_type !== 'trainer' && data.baseline_complete) {
-  try {
-   
-    const { weekStart: weekStartDate } = getCurrentWeekDates();
-
-    const { data: weeklyPeriod } = await supabase
-      .from('weekly_periods')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('week_start_date', weekStartDate)
-      .single();
-    
-    setCurrentPeriod(weeklyPeriod);
-    // Calculate metrics client-side
-    const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, data);
-    setMetrics(metricsData);
-
-    // Get cheat days
-    const { weekEnd: sundayDateStr } = getCurrentWeekDates();
-    
-    const { data: cheatDays } = await supabase
-      .from('planned_cheat_days')
-      .select('cheat_date, planned_calories')
-      .eq('user_id', user.id)
-      .gte('cheat_date', weekStartDate)
-      .lte('cheat_date', sundayDateStr);
-
-    if (cheatDays) {
-      setCheatDates(cheatDays.map(cd => cd.cheat_date));
-      const caloriesMap = new Map<string, number>();
-      cheatDays.forEach(cd => {
-        caloriesMap.set(cd.cheat_date, cd.planned_calories || 0);
+   if (data.user_type !== 'trainer' && data.baseline_complete) {
+    try {
+     
+      const { weekStart: weekStartDate } = getCurrentWeekDates();
+  
+      const { data: weeklyPeriod } = await supabase
+        .from('weekly_periods')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('week_start_date', weekStartDate)
+        .single();
+      
+      setCurrentPeriod(weeklyPeriod);
+      // Calculate metrics client-side
+      const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, data);
+      setMetrics(metricsData);
+  
+      // Get cheat days
+      const { weekEnd: sundayDateStr } = getCurrentWeekDates();
+      
+      const { data: cheatDays } = await supabase
+        .from('planned_cheat_days')
+        .select('cheat_date, planned_calories')
+        .eq('user_id', user.id)
+        .gte('cheat_date', weekStartDate)
+        .lte('cheat_date', sundayDateStr);
+  
+      if (cheatDays) {
+        setCheatDates(cheatDays.map(cd => cd.cheat_date));
+        const caloriesMap = new Map<string, number>();
+        cheatDays.forEach(cd => {
+          caloriesMap.set(cd.cheat_date, cd.planned_calories || 0);
+        });
+        setCheatDaysData(caloriesMap);
+      }
+    } catch (metricsError) {
+      console.error('Metrics error:', metricsError);
+      setMetrics({
+        weekly_budget: data.weekly_budget || 0,
+        total_consumed: 0,
+        total_remaining: data.weekly_budget || 0,
+        calories_reserved: 0,
+        projected_end: 0,
+        on_track: true,
       });
-      setCheatDaysData(caloriesMap);
     }
-  } catch (metricsError) {
-    console.error('Metrics error:', metricsError);
-    setMetrics({
-      weekly_budget: data.weekly_budget || 0,
-      total_consumed: 0,
-      total_remaining: data.weekly_budget || 0,
-      calories_reserved: 0,
-      projected_end: 0,
-      on_track: true,
-    });
   }
-}
             setLoading(false);
             setRefreshing(false);
           } catch (error) {

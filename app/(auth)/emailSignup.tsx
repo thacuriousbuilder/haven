@@ -16,8 +16,10 @@ import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { BackButton } from '../../components/onboarding/backButton';
 import { Ionicons } from '@expo/vector-icons';
+import { useOnboarding } from '@/contexts/onboardingContext';
 
 export default function EmailSignup() {
+  const { updateData } = useOnboarding();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -74,6 +76,7 @@ async function handleSignUp() {
 
  
   if (data.user || data.session) {
+    updateData({ fullName: fullName.trim() });
     router.replace('/(onboarding)/accountType');
   }
 }

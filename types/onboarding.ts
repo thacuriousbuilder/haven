@@ -8,6 +8,7 @@ export type WeeklyGoalRate = 0.5 | 1 | 1.5 | 2;
 
 export interface OnboardingData {
 
+  fullName: string;
 
   accountType: AccountType | null;
 
@@ -40,6 +41,7 @@ export interface OnboardingData {
 }
 
 export const initialOnboardingData: OnboardingData = {
+  fullName: '',
   accountType:null,
   gender: null,
   birthMonth: null,
