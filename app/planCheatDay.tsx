@@ -290,7 +290,7 @@ export default function PlanCheatDayScreen() {
   const days = getNext7Days();
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
         <BackButton />

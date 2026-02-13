@@ -133,6 +133,7 @@ export default function ManualPlanScreen() {
         .from('profiles')
         .upsert({
           id: user.id,
+          full_name: data.fullName,
           gender: data.gender || 'other',
           birth_date: birthDate,
           unit_system: 'imperial',

@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   Linking,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { ProfileHeader } from '@/components/profile/profileHeader';
 import { MyCoachCard } from '@/components/profile/myCoachCard';
@@ -62,6 +62,13 @@ export default function ProfileScreen() {
   useEffect(() => {
     fetchProfileData();
   }, []);
+  
+  useFocusEffect(
+    React.useCallback(() => {
+      // Refresh profile data whenever screen comes into focus
+      fetchProfileData();
+    }, [])
+  );
 
 
   const fetchProfileData = async () => {

@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { PlannedCheatDay } from '@/types/database';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '@/constants/colors';
@@ -35,6 +35,14 @@ export default function PlanScreen() {
   useEffect(() => {
     checkBaselineStatus();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Refresh data whenever screen comes into focus
+      loadData();
+      checkBaselineStatus();
+    }, [])
+  );
 
   const checkBaselineStatus = async () => {
     try {
@@ -174,7 +182,7 @@ export default function PlanScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

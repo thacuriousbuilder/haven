@@ -5,6 +5,8 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   TouchableOpacity,
   TextInput,
   Alert,
@@ -142,7 +144,11 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top','bottom']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
@@ -280,6 +286,7 @@ export default function EditProfileScreen() {
                     }}
                     keyboardType="number-pad"
                     maxLength={1}
+                    selectTextOnFocus
                   />
                   <Text style={styles.heightUnit}>ft</Text>
                 </View>
@@ -294,6 +301,7 @@ export default function EditProfileScreen() {
                     }}
                     keyboardType="number-pad"
                     maxLength={2}
+                    selectTextOnFocus
                   />
                   <Text style={styles.heightUnit}>in</Text>
                 </View>
@@ -309,6 +317,7 @@ export default function EditProfileScreen() {
                   }}
                   keyboardType="number-pad"
                   maxLength={3}
+                  selectTextOnFocus
                 />
                 <Text style={styles.heightUnit}>cm</Text>
               </View>
@@ -334,6 +343,7 @@ export default function EditProfileScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
