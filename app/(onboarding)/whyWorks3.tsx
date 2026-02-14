@@ -1,9 +1,11 @@
+
 import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
+import { ApproachComparisonCard } from '@/components/onboarding/approachComparisonCard';
 import { Colors } from '@/constants/colors';
 
 export default function WhyWorks3Screen() {
@@ -30,22 +32,52 @@ export default function WhyWorks3Screen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-        
+          {/* Label */}
           <Text style={styles.label}>The HAVEN Approach</Text>
           
-          <Text style={styles.title}>First, we learn you</Text>
+          {/* Main Title */}
+          <Text style={styles.title}>
+            Most apps guess. HAVEN listens
+          </Text>
           
-          <Text style={styles.description}>
-            Before giving advice, HAVEN needs to understand how you normally eat.
+          {/* Subheading */}
+          <Text style={styles.subheading}>
+            Other apps plug your stats into a formula and call it a day. That number could be off by <Text style={styles.subheadingBold}>hundreds of calories</Text>
           </Text>
 
-          <View style={styles.illustration}>
-            <Image 
-              source={require('@/assets/images/whyWorks/whyWorks3.png')}
-              style={styles.illustrationImage}
-              resizeMode="contain"
+          {/* Comparison Cards */}
+          <View style={styles.comparisonContainer}>
+            <ApproachComparisonCard
+              icon="close-circle"
+              iconColor={Colors.energyOrange}
+              title="OTHER APPS"
+              titleColor="rgba(255, 255, 255, 0.5)"
+              calories="2,200"
+              badge="Estimated"
+              badgeColor={Colors.energyOrange}
+              description="Age + Height + Weight"
+              descriptionHighlight="= generic estimate"
+              backgroundColor="rgba(255, 255, 255, 0.12)"
+            />
+
+            <ApproachComparisonCard
+              icon="checkmark-circle"
+              iconColor="#4CAF50"
+              title="HAVEN"
+              titleColor="#4CAF50"
+              calories="2,450"
+              badge="PERSONAL"
+              badgeColor="#4CAF50"
+              description="7 days of your"
+              descriptionHighlight="real eating + movement = your actual maintenance"
+              backgroundColor="rgba(0, 0, 0, 0.25)"
             />
           </View>
+
+          {/* Bottom Description */}
+          <Text style={styles.description}>
+            That 250 calorie difference is everything. It's the reason diets feel impossible. <Text style={styles.descriptionBold}>HAVEN gets it right from the start.</Text>
+          </Text>
         </ScrollView>
 
         <View style={styles.buttonContainer}>
@@ -65,7 +97,7 @@ export default function WhyWorks3Screen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#206E6B',
+    backgroundColor: Colors.vividTeal,
   },
   content: {
     flex: 1,
@@ -81,39 +113,47 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#EF7828', 
+    color: Colors.energyOrange,
     marginBottom: 12,
     letterSpacing: 0.5,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#fff', 
-    lineHeight: 36,
-    marginBottom: 24,
-  },
-  description: {
-    fontSize: 16,
     color: '#fff',
-    lineHeight: 24,
+    lineHeight: 32,
     marginBottom: 16,
   },
-  illustration: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 32,
+  subheading: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 22,
     marginBottom: 24,
   },
-  illustrationImage: {
-    width: '100%',
-    height: 280,
+  subheadingBold: {
+    fontWeight: '700',
+    color: '#fff',
+  },
+  comparisonContainer: {
+    marginBottom: 8,
+  },
+  description: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 24,
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  descriptionBold: {
+    fontWeight: '700',
+    color: '#fff',
   },
   buttonContainer: {
     paddingBottom: 24,
     paddingTop: 16,
   },
   continueButton: {
-    backgroundColor: '#fff', 
+    backgroundColor: '#fff',
     paddingVertical: 18,
     borderRadius: 50,
     alignItems: 'center',
@@ -124,7 +164,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   continueButtonText: {
-    color: Colors.graphite, 
+    color: Colors.graphite,
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: 0.3,

@@ -88,7 +88,7 @@ export default function ActivityLevelScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#131311',
   },
   content: {
     flex: 1,
@@ -104,12 +104,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff',
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
-    color: '#6B7280',
+    color: 'rgba(255, 255, 255, 0.85)',
     marginBottom: 24,
     lineHeight: 20,
   },

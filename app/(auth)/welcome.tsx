@@ -1,190 +1,500 @@
 
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ViewToken, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated } from 'react-native';
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
-import WelcomeSlide from '@/components/welcomeSlide';
+import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
 
-const welcomeImages = {
-  slide1: require('@/assets/images/welcome/welcome1.png'),
-  slide2: require('@/assets/images/welcome/welcome2.png'),
-  slide3: require('@/assets/images/welcome/welcome3.png'),
-};
 
-const WELCOME_SLIDES = [
+
+const WELCOME_COMPLETED_KEY = '@haven_welcome_completed';
+
+
+const WELCOME_SCREENS = [
   {
-    id: '1',
-    title: 'Ready to plan your calories by the week?',
-    image: welcomeImages.slide1,
+    id: 1,
+    lines: [
+      { text: "You've tried", style: 'subtitle' as const },
+      { text: 'counting calories', style: 'title' as const },
+    ],
   },
   {
-    id: '2',
-    title: 'Plan "cheat" days into your week — on purpose.',
-    image: welcomeImages.slide2,
+    id: 2,
+    lines: [
+      { text: 'The Restriction.', style: 'subtitle' as const },
+      { text: 'The guilt.', style: 'title' as const },
+      { text: 'The starting over on Monday.', style: 'subtitle' as const },
+    ],
   },
   {
-    id: '3',
-    title: 'Weekly accountability to help you stay consistent — without pressure.',
-    image: welcomeImages.slide3,
+    id: 3,
+    lines: [
+      { text: 'What if the problem', style: 'subtitle' as const },
+      { text: 'was never you?', style: 'title' as const },
+    ],
+  },
+  {
+    id: 4,
+    lines: [
+      { text: 'It was', style: 'subtitle' as const },
+      { text: 'the plan.', style: 'titleTeal' as const },
+    ],
   },
 ];
 
-export default function Welcome() {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const flatListRef = useRef<FlatList>(null);
+// Animated Progress Dot Component
+function AnimatedProgressDot({ index, currentIndex }: { index: number; currentIndex: number }) {
+  const scale = useRef(new Animated.Value(index === 0 ? 1 : 0.8)).current;
+  const opacity = useRef(new Animated.Value(index === 0 ? 1 : 0.4)).current;
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    if (viewableItems.length > 0) {
-      setCurrentIndex(viewableItems[0].index ?? 0);
-    }
-  }).current;
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
-
-  const renderSlide = ({ item }: { item: typeof WELCOME_SLIDES[0] }) => {
-    return <WelcomeSlide title={item.title} image={item.image} />;
-  };
+  useEffect(() => {
+    const isActive = index <= currentIndex;
+    
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: isActive ? 1 : 0.8,
+        friction: 4,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: isActive ? 1 : 0.4,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [currentIndex, index]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top','bottom']}>
-     
-      <View style={styles.logoContainer}>
-        <Text style={styles.welcomeText}>Welcome to</Text>
-        <Image 
-          source={require('@/assets/Logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
+    <Animated.View
+      style={[
+        styles.progressDot,
+        index <= currentIndex ? styles.progressDotActive : styles.progressDotInactive,
+        {
+          transform: [{ scale }],
+          opacity,
+        },
+      ]}
+    />
+  );
+}
 
-      
-      <FlatList
-        ref={flatListRef}
-        data={WELCOME_SLIDES}
-        renderItem={renderSlide}
-        keyExtractor={(item) => item.id}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        style={styles.carousel}
-      />
+export default function Welcome() {
+    // UNCOMMENT TO RESET WELCOME 
+  // useEffect(() => {
+  //   AsyncStorage.removeItem('@haven_welcome_completed');
+  // }, []);
 
-      
-      <View style={styles.pagination}>
-        {WELCOME_SLIDES.map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.dot,
-              currentIndex === index ? styles.dotActive : styles.dotInactive,
-            ]}
-          />
-        ))}
-      </View>
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Animation value for screen transitions
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
+  // Animation values for final screen staggered entrance
+  const headerTranslateY = useRef(new Animated.Value(30)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const messageTranslateY = useRef(new Animated.Value(30)).current;
+  const messageOpacity = useRef(new Animated.Value(0)).current;
+  const ctaTranslateY = useRef(new Animated.Value(30)).current;
+  const ctaOpacity = useRef(new Animated.Value(0)).current;
+
+
+  useEffect(() => {
+    checkWelcomeStatus();
+  }, []);
+
+  
+  useEffect(() => {
+    fadeAnim.setValue(0);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [currentIndex]);
+
+
+  useEffect(() => {
+    if (currentIndex === 4) {
+      // Reset values
+      headerTranslateY.setValue(30);
+      headerOpacity.setValue(0);
+      messageTranslateY.setValue(30);
+      messageOpacity.setValue(0);
+      ctaTranslateY.setValue(30);
+      ctaOpacity.setValue(0);
+
+      // Staggered entrance
+      Animated.stagger(150, [
+        // Header animation
+        Animated.parallel([
+          Animated.timing(headerOpacity, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.spring(headerTranslateY, {
+            toValue: 0,
+            friction: 8,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+        ]),
+        // Message animation
+        Animated.parallel([
+          Animated.timing(messageOpacity, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.spring(messageTranslateY, {
+            toValue: 0,
+            friction: 8,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+        ]),
+        // CTA animation
+        Animated.parallel([
+          Animated.timing(ctaOpacity, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.spring(ctaTranslateY, {
+            toValue: 0,
+            friction: 8,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+    }
+  }, [currentIndex]);
+
+  const checkWelcomeStatus = async () => {
+    try {
+      const hasCompleted = await AsyncStorage.getItem(WELCOME_COMPLETED_KEY);
+      if (hasCompleted === 'true') {
+        
+        router.replace('/(auth)/login');
+      } else {
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error('Error checking welcome status:', error);
+      setIsLoading(false);
+    }
+  };
+
+  const markWelcomeCompleted = async () => {
+    try {
+      await AsyncStorage.setItem(WELCOME_COMPLETED_KEY, 'true');
+    } catch (error) {
+      console.error('Error saving welcome completion:', error);
+    }
+  };
+
+  const handleGetStarted = async () => {
+    await markWelcomeCompleted();
+    router.push('/(auth)/signup');
+  };
+
+  const handleSignIn = async () => {
+    await markWelcomeCompleted();
+    router.push('/(auth)/login');
+  };
+
+  const handleContinue = () => {
+    if (currentIndex < 4) {
       
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() => router.push('/(auth)/signup')}
-          activeOpacity={0.8}
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+       
+        setCurrentIndex(currentIndex + 1);
+        
+      });
+    }
+  };
+
+ 
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer} />
+    );
+  }
+
+ 
+  if (currentIndex < 4) {
+    const screen = WELCOME_SCREENS[currentIndex];
+    
+    return (
+      <TouchableOpacity 
+        style={styles.darkContainer} 
+        activeOpacity={1}
+        onPress={handleContinue}
+      >
+        <SafeAreaView style={styles.darkContainer} edges={['top', 'bottom']}>
+         
+          <View style={styles.progressContainer}>
+            {[0, 1, 2, 3].map((index) => (
+              <AnimatedProgressDot 
+                key={index} 
+                index={index} 
+                currentIndex={currentIndex} 
+              />
+            ))}
+          </View>
+
+        
+          <Animated.View style={[styles.contentContainer, { opacity: fadeAnim }]}>
+            {screen.lines.map((line, index) => (
+              <Text
+                key={index}
+                style={[
+                  styles.text,
+                  line.style === 'title' && styles.titleText,
+                  line.style === 'subtitle' && styles.subtitleText,
+                  line.style === 'titleTeal' && styles.titleTealText,
+                ]}
+              >
+                {line.text}
+              </Text>
+            ))}
+          </Animated.View>
+
+          
+          <Animated.View style={[styles.tapPrompt, { opacity: fadeAnim }]}>
+            <Text style={styles.tapPromptText}>Tap to continue</Text>
+          </Animated.View>
+        </SafeAreaView>
+      </TouchableOpacity>
+    );
+  }
+
+
+  return (
+    <SafeAreaView style={styles.tealContainer} edges={['top', 'bottom']}>
+      <View style={styles.tealContent}>
+
+        <Animated.View 
+          style={[
+            styles.welcomeHeader,
+            {
+              opacity: headerOpacity,
+              transform: [{ translateY: headerTranslateY }],
+            },
+          ]}
         >
-          <Text style={styles.primaryButtonText}>Get Started</Text>
-        </TouchableOpacity>
+          <Text style={styles.welcomeToText}>Welcome to</Text>
+          <Text style={styles.havenText}>HAVEN</Text>
+          <Text style={styles.taglineText}>Enjoy Food. Hit Your Goals</Text>
+        </Animated.View>
 
-        <TouchableOpacity 
-          onPress={() => router.push('/(auth)/login')}
-          activeOpacity={0.6}
+        {/* Main Message - Animated */}
+        <Animated.View 
+          style={[
+            styles.mainMessage,
+            {
+              opacity: messageOpacity,
+              transform: [{ translateY: messageTranslateY }],
+            },
+          ]}
         >
-          <Text style={styles.signInText}>
-            Already have an account? <Text style={styles.signInLink}>Sign in</Text>
+          <Text style={styles.treatText}>
+            TREAT{' '}
+            <Text style={styles.cheatStrikethrough}>"Cheat"</Text>{' '}
+            days are{'\n'}part of the plan
           </Text>
-        </TouchableOpacity>
+        </Animated.View>
+
+        {/* CTAs - Animated */}
+        <Animated.View 
+          style={[
+            styles.ctaContainer,
+            {
+              opacity: ctaOpacity,
+              transform: [{ translateY: ctaTranslateY }],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.getStartedButton}
+            onPress={handleGetStarted}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.getStartedButtonText}>Get Started</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            onPress={handleSignIn}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.signInText}>
+              Already have an account? <Text style={styles.signInLink}>Sign in</Text>
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
       </View>
     </SafeAreaView>
   );
 }
 
 
-
 const styles = StyleSheet.create({
-  container: {
+
+  loadingContainer: {
     flex: 1,
-    backgroundColor: '#FFFF',
-    paddingTop: 80, 
-    paddingBottom: 40,
+    backgroundColor: '#131311',
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 48, 
-    paddingHorizontal: 24,
-    marginTop: 20, 
-  },
-  welcomeText: {
-    fontSize: 20,
-    color: Colors.steelBlue,
-    marginBottom: 8,
-    fontWeight: '400',
-  },
-  logo: {
-    width: 200,
-    height: 60,
-  },
-  carousel: {
+
+  darkContainer: {
     flex: 1,
+    backgroundColor: '#131311',
   },
-  pagination: {
+  progressContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    marginVertical: 24,
+    gap: 12,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
-  dot: {
-    height: 8,
-    borderRadius: 4,
+  progressDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
-  dotActive: {
-    width: 32,
-    backgroundColor: '#206E6B',
+  progressDotActive: {
+    backgroundColor: Colors.vividTeal,
   },
-  dotInactive: {
-    width: 8,
-    backgroundColor: '#D0D0D0',
+  progressDotInactive: {
+    backgroundColor: '#404040',
   },
-  footer: {
-    gap: 16,
+  contentContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  text: {
+    textAlign: 'center',
+    fontSize: 32,
+    lineHeight: 42,
+    marginBottom:40,
+  },
+  subtitleText: {
+    color: '#999999',
+    fontWeight: '300',
+  },
+  titleText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  titleTealText: {
+    color: Colors.vividTeal,
+    fontWeight: '700',
+  },
+  tapPrompt: {
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  tapPromptText: {
+    color: '#666666',
+    fontSize: 14,
+    fontWeight: '400',
+  },
+
+  // Teal screen (5)
+  tealContainer: {
+    flex: 1,
+    backgroundColor: Colors.vividTeal,
+  },
+  tealContent: {
+    flex: 1,
     paddingHorizontal: 24,
+    justifyContent: 'space-between',
+    paddingTop: 80,
+    paddingBottom: 40,
   },
-  primaryButton: {
-    backgroundColor: '#206E6B',
-    paddingVertical: 18,
-    borderRadius: 50,
+  welcomeHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  welcomeToText: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '400',
+    marginBottom: 12,
+    letterSpacing: 0.5,
+  },
+  havenText: {
+    fontSize: 64,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    letterSpacing: 4,
+    marginBottom: 12,
+  },
+  taglineText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontWeight: '400',
+  },
+  mainMessage: {
+    flex:1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  treatText: {
+    fontSize: 32,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 44,
+    paddingHorizontal: 20,
+  },
+  cheatStrikethrough: {
+    color: Colors.energyOrange,
+    textDecorationLine: 'line-through',
+    textDecorationStyle: 'solid',
+    textDecorationColor: Colors.energyOrange,
+  },
+  ctaContainer: {
+    gap: 16,
+    paddingBottom: 20,
+  },
+  getStartedButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 20,
+    borderRadius: 100,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+  getStartedButtonText: {
+    color: Colors.vividTeal,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   signInText: {
     textAlign: 'center',
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '400',
   },
   signInLink: {
-    fontWeight: '600',
-    color: '#3D5A5C',
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textDecorationLine: 'underline'
   },
 });

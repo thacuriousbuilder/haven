@@ -1,9 +1,11 @@
+
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
+import { Colors } from '@/constants/colors';
 
 export default function CommitmentScreen() {
   const handleStart = () => {
@@ -17,8 +19,13 @@ export default function CommitmentScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <BackButton />
-      <ProgressBar currentStep={14} totalSteps={15} />
+      <BackButton backgroundColor="#000" iconColor="#fff" />
+      <ProgressBar 
+        currentStep={14} 
+        totalSteps={15}
+        backgroundColor="rgba(255, 255, 255, 0.3)"
+        fillColor="#fff"
+      />
       
       <View style={styles.content}>
         <ScrollView 
@@ -26,24 +33,37 @@ export default function CommitmentScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Label */}
+          <Text style={styles.label}>The Next Step</Text>
+
+          {/* Title */}
           <Text style={styles.title}>Your 7-Day Baseline</Text>
           
+          {/* Subtitle */}
+          <Text style={styles.subtitle}>This is how HAVEN listens.</Text>
+
+          {/* Description with bold emphasis */}
           <Text style={styles.description}>
-            Most apps guess your calories with a formula. HAVEN learns your calories your body needs from how you actually eat and move.
+            HAVEN learns what your body <Text style={styles.bold}>actually needs</Text> from how you eat and move.
           </Text>
 
+          {/* Live normally section */}
+          <Text style={styles.liveNormally}>For the next 7 days, live normally.</Text>
+          
           <Text style={styles.description}>
-            For the next 7 days, just log what you normally eat and exercise.
+            Track what you normally eat and how you usually move.
           </Text>
 
-          <View style={styles.features}>
-            <Text style={styles.featureTitle}>No restrictions.</Text>
-            <Text style={styles.featureTitle}>No guesswork.</Text>
-            <Text style={styles.featureTitle}>No judgement.</Text>
+          {/* Three bold statements */}
+          <View style={styles.statements}>
+            <Text style={styles.statement}>No restrictions.</Text>
+            <Text style={styles.statement}>No guesswork.</Text>
+            <Text style={styles.statement}>No judgement.</Text>
           </View>
 
+          {/* Final description */}
           <Text style={styles.finalDescription}>
-            After 7 days, HAVEN will calculate a weekly budget based on your body, not a generic estimate.
+            After 7 days, HAVEN builds a weekly budget around you.
           </Text>
         </ScrollView>
 
@@ -53,7 +73,7 @@ export default function CommitmentScreen() {
             onPress={handleStart}
             activeOpacity={0.8}
           >
-            <Text style={styles.primaryButtonText}>Start My Baseline</Text>
+            <Text style={styles.primaryButtonText}>Start my baseline!</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -72,7 +92,7 @@ export default function CommitmentScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.vividTeal,
   },
   content: {
     flex: 1,
@@ -85,42 +105,66 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.energyOrange,
+    marginBottom: 12,
+    letterSpacing: 0.5,
+  },
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff',
     lineHeight: 36,
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 24,
+    marginBottom: 8,
   },
   description: {
     fontSize: 16,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.85)',
     lineHeight: 24,
-    marginBottom: 20,
+    marginBottom: 16,
   },
-  features: {
-    marginTop: 12,
-    marginBottom: 32,
-  },
-  featureTitle: {
-    fontSize: 32,
+  bold: {
     fontWeight: '700',
-    color: '#000',
-    lineHeight: 44,
-    marginBottom: 4,
+    color: '#fff',
   },
-  finalDescription: {
+  liveNormally: {
     fontSize: 16,
-    color: '#666',
+    fontWeight: '600',
+    color: '#fff',
     lineHeight: 24,
     marginTop: 8,
+    marginBottom: 8,
+  },
+  statements: {
+    marginTop: 32,
+    marginBottom: 32,
+  },
+  statement: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#fff',
+    lineHeight: 48,
+    marginBottom: 20,
+  },
+  finalDescription: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 24,
   },
   footer: {
     paddingBottom: 24,
     paddingTop: 16,
   },
   primaryButton: {
-    backgroundColor: '#206E6B',
+    backgroundColor: '#fff',
     paddingVertical: 18,
     borderRadius: 50,
     alignItems: 'center',
@@ -132,7 +176,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   primaryButtonText: {
-    color: '#fff',
+    color: Colors.vividTeal,
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: 0.3,
@@ -143,7 +187,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontSize: 14,
-    color: '#000',
+    color: '#fff',
     textDecorationLine: 'underline',
   },
 });

@@ -201,7 +201,7 @@ async function handleSignUp() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFF',
+    backgroundColor: '#131311',
   },
   scrollContent: {
     flexGrow: 1,
@@ -215,8 +215,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: '700',
+    color: '#fff',
     marginBottom: 40,
     textAlign: 'center',
   },
@@ -265,12 +265,13 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'center',
   },
   footerLink: {
-    fontWeight: '600',
-    color: '#206E6B',
+    fontWeight: '700',
+    color: '#fff',
+    textDecorationLine: 'underline'
   },
   passwordContainer: {
     position: 'relative',
@@ -279,7 +280,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingVertical: 20,
     paddingHorizontal: 24,
-    paddingRight: 56, // Extra space for the icon
+    paddingRight: 56, 
     borderRadius: 16,
     fontSize: 16,
     color: '#000',

@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { BackButton } from '../../components/onboarding/backButton';
+import { Colors } from '@/constants/colors';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -89,7 +90,7 @@ export default function Login() {
             activeOpacity={0.8}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={Colors.vividTeal} />
             ) : (
               <Text style={styles.primaryButtonText}>Login</Text>
             )}
@@ -110,7 +111,7 @@ export default function Login() {
               disabled
             >
               <View style={styles.buttonContent}>
-                <Ionicons name="logo-google" size={20} color="#fff" />
+                <Ionicons name="logo-google" size={20} color={Colors.vividTeal} />
                 <Text style={styles.socialButtonText}>Continue with Google</Text>
               </View>
             </TouchableOpacity>
@@ -120,7 +121,7 @@ export default function Login() {
               disabled
             >
               <View style={styles.buttonContent}>
-                <Ionicons name="logo-apple" size={20} color="#fff" />
+                <Ionicons name="logo-apple" size={20} color={Colors.vividTeal} />
                 <Text style={styles.socialButtonText}>Continue with Apple</Text>
               </View>
             </TouchableOpacity>
@@ -146,7 +147,7 @@ export default function Login() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffff',
+    backgroundColor: '#131311',
   },
   scrollContent: {
     flexGrow: 1,
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '600',
-    color: '#000',
+    color: '#fff',
     marginBottom: 40,
     textAlign: 'center',
   },
@@ -207,14 +208,14 @@ const styles = StyleSheet.create({
   forgotPassword: {
     textAlign: 'center',
     fontSize: 14,
-    color: '#000',
+    color: '#fff',
     fontWeight: '500',
     marginTop: 16,
   },
   divider: {
     textAlign: 'center',
     fontSize: 14,
-    color: '#000',
+    color: '#fff',
     fontWeight: '600',
     marginVertical: 24,
   },
@@ -223,9 +224,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   socialButton: {
-    backgroundColor: '#000',
+    backgroundColor: '#fff',
     paddingVertical: 18,
-    borderRadius: 16,
+    borderRadius: 50,
     alignItems: 'center',
   },
   socialButtonDisabled: {
@@ -237,10 +238,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
   },
+  
   socialButtonText: {
-    color: '#fff',
+    color: Colors.vividTeal,
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 0.3,
   },
   footer: {
@@ -248,11 +250,12 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'center',
   },
   footerLink: {
-    fontWeight: '600',
-    color: '#206E6B',
+    fontWeight: '700',
+    color: '#fff',
+    textDecorationLine: 'underline'
   },
 });

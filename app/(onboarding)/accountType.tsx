@@ -8,6 +8,7 @@ import { BackButton } from '@/components/onboarding/backButton';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { OptionCard } from '@/components/onboarding/optionCard';
 import { useOnboarding } from '@/contexts/onboardingContext';
+import { Colors } from '@/constants/colors';
 
 export default function AccountTypeScreen() {
   const router = useRouter();
@@ -88,7 +89,7 @@ export default function AccountTypeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#131311"
   },
   content: {
     flex: 1,
@@ -102,12 +103,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff',
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#fff',
     marginBottom: 24,
   },
   options: {

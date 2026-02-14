@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { signInWithGoogle } from '../../lib/auth';
 import { BackButton } from '../../components/onboarding/backButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '@/constants/colors';
 
 export default function Signup() {
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -63,10 +64,10 @@ export default function Signup() {
             activeOpacity={0.8}
           >
             {googleLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={Colors.vividTeal}/>
             ) : (
               <View style={styles.buttonContent}>
-                <Ionicons name="logo-google" size={20} color="#fff" />
+                <Ionicons name="logo-google" size={20} color={Colors.vividTeal}/>
                 <Text style={styles.socialButtonText}>Continue with Google</Text>
               </View>
             )}
@@ -79,7 +80,7 @@ export default function Signup() {
             activeOpacity={1}
           >
             <View style={styles.buttonContent}>
-              <Ionicons name="logo-apple" size={20} color="#fff" />
+              <Ionicons name="logo-apple" size={20} color={Colors.vividTeal}/>
               <Text style={styles.socialButtonText}>Continue with Apple</Text>
             </View>
           </TouchableOpacity>
@@ -96,7 +97,7 @@ export default function Signup() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#131311',
     paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 40,
@@ -116,13 +117,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '400',
-    color: '#000',
+    color: '#fff',
     marginBottom: 8,
   },
   headline: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#000',
+    color: '#fff',
     lineHeight: 36,
   },
   highlightText: {
@@ -130,7 +131,7 @@ const styles = StyleSheet.create({
   },
   bodyText: {
     fontSize: 16,
-    color: '#000',
+    color: '#fff',
     lineHeight: 24,
     marginTop: 8,
     alignItems:"center"
@@ -160,18 +161,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   
-  // OR divider
   divider: {
     textAlign: 'center',
     fontSize: 14,
-    color: '#000',
+    color: '#fff',
     fontWeight: '600',
     marginVertical: 4,
   },
   
-  
+
   socialButton: {
-    backgroundColor: '#000',
+    backgroundColor: '#fff',
     paddingVertical: 18,
     borderRadius: 50,
     alignItems: 'center',
@@ -183,23 +183,22 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   socialButtonText: {
-    color: '#fff',
+    color: Colors.vividTeal,
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 0.3,
   },
   
-
   disabledButton: {
     opacity: 0.5,
   },
   
- 
   disclaimer: {
     fontSize: 11,
     color: '#666',
     textAlign: 'center',
     lineHeight: 16,
     opacity: 0.8,
+    marginTop: 10
   },
 });
