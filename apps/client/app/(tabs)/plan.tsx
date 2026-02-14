@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { PlannedCheatDay } from '@/types/database';
+import { PlannedCheatDay } from '@haven/shared-types';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '@/constants/colors';
 import { getLocalDateString } from '@/utils/timezone';
 

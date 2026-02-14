@@ -3,7 +3,7 @@ import type {
   CheatDayRecommendation, 
   CheatDayValidation,
   PlannedCheatDay 
-} from '@/types/database';
+} from '@haven/shared-types';
 
 /**
  * Calculate recommended cheat day amounts based on weekly budget
