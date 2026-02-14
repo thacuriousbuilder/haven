@@ -124,7 +124,7 @@ export default function BirthdateScreen() {
               onChange={handleDateChange}
               maximumDate={new Date()}
               minimumDate={new Date(1924, 0, 1)}
-              textColor="#000"
+              textColor="#fff"
             />
           )}
         </View>
