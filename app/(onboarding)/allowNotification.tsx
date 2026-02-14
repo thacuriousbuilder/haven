@@ -227,7 +227,7 @@ export default function NotificationPermissionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#131311',
   },
   content: {
     flex: 1,
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff',
     textAlign: 'center',
     marginBottom: 48,
     lineHeight: 28,

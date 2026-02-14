@@ -1,4 +1,4 @@
-// app/(onboarding)/weeklyGoal.tsx
+
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
@@ -92,7 +92,7 @@ export default function WeeklyGoalScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#131311',
   },
   content: {
     flex: 1,
@@ -108,13 +108,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff',
     lineHeight: 36,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.85)',
     lineHeight: 24,
     marginBottom: 32,
   },

@@ -260,7 +260,7 @@ export default function ManualPlanScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#131311',
   },
   loadingContainer: {
     flex: 1,
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff',
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 32,
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#000',
+    color: '#fff',
     textAlign: 'center',
     marginBottom: 16,
   },

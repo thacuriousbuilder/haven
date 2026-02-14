@@ -1,9 +1,12 @@
+
 import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
+import { ScenarioCard } from '@/components/onboarding/scenarioCard';
+import { WeeklyTotalCard } from '@/components/onboarding/weeklyTotalCard';
 import { Colors } from '@/constants/colors';
 
 export default function WhyWorks2Screen() {
@@ -30,22 +33,58 @@ export default function WhyWorks2Screen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-        
+          {/* Label */}
           <Text style={styles.label}>Your Life, Your plan</Text>
           
-          <Text style={styles.title}>Real life included</Text>
-          
-          <Text style={styles.description}>
-            Dinners out. Drinks. Weekends. They're part of the plan, not mistakes.
+          {/* Main Title */}
+          <Text style={styles.title}>
+            Saturday night shouldn't feel like cheating.
           </Text>
 
-          <View style={styles.illustration}>
-            <Image 
-              source={require('@/assets/images/whyWorks/whyWorks2.png')}
-              style={styles.illustrationImage}
-              resizeMode="contain"
+          {/* Scenario Cards */}
+          <View style={styles.scenariosContainer}>
+            <ScenarioCard
+              icon="restaurant-outline"
+              iconBackgroundColor="rgba(255, 255, 255, 0.2)"
+              iconColor="#fff"
+              title="Birthday dinner with friends"
+              calories="ate 2,800 cal"
+              badgeText="Planned"
+              badgeColor={Colors.energyOrange}
+            />
+
+            <ScenarioCard
+              icon="nutrition-outline"
+              iconBackgroundColor="rgba(255, 255, 255, 0.2)"
+              iconColor="#fff"
+              title="Light lunch to balance it out"
+              calories="ate 1,600 cal"
+              badgeText="Light"
+              badgeColor="#FF6B6B"
+            />
+
+            <ScenarioCard
+              icon="checkmark-circle"
+              iconBackgroundColor="rgba(76, 175, 80, 0.2)"
+              iconColor="#4CAF50"
+              title="Normal day, back on track"
+              calories="ate 1,800 cal"
+              badgeText="Normal"
+              badgeColor="#4CAF50"
             />
           </View>
+
+          {/* Weekly Total Card */}
+          <WeeklyTotalCard
+            totalCalories="12,600 Cal"
+            statusText="Exactly as planned"
+            statusColor="#4CAF50"
+          />
+
+          {/* Bottom Description */}
+          <Text style={styles.description}>
+            Dinners out. Snacks. Weekends. <Text style={styles.descriptionBold}>They're part of the plan, not mistakes.</Text>
+          </Text>
         </ScrollView>
 
         <View style={styles.buttonContainer}>
@@ -65,7 +104,7 @@ export default function WhyWorks2Screen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#206E6B', 
+    backgroundColor: Colors.vividTeal,
   },
   content: {
     flex: 1,
@@ -81,39 +120,37 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#EF7828', 
+    color: Colors.energyOrange,
     marginBottom: 12,
     letterSpacing: 0.5,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#fff', 
-    lineHeight: 36,
+    color: '#fff',
+    lineHeight: 32,
     marginBottom: 24,
+  },
+  scenariosContainer: {
+    marginBottom: 8,
   },
   description: {
-    fontSize: 16,
-    color: '#fff', 
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.85)',
     lineHeight: 24,
+    marginTop: 16,
     marginBottom: 16,
   },
-  illustration: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 32,
-    marginBottom: 24,
-  },
-  illustrationImage: {
-    width: '100%',
-    height: 280,
+  descriptionBold: {
+    fontWeight: '700',
+    color: '#fff',
   },
   buttonContainer: {
     paddingBottom: 24,
     paddingTop: 16,
   },
   continueButton: {
-    backgroundColor: '#fff', 
+    backgroundColor: '#fff',
     paddingVertical: 18,
     borderRadius: 50,
     alignItems: 'center',
@@ -124,7 +161,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   continueButtonText: {
-    color: Colors.graphite, 
+    color: Colors.graphite,
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: 0.3,
