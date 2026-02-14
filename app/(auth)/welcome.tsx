@@ -82,9 +82,9 @@ function AnimatedProgressDot({ index, currentIndex }: { index: number; currentIn
 
 export default function Welcome() {
     // UNCOMMENT TO RESET WELCOME 
-  // useEffect(() => {
-  //   AsyncStorage.removeItem('@haven_welcome_completed');
-  // }, []);
+  useEffect(() => {
+    AsyncStorage.removeItem('@haven_welcome_completed');
+  }, []);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
