@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Keyboard,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@haven/shared-utils';
@@ -303,13 +304,51 @@ export default function ClientMessagesScreen() {
 
   if (!trainerId) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {/* Header with back button */}
+        <View style={styles.headerWrapper}>
+          <View style={styles.headerContent}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.graphite} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Messages</Text>
+            <View style={{ width: 40 }} />
+          </View>
+        </View>
+  
+        {/* Empty State Content */}
         <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubbles" size={64} color={Colors.vividTeal} />
+          <View style={styles.emptyIconContainer}>
+            <Ionicons name="chatbubbles" size={64} color={Colors.vividTeal} />
+          </View>
+          
           <Text style={styles.emptyTitle}>No Trainer Assigned</Text>
           <Text style={styles.emptyDescription}>
-            You need to be assigned to a trainer to send messages
+            Connect with a coach to get personalized guidance and support on your nutrition journey
           </Text>
+  
+          {/* Action Buttons */}
+          <View style={styles.emptyButtonsContainer}>
+            <TouchableOpacity 
+              style={styles.primaryButton}
+              onPress={() => Linking.openURL('https://tryhaven.co')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.primaryButtonText}>Get Connected with a Coach</Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+  
+            <TouchableOpacity 
+              style={styles.secondaryButton}
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryButtonText}>Back to Home</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -618,5 +657,59 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.graphite,
+    flex: 1,
+    textAlign: 'center',
+  },
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#E6F4F3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  emptyButtonsContainer: {
+    width: '100%',
+    gap: 12,
+    marginTop: 32,
+  },
+  primaryButton: {
+    flexDirection: 'row',
+    backgroundColor: Colors.vividTeal,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: Colors.vividTeal,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.lightCream,
+  },
+  secondaryButton: {
+    backgroundColor: Colors.energyOrange,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.lightCream,
   },
 });

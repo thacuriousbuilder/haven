@@ -1,4 +1,4 @@
-
+// app/(tabs)/_layout.tsx
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet } from 'react-native';
@@ -66,11 +66,11 @@ export default function ClientTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="messages"
+        name="progress"
         options={{
-          title: 'Coach',
+          title: 'Progress',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={size} color={color} />
+            <Ionicons name="stats-chart" size={size} color={color} />
           ),
         }}
       />
