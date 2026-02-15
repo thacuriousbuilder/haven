@@ -1476,7 +1476,7 @@ const fetchMetrics = async () => {
                             ? "Today is your" 
                             : isSelectedDateFuture()
                               ? "This will be your"
-                              : "This was your"} "cheat" day!
+                              : "This was your"} treat day!
                         </Text>
                         <Text style={styles.cheatDayBannerSubtext}>
                           You {isSelectedDateToday() 

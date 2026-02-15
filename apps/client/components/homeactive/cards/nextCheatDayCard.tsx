@@ -33,7 +33,7 @@ export function NextCheatDayCard({
 
         {/* Text content */}
         <View style={styles.textContent}>
-          <Text style={styles.label}>Next "Cheat" Day</Text>
+          <Text style={styles.label}>Next Treat Day</Text>
           <Text style={styles.dayName}>{dayName}</Text>
         </View>
       </View>

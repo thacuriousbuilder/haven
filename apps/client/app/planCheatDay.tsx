@@ -122,8 +122,8 @@ export default function PlanCheatDayScreen() {
         // Check if user has too many cheat days already
         if (maxSafeCheat < dailyBase) {
           Alert.alert(
-            'Too Many "Cheat" Days',
-            `You already have ${otherCheatDays.length} "cheat" day${otherCheatDays.length > 1 ? 's' : ''} planned this week.\n\nAdding another would make your regular days drop below ${personalizedFloor} cal (your safe minimum for ${goal} as a ${gender}).\n\nConsider adjusting existing "cheat" days first.`,
+            'Too Many treat Days',
+            `You already have ${otherCheatDays.length} treat day${otherCheatDays.length > 1 ? 's' : ''} planned this week.\n\nAdding another would make your regular days drop below ${personalizedFloor} cal (your safe minimum for ${goal} as a ${gender}).\n\nConsider adjusting existing treat days first.`,
             [{ text: 'OK', onPress: () => router.back() }]
           );
           return;
@@ -271,7 +271,7 @@ export default function PlanCheatDayScreen() {
 
       Alert.alert(
         'Success',
-        '"Cheat" day planned!',
+        'Treat day planned!',
         [
           {
             text: 'OK',
@@ -281,7 +281,7 @@ export default function PlanCheatDayScreen() {
       );
     } catch (error) {
       console.error('Error saving cheat day:', error);
-      Alert.alert('Error', 'Failed to save "cheat" day');
+      Alert.alert('Error', 'Failed to save treat day');
     } finally {
       setLoading(false);
     }
@@ -294,7 +294,7 @@ export default function PlanCheatDayScreen() {
       {/* Header */}
       <View style={styles.header}>
         <BackButton />
-        <Text style={styles.headerTitle}>Plan "Cheat" Day</Text>
+        <Text style={styles.headerTitle}>Plan Treat Day</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -305,7 +305,7 @@ export default function PlanCheatDayScreen() {
           <View style={styles.instructionsTextContainer}>
             <Text style={styles.instructionsTitle}>How it works</Text>
             <Text style={styles.instructionsText}>
-              Select a future date for your "cheat" day. HAVEN will automatically adjust your weekly budget to accommodate extra calories.
+              Select a future date for your treat day. HAVEN will automatically adjust your weekly budget to accommodate extra calories.
             </Text>
           </View>
         </View>
@@ -547,7 +547,7 @@ export default function PlanCheatDayScreen() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.saveButtonText}>Save "Cheat" Day</Text>
+            <Text style={styles.saveButtonText}>Save Treat Day</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
