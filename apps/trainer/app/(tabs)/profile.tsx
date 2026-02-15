@@ -11,12 +11,11 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '@haven/shared-utils';
-import { ProfileHeader } from '@/components/profile/profileHeader';
-import { MyCoachCard } from '@/components/profile/myCoachCard';
-import { Card } from '@/components/profile/ui/card';
-import { SectionHeader } from '@/components/profile/ui/sectionHeader';
-import { ToggleRow } from '@/components/profile/ui/toggleRow';
-import { SettingsRow } from '@/components/profile/ui/settingsRow';
+import { ProfileHeader } from '@/components/cards/profileHeader';
+import { Card } from '@/components/ui/card';
+import { SectionHeader } from '@/components/ui/sectionHeader';
+import { ToggleRow } from '@/components/ui/toggleRow';
+import { SettingsRow } from '@/components/ui/settingsRow';
 import { Ionicons } from '@expo/vector-icons'; 
 import { Colors } from '@/constants/colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,32 +27,14 @@ interface UserProfile {
   avatar_url: string | null;
   current_streak: number;
   push_notifications_enabled: boolean;
-  meal_reminders_enabled: boolean;
   created_at: string;
-  trainer_id: string | null;
-  weight_kg: number | null;
-  weight_lbs: number | null;
-  target_weight_kg: number | null;
-  target_weight_lbs: number | null;
-  unit_system: 'imperial' | 'metric';
-  goal: 'lose' | 'maintain' | 'gain' | null;
 }
 
-interface CoachData {
-  id: string;
-  full_name: string;
-  avatar_url: string | null;
-}
-
-export default function ClientProfileScreen() {
+export default function TrainerProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [coach, setCoach] = useState<CoachData | null>(null);
   const [userEmail, setUserEmail] = useState('');
-  const [currentWeight, setCurrentWeight] = useState<number | null>(null);
-  const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>('lbs');
-  const [targetWeight, setTargetWeight] = useState<number | null>(null);
-  const [userGoal, setUserGoal] = useState<'lose' | 'maintain' | 'gain' | null>(null);
+  const [totalClients, setTotalClients] = useState(0);
 
   useEffect(() => {
     fetchProfileData();
@@ -79,40 +60,16 @@ export default function ClientProfileScreen() {
         .single();
 
       if (profileError) throw profileError;
-
-      // Set weights based on unit system
-      if (profileData.unit_system === 'imperial' && profileData.weight_lbs) {
-        setCurrentWeight(profileData.weight_lbs);
-        setWeightUnit('lbs');
-      } else if (profileData.unit_system === 'metric' && profileData.weight_kg) {
-        setCurrentWeight(profileData.weight_kg);
-        setWeightUnit('kg');
-      } else {
-        setCurrentWeight(null);
-      }
-
-      if (profileData.unit_system === 'imperial' && profileData.target_weight_lbs) {
-        setTargetWeight(profileData.target_weight_lbs);
-      } else if (profileData.unit_system === 'metric' && profileData.target_weight_kg) {
-        setTargetWeight(profileData.target_weight_kg);
-      } else {
-        setTargetWeight(null);
-      }
-
       setProfile(profileData);
-      setUserGoal(profileData.goal || null);
 
-      // Fetch coach if trainer_id exists
-      if (profileData.trainer_id) {
-        const { data: coachData, error: coachError } = await supabase
-          .from('profiles')
-          .select('id, full_name, avatar_url')
-          .eq('id', profileData.trainer_id)
-          .single();
+      // Fetch total clients
+      const { count, error: clientsError } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('trainer_id', profileData.id);
 
-        if (!coachError && coachData) {
-          setCoach(coachData);
-        }
+      if (!clientsError) {
+        setTotalClients(count || 0);
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -137,34 +94,6 @@ export default function ClientProfileScreen() {
       Alert.alert('Error', 'Failed to update notification settings');
     }
   };
-
-  const handleToggleMealReminders = async (value: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ meal_reminders_enabled: value })
-        .eq('id', profile!.id);
-  
-      if (error) throw error;
-      
-      setProfile(prev => prev ? { ...prev, meal_reminders_enabled: value } : null);
-    } catch (error) {
-      console.error('Error updating meal reminders:', error);
-      Alert.alert('Error', 'Failed to update notification settings');
-    }
-  };
-
-  const handleCoachMessage = () => {
-    router.push(`/messages/${coach?.id}`);
-  };
-
-  const handleCoachCardPress = () => {
-    Alert.alert('Coach Profile', 'Coach profile screen coming soon!');
-  };
-  
-  const handleWeightGoals = () => {
-    router.push('/weightGoal');
-  };
   
   const handleEditProfile = () => {
     router.push('/editProfile');
@@ -172,7 +101,7 @@ export default function ClientProfileScreen() {
   
   const handleHelpCenter = async () => {
     const email = 'tryhaven01@gmail.com';
-    const subject = 'Help Request - HAVEN App';
+    const subject = 'Help Request - HAVEN Trainer App';
     const body = `Hi HAVEN Support Team,\n\nI need help with:\n\n[Please describe your issue here]\n\n---\nUser ID: ${profile?.id}\nApp Version: 1.0.0`;
     
     const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -205,7 +134,7 @@ export default function ClientProfileScreen() {
   };
   
   const handleTermsPrivacy = async () => {
-    const url = 'https://www.tryhaven.co/';
+    const url = 'https://www.tryhaven.co/privacy';
     
     try {
       const canOpen = await Linking.canOpenURL(url);
@@ -265,22 +194,25 @@ export default function ClientProfileScreen() {
         <ProfileHeader
           fullName={profile.full_name}
           email={userEmail}
-          currentStreak={profile.current_streak}
-          currentWeight={currentWeight}
-          weightUnit={weightUnit}
-          goal={userGoal}
-          userType="client"
-          targetWeight={targetWeight}
+          currentStreak={0}
+          currentWeight={null}
+          weightUnit="lbs"
+          goal={null}
+          userType="trainer"
+          targetWeight={null}
         />
 
-        {/* My Coach Section */}
-        {coach && (
-          <MyCoachCard
-            coach={coach}
-            onMessagePress={handleCoachMessage}
-            onCardPress={handleCoachCardPress}
-          />
-        )}
+        {/* Coaching Stats */}
+        <SectionHeader title="Coaching" />
+        <Card style={styles.statsCard}>
+          <View style={styles.statRow}>
+            <View style={styles.statItem}>
+              <Ionicons name="people" size={24} color={Colors.vividTeal} />
+              <Text style={styles.statNumber}>{totalClients}</Text>
+              <Text style={styles.statLabel}>Active Clients</Text>
+            </View>
+          </View>
+        </Card>
 
         {/* Notifications */}
         <SectionHeader title="Notifications" />
@@ -288,29 +220,9 @@ export default function ClientProfileScreen() {
           <ToggleRow
             icon="phone-portrait"
             label="Push Notifications"
-            description="Coach messages & reminders"
+            description="Get notified about client activity"
             value={profile.push_notifications_enabled}
             onValueChange={handleTogglePushNotifications}
-          />
-          <View style={styles.divider} />
-          <ToggleRow
-            icon="restaurant"
-            iconColor="#EF7828"
-            iconBgColor="#FEF3E8"
-            label="Meal Reminders"
-            description="Breakfast, lunch & dinner"
-            value={profile.meal_reminders_enabled}
-            onValueChange={handleToggleMealReminders}
-          />
-        </Card>
-
-        {/* Goals & Preferences */}
-        <SectionHeader title="Goals & Preferences" />
-        <Card style={styles.card}>
-          <SettingsRow
-            icon="scale"
-            label="Weight Goals"
-            onPress={handleWeightGoals}
           />
         </Card>
         
@@ -343,7 +255,7 @@ export default function ClientProfileScreen() {
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.memberSince}>
-            Member since {formatMemberSince(profile.created_at)}
+            Coaching since {formatMemberSince(profile.created_at)}
           </Text>
           <TouchableOpacity
             style={styles.signOutButton}
@@ -379,6 +291,26 @@ const styles = StyleSheet.create({
   card: {
     paddingVertical: 0,
     paddingHorizontal: 0,
+  },
+  statsCard: {
+    paddingVertical: 20,
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  statItem: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  statNumber: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: Colors.graphite,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: Colors.steelBlue,
   },
   divider: {
     height: 1,

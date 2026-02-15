@@ -63,7 +63,7 @@ export function ClientOverview({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.vividTeal,
     borderRadius: 16,
     padding: 20,
     marginHorizontal: 20,
@@ -83,20 +83,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.graphite,
+    color: Colors.lightCream,
   },
   totalBadge: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.vividTeal,
+    backgroundColor: Colors.lightCream,
     alignItems: 'center',
     justifyContent: 'center',
   },
   totalBadgeText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.vividTeal,
   },
   metricsRow: {
     flexDirection: 'row',
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   metricCircle: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: Colors.lightCream,
+    backgroundColor: '#fff',
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 8,
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   metricLabel: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#6B7280',
+    color: Colors.graphite,
     textAlign: 'center',
   },
 });

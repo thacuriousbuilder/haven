@@ -18,8 +18,8 @@ import { getLocalDateString } from '@haven/shared-utils';
 
 // Import cards
 import { ClientMetricCards } from '@/components/coach/clientMetricCards';
-import { TodayCaloriesCard } from '@/components/homebaseline/cards/todayCaloriesCard';
-import { NextCheatDayCard } from '@/components/homeactive/cards/nextCheatDayCard';
+import { TodayCaloriesCard } from '@/components/cards/todayCaloriesCard';
+import { NextCheatDayCard } from '@/components/cards/nextCheatDayCard';
 import { ClientFoodLogs } from '@/components/coach/clientFoodLogs';
 
 interface ClientProfile {
