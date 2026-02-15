@@ -14,7 +14,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Shadows, Spacing, BorderRadius } from '@/constants/colors';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import type { MealLogItem } from '@/types/home';
 
 export default function FoodDetailScreen() {

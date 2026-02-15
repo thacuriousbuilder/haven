@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { router } from 'expo-router';
 import { useOnboarding } from '@/contexts/onboardingContext';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { ContinueButton } from '@/components/onboarding/continueButton';
 
 export default function CompleteScreen() {

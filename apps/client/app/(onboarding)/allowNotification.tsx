@@ -5,12 +5,12 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { useOnboarding } from '@/contexts/onboardingContext';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
 import { Colors } from '@/constants/colors';
 import { calculateBMR, calculateTDEE, adjustForGoal } from '@/utils/calorieCalculator';
-import { formatDateComponents, getLocalDateString } from '@/utils/timezone';
+import { formatDateComponents, getLocalDateString } from '@haven/shared-utils';
 
 export default function NotificationPermissionScreen() {
   const { data } = useOnboarding();

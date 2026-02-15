@@ -1,7 +1,7 @@
 
 
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 
 interface FoodSearchResult {
   food_id: string;

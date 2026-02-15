@@ -12,10 +12,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { BackButton } from '@/components/onboarding/backButton';
 import { Colors } from '@/constants/colors';
-import { getLocalDateString } from '@/utils/timezone';
+import { getLocalDateString } from '@haven/shared-utils';
 import { calculateComfortFloor } from '@/utils/cheatDayHelpers';
 
 export default function PlanCheatDayScreen() {

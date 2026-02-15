@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet,Text } from 'react-native';
 import { useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { Colors } from '@/constants/colors';
 
 

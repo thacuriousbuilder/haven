@@ -13,11 +13,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
 import { adjustCaloriesForWorkout } from '@/utils/budgetAdjustment';
-import { getLocalDateString, getYesterdayDateString } from '@/utils/timezone';
+import { getLocalDateString, getYesterdayDateString } from '@haven/shared-utils';
 
 export default function WorkoutConfirmationScreen() {
   const params = useLocalSearchParams();

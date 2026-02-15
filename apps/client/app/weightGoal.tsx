@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { Colors } from '@/constants/colors';
 
 type GoalType = 'lose' | 'maintain' | 'gain';

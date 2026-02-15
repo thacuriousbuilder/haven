@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useOnboarding } from '@/contexts/onboardingContext';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { BackButton } from '@/components/onboarding/backButton';
 import { createWeeklyPeriodForUser } from '@/lib/weeklyPeriod';
@@ -17,7 +17,7 @@ import {
   calculateMacros,
   estimateTargetDate,
 } from '@/utils/calorieCalculator';
-import { formatDateComponents } from '@/utils/timezone';
+import { formatDateComponents } from '@haven/shared-utils';
 
 export default function ManualPlanScreen() {
   const { data } = useOnboarding();

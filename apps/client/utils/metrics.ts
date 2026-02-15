@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { getLocalDateString } from './timezone';
 
 export async function calculateMetrics() {

@@ -1,5 +1,5 @@
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 
 export async function calculateWeeklyBudget(manualBudget?: number) {
   try {

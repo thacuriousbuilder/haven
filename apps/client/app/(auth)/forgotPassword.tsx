@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { Colors } from '@/constants/colors';
 
 export default function ForgotPassword() {

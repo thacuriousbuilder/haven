@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 
 export interface BaselineProgress {
   totalDays: number;

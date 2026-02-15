@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { Ionicons } from '@expo/vector-icons';
 import WeeklyCalendar from '@/components/weeklyCalendar';
 import { BaselineCompleteModal } from '@/components/baseLineCompleteModal';
@@ -12,7 +12,7 @@ import {
   formatLocalDate,
   getSunday,
   getDaysDifference
-} from '@/utils/timezone';
+} from '@haven/shared-utils';
 import { BaselineProgressCard } from '@/components/homebaseline/cards/baselineProgressCard';
 import { SummaryStatsCard } from '@/components/homebaseline/cards/summaryStatsCard';
 import { QuickLogCard } from '@/components/homebaseline/cards/quickLogCard';

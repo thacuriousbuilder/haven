@@ -11,7 +11,7 @@ import {
   Linking,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { ProfileHeader } from '@/components/profile/profileHeader';
 import { MyCoachCard } from '@/components/profile/myCoachCard';
 import { Card } from '@/components/profile/ui/card';

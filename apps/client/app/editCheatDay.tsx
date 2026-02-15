@@ -14,9 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { Colors, Shadows, Spacing, BorderRadius, Typography } from '@/constants/colors';
-import { getLocalDateString } from '@/utils/timezone';
+import { getLocalDateString } from '@haven/shared-utils';
 
 export default function EditCheatDayScreen() {
   const router = useRouter();

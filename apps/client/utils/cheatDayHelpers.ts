@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import type { 
   CheatDayRecommendation, 
   CheatDayValidation,

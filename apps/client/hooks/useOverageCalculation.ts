@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { getLocalDateString, getYesterdayDateString } from '@/utils/timezone';
 import { 
   calculateAndDistributeOverage, 

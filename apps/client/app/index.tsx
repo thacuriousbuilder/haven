@@ -1,6 +1,6 @@
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { router } from 'expo-router';
 import { Colors, Spacing, BorderRadius } from '@/constants/colors';
 

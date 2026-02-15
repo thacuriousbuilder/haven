@@ -14,7 +14,7 @@ import {
   Button
 } from 'react-native';
 import { SafeAreaView ,useSafeAreaInsets} from 'react-native-safe-area-context';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';

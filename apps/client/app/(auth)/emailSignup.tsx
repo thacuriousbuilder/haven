@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@haven/shared-utils';
 import { BackButton } from '../../components/onboarding/backButton';
 import { Ionicons } from '@expo/vector-icons';
 import { useOnboarding } from '@/contexts/onboardingContext';
