@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "HAVEN Trainer",
+    "slug": "haven-trainer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "android": {
+      "package": "co.tryhaven.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#206E6B",
+      "androidMode": "default",
+      "androidCollapsedTitle": "HAVEN Updates"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#206E6B"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c4c2ea3b-3057-4367-8c23-1923327c23ca"
+      }
+    }
+  }
+}

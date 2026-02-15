@@ -1,0 +1,13 @@
+{
+  "name": "@haven/shared-utils",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "@react-native-async-storage/async-storage": "1.23.1",
+    "react-native-url-polyfill": "^2.0.0"
+  },
+  "peerDependencies": {
+    "@haven/shared-types": "*"
+  }
+}
