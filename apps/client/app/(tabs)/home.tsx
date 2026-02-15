@@ -105,6 +105,7 @@ export default function HomeScreen() {
   const [showDay7Banner, setShowDay7Banner] = useState(false);
   const [currentPeriod, setCurrentPeriod] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [unreadCount, setUnreadCount] = useState(0);
   
   
 
@@ -118,6 +119,8 @@ export default function HomeScreen() {
     cumulativeOverage,
     isLoading: overageLoading,
   } = useOverageCalculation();
+
+  
 
   useEffect(() => {
     fetchProfile();
@@ -149,7 +152,6 @@ export default function HomeScreen() {
       checkDailyCheckIn();
     }, [])
   );
-  
 
   // ============= HELPER FUNCTIONS =============
 
@@ -1094,14 +1096,14 @@ const fetchMetrics = async () => {
         };
 
   
-  // Helper function to calculate weekly progress
-  const calculateWeeklyProgress = (): number => {
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
-    const monday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Monday = 0
-    const daysIntoWeek = monday + 1;
-    return Math.round((daysIntoWeek / 7) * 100);
-  };
+  // // Helper function to calculate weekly progress
+  // const calculateWeeklyProgress = (): number => {
+  //   const today = new Date();
+  //   const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+  //   const monday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Monday = 0
+  //   const daysIntoWeek = monday + 1;
+  //   return Math.round((daysIntoWeek / 7) * 100);
+  // };
 
   const fetchRecentLogs = async () => {
     try {
@@ -1126,7 +1128,38 @@ const fetchMetrics = async () => {
       console.error('Error in fetchRecentLogs:', error);
     }
   };
+  
+  const fetchUnreadCount = useCallback(async () => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
+    if (userError || !user?.id) return;
+
+    try {
+      const { count, error } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('recipient_id', user.id) 
+        .eq('is_read', false); 
+
+      if (error) {
+        console.error('Error fetching unread count:', error);
+        return;
+      }
+
+      setUnreadCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUnreadCount();
+    }, [fetchUnreadCount])
+  );
 
   // ============= EVENT HANDLERS =============
 
@@ -1237,7 +1270,6 @@ const fetchMetrics = async () => {
       </SafeAreaView>
     );
   }
-  // ============= TRAINER VIEW =============
 
   // ============= CLIENT VIEW =============
   
@@ -1258,16 +1290,26 @@ const fetchMetrics = async () => {
 
   const todayLogs = recentLogs.filter(log => log.log_date === getSelectedDateString());
 
+
   return (
     <SafeAreaView style={styles.container} edges={['top','bottom']}>
       <View style={styles.header}>
         <View style={styles.logoContainer}>
           <Text style={styles.logo}>HAVEN</Text>
         </View>
-        <View style={styles.streakBadge}>
-          <Ionicons name="flash" size={16} color={Colors.energyOrange} />
-          <Text style={styles.streakText}>{profile.current_streak}</Text>
-        </View>
+        <TouchableOpacity 
+            style={styles.messageButton}
+            onPress={() => router.push('/messages')}
+          >
+            <Ionicons name="chatbubble" size={20} color={Colors.vividTeal} />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
       </View>
 
       <ScrollView 
@@ -1587,7 +1629,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingTop: 20,
     paddingBottom: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1906,5 +1948,33 @@ cheatDayBannerSubtext: {
   fontSize: 14,
   color: '#047857',
   lineHeight: 20,
+},
+messageButton: {
+  width: 44,
+  height: 44,
+  borderRadius: 22,
+  backgroundColor: '#E6F4F3', // Light teal background
+  justifyContent: 'center',
+  alignItems: 'center',
+  position: 'relative',
+},
+badge: {
+  position: 'absolute',
+  top: -4,
+  right: -4,
+  backgroundColor: Colors.energyOrange,
+  borderRadius: 10,
+  minWidth: 20,
+  height: 20,
+  justifyContent: 'center',
+  alignItems: 'center',
+  paddingHorizontal: 5,
+  borderWidth: 2,
+  borderColor: '#F3F4F6',
+},
+badgeText: {
+  color: 'white',
+  fontSize: 11,
+  fontWeight: 'bold',
 },
 });
