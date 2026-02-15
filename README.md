@@ -8,8 +8,8 @@ HAVEN is a React Native mobile app that takes a  different approach to calorie t
 
 - **Weekly Calorie Banks** - Flexibility to enjoy life while staying on track
 - **7-Day Baseline Week** - Learn your natural eating patterns first 
-- **Pre-Planned Cheat Days** - Intentional days to indulge without guilt
-- - **Smart Metrics** - Balance, Consistency, and Drift scores that make you understand your patterns
+- **Pre-Planned treat Days** - Intentional days to indulge without guilt
+- - **Accountability Coaching** - Work with professionals to better your habits and keep you accountable to hit your goals faster
 
 ## 🏗️ Tech Stack
 
