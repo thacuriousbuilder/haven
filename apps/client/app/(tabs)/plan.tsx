@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 100,
   },
   
   // Header
@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.sm,
   },
 
-  // Tips Card
+
   tipsCard: {
     backgroundColor: Colors.orangeOverlay,
     borderRadius: BorderRadius.lg,
