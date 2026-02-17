@@ -7,12 +7,24 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "image": "./assets/splashnew.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#131311"
+    },
+    "ios": {
+      "bundleIdentifier": "co.tryhaven.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "co.tryhaven.app",
+      "googleServicesFile": "./google-services.json",
+      "useNextNotificationsAPI": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

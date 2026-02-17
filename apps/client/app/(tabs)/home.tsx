@@ -771,7 +771,7 @@ const checkDailyCheckIn = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // 1. Check if user is in baseline phase
+    // 1. Load profile to check user status
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('baseline_start_date, baseline_completion_at')
@@ -783,16 +783,11 @@ const checkDailyCheckIn = async () => {
       return;
     }
 
-    // Only show check-in for baseline users
-    if (!profile.baseline_start_date || profile.baseline_completion_at) {
-      setShowCheckInReminder(false);
-      return;
-    }
-
-    // 2. Check if it's Day 1 of baseline
     const todayDate = getLocalDateString();
-    
-    if (profile.baseline_start_date === todayDate) {
+    const isBaselineUser = profile.baseline_start_date && !profile.baseline_completion_at;
+
+    // 2. Skip check-in on Day 1 of baseline (only for baseline users)
+    if (isBaselineUser && profile.baseline_start_date === todayDate) {
       setShowCheckInReminder(false);
       return;
     }
@@ -810,7 +805,7 @@ const checkDailyCheckIn = async () => {
       return;
     }
 
-    // Show reminder if not checked in
+    // 4. Show reminder if not checked in (works for both baseline and active users)
     setShowCheckInReminder(!checkIn);
 
   } catch (error) {
@@ -1445,6 +1440,25 @@ const fetchMetrics = async () => {
                  {getSubGreeting()}
                 </Text>
               </View>
+            {/* Check-in Reminder Banner */}
+            {showCheckInReminder && (
+                <TouchableOpacity
+                  style={styles.checkInBanner}
+                  onPress={() => router.push('/dailyCheckin')}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.bannerContent}>
+                    <Ionicons name="fitness" size={20} color="#EF7828" />
+                    <View style={styles.bannerTextContainer}>
+                      <Text style={styles.bannerTitle}>Daily check-in</Text>
+                      <Text style={styles.bannerSubtext}>
+                        Quick update on yesterday's activity
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#EF7828" />
+                </TouchableOpacity>
+              )}
 
              {/* Budget Adjustment Banner */}
           {isSelectedDateToday() && !isSelectedDateCheatDay() && adjustment < 0 && cumulativeOverage > 0 && (

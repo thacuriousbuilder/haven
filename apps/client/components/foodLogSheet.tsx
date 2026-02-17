@@ -11,7 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@haven/shared-utils';
+import { formatLocalDate, getMonday, getSunday, supabase } from '@haven/shared-utils';
 import { searchFoods, getFoodDetails, getRecentFoods } from '@/utils/foodSearch';
 import * as ImagePicker from 'expo-image-picker';
 import { getLocalDateString } from '@/utils/timezone';
@@ -262,6 +262,48 @@ export function FoodLogSheet({
         // Don't block the user if streak update fails
         console.error('⚠️ Streak update failed (non-critical):', streakError);
       }
+
+      try {
+        await supabase.functions.invoke('calculateStreaks', {
+          body: { userId: user.id }
+        });
+        console.log('✅ Streak updated');
+      } catch (streakError) {
+        console.error('⚠️ Streak update failed (non-critical):', streakError);
+      }
+      
+
+      try {
+        const { data: summary } = await supabase
+          .from('daily_summaries')
+          .select('calories_consumed')
+          .eq('user_id', user.id)
+          .gte('summary_date', formatLocalDate(getMonday()))
+          .lte('summary_date', formatLocalDate(getSunday()));
+      
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('weekly_calorie_budget')
+          .eq('id', user.id)
+          .single();
+      
+        if (summary && profile?.weekly_calorie_budget) {
+          const totalThisWeek = summary.reduce(
+            (sum: number, day: { calories_consumed: number }) => sum + day.calories_consumed, 0
+          );
+      
+          await supabase.functions.invoke('sendWeeklyLimitWarning', {
+            body: {
+              user_id: user.id,
+              calories_consumed: totalThisWeek,
+              weekly_budget: profile.weekly_calorie_budget,
+            },
+          });
+        }
+      } catch (limitError) {
+        console.error('⚠️ Weekly limit check failed (non-critical):', limitError);
+      }
+
       // Success - reset form
       setFoodDescription('');
       setEstimatedCalories('');
