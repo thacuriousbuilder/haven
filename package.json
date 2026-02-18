@@ -11,4 +11,5 @@
     "trainer": "npm run start --workspace=apps/trainer"
   },
   "devDependencies": {}
+
 }

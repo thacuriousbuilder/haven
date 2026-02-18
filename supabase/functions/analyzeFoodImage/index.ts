@@ -1,4 +1,3 @@
-
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -19,7 +18,6 @@ interface FoodAnalysis {
 
 //@ts-ignore
 Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -27,7 +25,6 @@ Deno.serve(async (req: Request) => {
   try {
     console.log('🚀 Function called!')
 
-    // Get authorization header and extract token
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       console.error('❌ No authorization header')
@@ -38,9 +35,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const token = authHeader.replace('Bearer ', '')
-    console.log('🔑 Token received')
 
-    // Create Supabase client
     const supabaseClient = createClient(
       //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -48,9 +43,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
 
-    // Verify user with token
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
-
     if (userError || !user) {
       console.error('❌ Auth failed:', userError?.message)
       return new Response(
@@ -61,11 +54,8 @@ Deno.serve(async (req: Request) => {
 
     console.log('✅ User authenticated:', user.id)
 
-    // Get request body
     const { image_base64 } = await req.json()
-    
     if (!image_base64) {
-      console.error('❌ No image provided')
       return new Response(
         JSON.stringify({ success: false, error: 'No image provided' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -74,11 +64,9 @@ Deno.serve(async (req: Request) => {
 
     console.log('📸 Image received, length:', image_base64.length)
 
-    // Call OpenAI Vision API
     //@ts-ignore
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
     if (!openaiApiKey) {
-      console.error('❌ OpenAI API key not configured')
       return new Response(
         JSON.stringify({ success: false, error: 'Service configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -98,18 +86,35 @@ Deno.serve(async (req: Request) => {
         messages: [
           {
             role: 'system',
-            content: `You are a nutrition expert analyzing food images. Return ONLY a JSON object with this exact structure:
+            content: `You are an expert dietitian and nutritionist analyzing food photos for a calorie tracking app.
+
+ANALYSIS STEPS (reason through these before responding):
+1. Identify every food item visible in the image
+2. Estimate portion sizes using visual cues (plate size, utensils, hands, packaging)
+3. Factor in cooking method (fried, grilled, baked, raw) as it significantly affects calories
+4. If multiple items, sum all calories into one total
+
+ACCURACY RULES:
+- Be conservative with portions — most people underestimate
+- When uncertain between two estimates, pick the higher calorie option
+- For restaurant/fast food, assume larger portions
+- For homemade food, assume standard recipe portions
+
+Return ONLY this exact JSON structure, no extra text:
 {
-  "food_name": "descriptive name of the food",
-  "calories": estimated total calories (number),
-  "protein_grams": estimated protein in grams (number),
-  "carbs_grams": estimated carbs in grams (number),
-  "fat_grams": estimated fat in grams (number),
+  "food_name": "complete description including cooking method and key ingredients",
+  "calories": total estimated calories as a number,
+  "protein_grams": estimated protein as a number,
+  "carbs_grams": estimated carbs as a number,
+  "fat_grams": estimated fat as a number,
   "confidence": "high" | "medium" | "low",
-  "notes": "any relevant details about portion size or assumptions"
+  "notes": "key assumptions made about portion size or cooking method"
 }
 
-Be realistic about portions. If you can't identify the food clearly, set confidence to "low" and make your best estimate.`
+Confidence guide:
+- high: food is clearly identifiable with obvious portion size
+- medium: food identified but portion size is estimated
+- low: food unclear or partially visible`
           },
           {
             role: 'user',
@@ -146,7 +151,6 @@ Be realistic about portions. If you can't identify the food clearly, set confide
     const content = openaiData.choices[0]?.message?.content
 
     if (!content) {
-      console.error('❌ No response from OpenAI')
       return new Response(
         JSON.stringify({ success: false, error: 'No response from AI' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -155,7 +159,6 @@ Be realistic about portions. If you can't identify the food clearly, set confide
 
     console.log('📝 Raw OpenAI response:', content)
 
-    // Parse the JSON response
     let foodAnalysis: FoodAnalysis
     try {
       const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
@@ -168,7 +171,6 @@ Be realistic about portions. If you can't identify the food clearly, set confide
       )
     }
 
-    // Validate the response
     if (!foodAnalysis.food_name || typeof foodAnalysis.calories !== 'number') {
       console.error('❌ Incomplete nutrition data:', foodAnalysis)
       return new Response(
@@ -179,30 +181,17 @@ Be realistic about portions. If you can't identify the food clearly, set confide
 
     console.log('✅ Successfully analyzed:', foodAnalysis.food_name, '-', foodAnalysis.calories, 'cal')
 
-    // Return the analysis
     return new Response(
-      JSON.stringify({ 
-        success: true,
-        data: foodAnalysis 
-      }),
-      { 
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ success: true, data: foodAnalysis }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
     console.error('❌ Error in analyzeFoodImage:', error)
     return new Response(
-      JSON.stringify({ 
-        success: false,
-        //@ts-ignore
-        error: error.message || 'Internal server error'
-      }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      //@ts-ignore
+      JSON.stringify({ success: false, error: error.message || 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
