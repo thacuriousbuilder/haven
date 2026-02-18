@@ -32,7 +32,7 @@ export default function WeeklyGoalScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={8} totalSteps={15} />
+      <ProgressBar currentStep={7} totalSteps={14} />
       
       <View style={styles.content}>
         <ScrollView 

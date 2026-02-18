@@ -1,16 +1,30 @@
+
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useEffect, useState } from 'react';
-import { supabase } from '@haven/shared-utils';
+import { supabase } from '../lib/supabase';
 import { router } from 'expo-router';
-import { Colors, Spacing, BorderRadius } from '@/constants/colors';
 
 export default function Index() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const checkUserAndRoute = async (userId: string) => {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('onboarding_completed')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profile?.onboarding_completed) {
+        router.replace('/(tabs)/home');
+      } else {
+        router.replace('/(onboarding)/gender');
+      }
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        router.replace('/(tabs)/home');
+        checkUserAndRoute(session.user.id);
       } else {
         router.replace('/(auth)/welcome');
       }
@@ -19,9 +33,9 @@ export default function Index() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
-        router.replace('/(tabs)/home');
+        checkUserAndRoute(session.user.id);
       } else {
-        router.replace('/(auth)/login');
+        router.replace('/(auth)/welcome');
       }
     });
 
@@ -31,7 +45,7 @@ export default function Index() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#000" />
+        <ActivityIndicator size="large" color="#206E6B" />
       </View>
     );
   }
@@ -44,6 +58,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#ffff',
+    backgroundColor: '#131311',
   },
 });

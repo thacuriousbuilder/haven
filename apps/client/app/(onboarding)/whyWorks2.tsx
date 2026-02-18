@@ -21,8 +21,8 @@ export default function WhyWorks2Screen() {
         iconColor="#fff"
       />
       <ProgressBar 
-        currentStep={9} 
-        totalSteps={15}
+        currentStep={8} 
+        totalSteps={14}
         backgroundColor="rgba(255, 255, 255, 0.3)"
         fillColor="#fff"
       />

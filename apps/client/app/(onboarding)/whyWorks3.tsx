@@ -20,8 +20,8 @@ export default function WhyWorks3Screen() {
         iconColor="#fff"
       />
       <ProgressBar 
-        currentStep={13} 
-        totalSteps={15}
+        currentStep={12} 
+        totalSteps={14}
         backgroundColor="rgba(255, 255, 255, 0.3)"
         fillColor="#fff"
       />

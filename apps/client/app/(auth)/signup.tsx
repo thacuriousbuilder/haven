@@ -28,7 +28,7 @@ export default function Signup() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top','bottom']}>
-      <BackButton />
+     <BackButton onPress={() => router.replace('/(auth)/welcome')} />
       
       <View style={styles.content}>
         <View style={styles.textContainer}>

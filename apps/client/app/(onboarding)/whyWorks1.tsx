@@ -41,8 +41,8 @@ export default function WhyWorks1Screen() {
       <ProgressBar 
         fillColor='#ffff' 
         backgroundColor='rgba(255, 255, 255, 0.3)' 
-        currentStep={5} 
-        totalSteps={15} 
+        currentStep={4} 
+        totalSteps={14} 
       />
       
       <View style={styles.content}>

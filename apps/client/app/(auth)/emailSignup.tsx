@@ -76,7 +76,7 @@ export default function EmailSignup() {
 
     if (data.user || data.session) {
       updateData({ fullName: fullName.trim() });
-      router.replace('/(onboarding)/accountType');
+      router.replace('/(onboarding)/gender');
     }
   }
 

@@ -144,7 +144,7 @@ export default function HeightWeightScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={4} totalSteps={15} />
+      <ProgressBar currentStep={3} totalSteps={14} />
       
       <View style={styles.content}>
         <ScrollView 

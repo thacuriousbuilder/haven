@@ -27,7 +27,7 @@ export default function ActivityLevelScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={11} totalSteps={15} />
+      <ProgressBar currentStep={10} totalSteps={14} />
       
       <View style={styles.content}>
         <ScrollView 
@@ -41,29 +41,29 @@ export default function ActivityLevelScreen() {
           <View style={styles.options}>
             <OptionCard
               title="Not Very Active"
-              description="Spend most of the day sitting (e.g. bankteller, desk job)"
+              description="Mostly desk-based day with little to no intentional movement"
               selected={data.activityLevel === 'not_very_active'}
               onPress={() => handleSelectActivity('not_very_active')}
             />
             <OptionCard
               title="Lightly Active"
-              description="Spend a good part of the day on your feet (e.g. teacher, salesperson)"
+              description="Mix of sitting and light movement, walking meetings, errands, light chores"
               selected={data.activityLevel === 'lightly_active'}
               onPress={() => handleSelectActivity('lightly_active')}
             />
             <OptionCard
               title="Active"
-              description="Spend a good part of the day doing some physical activity (e.g. food server, postal carrier)"
+              description="Regularly on your feet or doing physical activity most of the day"
               selected={data.activityLevel === 'active'}
               onPress={() => handleSelectActivity('active')}
             />
             <OptionCard
               title="Very Active"
-              description="Spend most of the day doing heavy physical activity (e.g. bike messenger, carpenter)"
+              description="Physically demanding day job or intense daily training"
               selected={data.activityLevel === 'very_active'}
               onPress={() => handleSelectActivity('very_active')}
             />
-          </View>
+                      </View>
         </ScrollView>
 
         

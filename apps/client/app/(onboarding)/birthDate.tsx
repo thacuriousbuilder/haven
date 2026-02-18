@@ -88,7 +88,7 @@ export default function BirthdateScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={3} totalSteps={15} />
+      <ProgressBar currentStep={2} totalSteps={14} />
       
       <View style={styles.content}>
         <View style={styles.topSection}>

@@ -75,7 +75,7 @@ export default function NotificationPermissionScreen() {
         .from('profiles')
         .upsert({
           id: user.id,
-          user_type: data.accountType,
+          user_type: 'client',
           full_name: fullName,
           gender: data.gender,
           birth_date: birthDate,
@@ -176,7 +176,7 @@ export default function NotificationPermissionScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={15} totalSteps={15} />
+      <ProgressBar currentStep={14} totalSteps={14} />
       
       <View style={styles.content}>
         <ScrollView 
