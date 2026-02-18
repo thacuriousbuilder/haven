@@ -1163,26 +1163,7 @@ const fetchMetrics = async () => {
   };
 
   const handleCamera = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera access is required to scan food.');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: 'images',
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.7,
-      base64: true,
-    });
-
-    if (!result.canceled && result.assets[0].base64) {
-      router.push({
-        pathname: '/log',
-        params: { method: 'camera', imageBase64: result.assets[0].base64 }
-      });
-    }
+      router.push('/camera')
   };
 
   const handleSearch = () => {
