@@ -1,5 +1,3 @@
-// --- FILE 2: apps/client/components/FoodLogSheet.tsx
-// Full file with all changes integrated
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -24,6 +22,7 @@ import {
 import type { FoodSearchResult, FoodDetails, RecentFood } from '@/utils/foodSearch';
 import * as ImagePicker from 'expo-image-picker';
 import { getLocalDateString, formatLocalDate, getMonday, getSunday } from '@/utils/timezone';
+import { sanitizeFoodName } from '@/utils/sanitize'
 import { Colors } from '@/constants/colors';
 import { compressImageForUpload } from '@/utils/imageCompression';
 import { Platform, Linking } from 'react-native';
@@ -115,7 +114,8 @@ export function FoodLogSheet({
 
   // Debounced search input handler
   const handleSearchChange = (text: string) => {
-    setSearchQuery(text);
+    const safe = text.replace(/[<>]/g, '').slice(0, 100)
+    setSearchQuery(safe);
 
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
 
@@ -191,7 +191,7 @@ export function FoodLogSheet({
         .from('food_logs')
         .insert({
           user_id: user.id,
-          food_name: foodDescription,
+          food_name: sanitizeFoodName(foodDescription),
           calories: calories,
           protein_grams: selectedFood?.protein || null,
           carbs_grams: selectedFood?.carbs || null,

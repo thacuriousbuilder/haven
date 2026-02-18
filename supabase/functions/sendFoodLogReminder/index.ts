@@ -1,5 +1,4 @@
 
-
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -9,9 +8,9 @@ const corsHeaders = {
 }
 
 interface UserWithToken {
-    id: string
-    expo_push_token: string
-  }
+  id: string
+  expo_push_token: string
+}
 
 //@ts-ignore
 Deno.serve(async (req: Request) => {
@@ -22,6 +21,19 @@ Deno.serve(async (req: Request) => {
   try {
     console.log('🍽️ Food log reminder job started')
 
+    // 1. Verify cron secret
+    const authHeader = req.headers.get('Authorization')
+    //@ts-ignore
+    const cronSecret = Deno.env.get('CRON_SECRET')
+
+    if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
+      console.error('❌ Unauthorized cron request')
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const adminClient = createClient(
       //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -29,9 +41,9 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD in UTC
+    const today = new Date().toISOString().split('T')[0]
 
-    // Get all users with a push token who have NOT logged food today
+    // Get all users with a push token
     const { data: users, error } = await adminClient
       .from('profiles')
       .select('id, expo_push_token')
@@ -60,10 +72,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const loggedIds = new Set(loggedUserIds.map((l: { user_id: string }) => l.user_id))
-
-    const usersToNotify = (users as UserWithToken[]).filter(
-        (u) => !loggedIds.has(u.id)
-      )
+    const usersToNotify = (users as UserWithToken[]).filter(u => !loggedIds.has(u.id))
 
     console.log(`📋 ${usersToNotify.length} users haven't logged today`)
 
@@ -75,13 +84,13 @@ Deno.serve(async (req: Request) => {
     }
 
     // Build notifications
-    const notifications = usersToNotify.map((u) => ({
-        to: u.expo_push_token,
-        title: "Don't forget to log! 🍽️",
-        body: "You haven't tracked any food yet today. Keep your streak going!",
-        sound: 'default',
-        channelId: 'default',
-      }))
+    const notifications = usersToNotify.map(u => ({
+      to: u.expo_push_token,
+      title: "Don't forget to log! 🍽️",
+      body: "You haven't tracked any food yet today. Keep your streak going!",
+      sound: 'default',
+      channelId: 'default',
+    }))
 
     // Send in batches of 100
     const batchSize = 100

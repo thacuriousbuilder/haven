@@ -1,19 +1,30 @@
+
+
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import {
+  validateString,
+  buildValidationResponse,
+  checkRateLimit,
+  rateLimitResponse,
+} from '../_shared/validate.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const MAX_IMAGE_SIZE_MB = 5
+const MAX_BASE64_LENGTH = MAX_IMAGE_SIZE_MB * 1024 * 1024 * 1.37
+
 interface FoodAnalysis {
-  food_name: string;
-  calories: number;
-  protein_grams: number;
-  carbs_grams: number;
-  fat_grams: number;
-  confidence: 'high' | 'medium' | 'low';
-  notes?: string;
+  food_name: string
+  calories: number
+  protein_grams: number
+  carbs_grams: number
+  fat_grams: number
+  confidence: 'high' | 'medium' | 'low'
+  notes?: string
 }
 
 //@ts-ignore
@@ -23,27 +34,26 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    console.log('🚀 Function called!')
+    console.log('🚀 analyzeFoodImage called')
 
+    // 1. Verify JWT
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      console.error('❌ No authorization header')
       return new Response(
         JSON.stringify({ success: false, error: 'Missing Authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const token = authHeader.replace('Bearer ', '')
-
-    const supabaseClient = createClient(
+    const userClient = createClient(
       //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
       //@ts-ignore
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
     )
 
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
+    const { data: { user }, error: userError } = await userClient.auth.getUser()
     if (userError || !user) {
       console.error('❌ Auth failed:', userError?.message)
       return new Response(
@@ -54,10 +64,41 @@ Deno.serve(async (req: Request) => {
 
     console.log('✅ User authenticated:', user.id)
 
+    // 2. Rate limit — 10 image scans per hour
+    const adminClient = createClient(
+      //@ts-ignore
+      Deno.env.get('SUPABASE_URL') ?? '',
+      //@ts-ignore
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    const { allowed, remaining } = await checkRateLimit(
+      adminClient,
+      user.id,
+      'analyzeFoodImage',
+      { maxRequests: 10, windowMinutes: 60 }
+    )
+
+    if (!allowed) {
+      console.warn('🚫 Rate limit exceeded for user:', user.id)
+      return rateLimitResponse(corsHeaders)
+    }
+
+    console.log(`📊 Rate limit ok — ${remaining} requests remaining this hour`)
+
+    // 3. Validate input
     const { image_base64 } = await req.json()
-    if (!image_base64) {
+
+    const validationResponse = buildValidationResponse([
+      validateString(image_base64, 'image_base64', { minLength: 1 }),
+    ], corsHeaders)
+    if (validationResponse) return validationResponse
+
+    // 4. Server-side size check
+    if (image_base64.length > MAX_BASE64_LENGTH) {
+      console.error('❌ Image too large:', image_base64.length)
       return new Response(
-        JSON.stringify({ success: false, error: 'No image provided' }),
+        JSON.stringify({ success: false, error: `Image exceeds ${MAX_IMAGE_SIZE_MB}MB limit` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -95,9 +136,8 @@ ANALYSIS STEPS (reason through these before responding):
 4. If multiple items, sum all calories into one total
 
 ACCURACY RULES:
-- Be conservative with portions — most people underestimate
-- When uncertain between two estimates, pick the higher calorie option
-- For restaurant/fast food, assume larger portions
+- Aim for accuracy — when uncertain, pick the midpoint estimate
+- For restaurant/fast food, assume standard menu portion sizes
 - For homemade food, assume standard recipe portions
 
 Return ONLY this exact JSON structure, no extra text:
@@ -112,8 +152,8 @@ Return ONLY this exact JSON structure, no extra text:
 }
 
 Confidence guide:
-- high: food is clearly identifiable with obvious portion size
-- medium: food identified but portion size is estimated
+- high: food clearly identifiable with obvious portion size
+- medium: food identified but portion size estimated
 - low: food unclear or partially visible`
           },
           {
@@ -127,7 +167,7 @@ Confidence guide:
                 type: 'image_url',
                 image_url: {
                   url: `data:image/jpeg;base64,${image_base64}`,
-                  detail: 'low'
+                  detail: 'high'
                 }
               }
             ]
@@ -157,8 +197,6 @@ Confidence guide:
       )
     }
 
-    console.log('📝 Raw OpenAI response:', content)
-
     let foodAnalysis: FoodAnalysis
     try {
       const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
@@ -172,14 +210,13 @@ Confidence guide:
     }
 
     if (!foodAnalysis.food_name || typeof foodAnalysis.calories !== 'number') {
-      console.error('❌ Incomplete nutrition data:', foodAnalysis)
       return new Response(
         JSON.stringify({ success: false, error: 'Incomplete nutrition data' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('✅ Successfully analyzed:', foodAnalysis.food_name, '-', foodAnalysis.calories, 'cal')
+    console.log('✅ Analyzed:', foodAnalysis.food_name, '-', foodAnalysis.calories, 'cal')
 
     return new Response(
       JSON.stringify({ success: true, data: foodAnalysis }),

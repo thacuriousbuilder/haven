@@ -1,7 +1,11 @@
 
-
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import {
+  validateString,
+  validateUUID,
+  buildValidationResponse,
+} from '../_shared/validate.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,14 +23,15 @@ Deno.serve(async (req: Request) => {
 
     const { user_id, title, body } = await req.json()
 
-    if (!user_id || !title || !body) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    // Validate inputs
+    const validationResponse = buildValidationResponse([
+      validateUUID(user_id, 'user_id'),
+      validateString(title, 'title', { minLength: 1, maxLength: 100 }),
+      validateString(body, 'body', { minLength: 1, maxLength: 500 }),
+    ], corsHeaders)
 
-    // Admin client — needed to read any user's push token
+    if (validationResponse) return validationResponse
+
     const adminClient = createClient(
       //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -34,21 +39,28 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { data: profile, error } = await adminClient
-      .from('profiles')
-      .select('expo_push_token')
-      .eq('id', user_id)
-      .single()
+    const { data: tokens, error } = await adminClient
+      .from('push_tokens')
+      .select('token')
+      .eq('user_id', user_id)
 
-    if (error || !profile?.expo_push_token) {
-      console.error('❌ Token not found for user:', user_id)
+    if (error || !tokens || tokens.length === 0) {
+      console.error('❌ Tokens not found for user:', user_id)
       return new Response(
-        JSON.stringify({ error: 'Push token not found' }),
+        JSON.stringify({ error: 'Push tokens not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('📤 Sending notification to user:', user_id)
+    console.log(`📤 Sending notification to ${tokens.length} device(s)`)
+
+    const notifications = tokens.map((t: { token: string }) => ({
+      to: t.token,
+      title,
+      body,
+      sound: 'default',
+      channelId: 'default',
+    }))
 
     const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
@@ -56,17 +68,11 @@ Deno.serve(async (req: Request) => {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({
-        to: profile.expo_push_token,
-        title,
-        body,
-        sound: 'default',
-        channelId: 'default',
-      }),
+      body: JSON.stringify(notifications),
     })
 
     const result = await expoResponse.json()
-    console.log('✅ Notification sent:', result)
+    console.log('✅ Notification sent')
 
     return new Response(
       JSON.stringify({ success: true, result }),

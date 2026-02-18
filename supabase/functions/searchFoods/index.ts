@@ -1,7 +1,14 @@
-// supabase/functions/searchFoods/index.ts
+
 
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import {
+  validateString,
+  sanitizeString,
+  buildValidationResponse,
+  checkRateLimit,
+  rateLimitResponse,
+} from '../_shared/validate.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,14 +35,39 @@ Deno.serve(async (req: Request) => {
   try {
     const { query } = await req.json()
 
-    if (!query?.trim()) {
+    // 1. Validate input
+    const validationResponse = buildValidationResponse([
+      validateString(query, 'query', { minLength: 1, maxLength: 100 }),
+    ], corsHeaders)
+    if (validationResponse) return validationResponse
+
+    const safeQuery = sanitizeString(query)
+    console.log('🔍 Searching for:', safeQuery)
+
+    // 2. Verify JWT
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing query' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('🔍 Searching for:', query)
+    const userClient = createClient(
+      //@ts-ignore
+      Deno.env.get('SUPABASE_URL') ?? '',
+      //@ts-ignore
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    )
+
+    const { data: { user }, error: userError } = await userClient.auth.getUser()
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     const adminClient = createClient(
       //@ts-ignore
@@ -44,11 +76,26 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 1. Check cache first
+    // 3. Rate limit — 60 searches per hour
+    const { allowed, remaining } = await checkRateLimit(
+      adminClient,
+      user.id,
+      'searchFoods',
+      { maxRequests: 60, windowMinutes: 60 }
+    )
+
+    if (!allowed) {
+      console.warn('🚫 Rate limit exceeded for user:', user.id)
+      return rateLimitResponse(corsHeaders)
+    }
+
+    console.log(`📊 Rate limit ok — ${remaining} searches remaining this hour`)
+
+    // 4. Check cache first
     const { data: cachedFoods } = await adminClient
       .from('food_cache')
       .select('*')
-      .or(`name.ilike.%${query}%,brand.ilike.%${query}%`)
+      .or(`name.ilike.%${safeQuery}%,brand.ilike.%${safeQuery}%`)
       .limit(10)
 
     if (cachedFoods && cachedFoods.length >= 5) {
@@ -69,18 +116,18 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // 2. Search USDA + Open Food Facts in parallel
+    // 5. Search USDA + Open Food Facts in parallel
     //@ts-ignore
     const usdaKey = Deno.env.get('USDA_API_KEY') ?? ''
 
     const [usdaResponse, offResponse] = await Promise.allSettled([
-      fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=10&api_key=${usdaKey}`),
-      fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=10&fields=product_name,brands,nutriments,serving_size`)
+      fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(safeQuery)}&pageSize=10&api_key=${usdaKey}`),
+      fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(safeQuery)}&search_simple=1&action=process&json=1&page_size=10&fields=product_name,brands,nutriments,serving_size`)
     ])
 
     const results: FoodResult[] = []
 
-    // USDA first — raw/whole foods (higher priority)
+    // USDA first — raw/whole foods
     if (usdaResponse.status === 'fulfilled' && usdaResponse.value.ok) {
       const usdaData = await usdaResponse.value.json()
       const foods = usdaData.foods || []
@@ -92,7 +139,6 @@ Deno.serve(async (req: Request) => {
         const calories = getNutrient(1008)
         if (calories === 0) continue
 
-        // Clean up USDA ALL CAPS names
         const cleanName = food.description
           ?.toLowerCase()
           .replace(/\b\w/g, (c: string) => c.toUpperCase()) || 'Unknown'
@@ -111,7 +157,7 @@ Deno.serve(async (req: Request) => {
       console.log('🇺🇸 USDA results:', results.length)
     }
 
-    // Open Food Facts second — branded/packaged foods (lower priority)
+    // Open Food Facts second — branded/packaged foods
     if (offResponse.status === 'fulfilled' && offResponse.value.ok) {
       const offData = await offResponse.value.json()
       const products = offData.products || []
@@ -138,7 +184,7 @@ Deno.serve(async (req: Request) => {
       console.log('🌍 Open Food Facts results:', results.length)
     }
 
-    // Deduplicate by name similarity
+    // Deduplicate
     const seen = new Set<string>()
     const deduped = results.filter(r => {
       const key = r.food_name.toLowerCase().slice(0, 20)
@@ -147,7 +193,7 @@ Deno.serve(async (req: Request) => {
       return true
     })
 
-    // Cache new results for next time
+    // Cache new results
     const toCache = deduped.filter(r => r.source !== 'cache').slice(0, 10)
     if (toCache.length > 0) {
       await adminClient.from('food_cache').upsert(

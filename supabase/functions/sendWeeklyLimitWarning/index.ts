@@ -1,16 +1,17 @@
 
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import {
+  validateNumber,
+  validateUUID,
+  buildValidationResponse,
+  checkRateLimit,
+  rateLimitResponse,
+} from '../_shared/validate.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface WeeklyLimitPayload {
-  user_id: string
-  calories_consumed: number
-  weekly_budget: number
 }
 
 //@ts-ignore
@@ -22,6 +23,7 @@ Deno.serve(async (req: Request) => {
   try {
     console.log('⚠️ Weekly limit warning check started')
 
+    // 1. Verify JWT
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(
@@ -30,21 +32,37 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const { user_id, calories_consumed, weekly_budget }: WeeklyLimitPayload = await req.json()
+    const userClient = createClient(
+      //@ts-ignore
+      Deno.env.get('SUPABASE_URL') ?? '',
+      //@ts-ignore
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    )
 
-    if (!user_id || !calories_consumed || !weekly_budget) {
+    const { data: { user }, error: userError } = await userClient.auth.getUser()
+    if (userError || !user) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const percentage = calories_consumed / weekly_budget
-    if (percentage < 0.90) {
-      console.log(`✅ User ${user_id} at ${Math.round(percentage * 100)}% — no warning needed`)
+    // 2. Validate inputs
+    const { user_id, calories_consumed, weekly_budget } = await req.json()
+
+    const validationResponse = buildValidationResponse([
+      validateUUID(user_id, 'user_id'),
+      validateNumber(calories_consumed, 'calories_consumed', { min: 0, max: 100000 }),
+      validateNumber(weekly_budget, 'weekly_budget', { min: 1, max: 100000 }),
+    ], corsHeaders)
+    if (validationResponse) return validationResponse
+
+    // 3. Ensure user can only trigger warning for themselves
+    if (user.id !== user_id) {
       return new Response(
-        JSON.stringify({ success: true, warned: false }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Forbidden' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -55,7 +73,29 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Check if we already warned this user this week
+    // 4. Rate limit — 5 requests per hour
+    const { allowed } = await checkRateLimit(
+      adminClient,
+      user.id,
+      'sendWeeklyLimitWarning',
+      { maxRequests: 5, windowMinutes: 60 }
+    )
+
+    if (!allowed) {
+      console.warn('🚫 Rate limit exceeded for user:', user.id)
+      return rateLimitResponse(corsHeaders)
+    }
+
+    // 5. Check threshold
+    const percentage = calories_consumed / weekly_budget
+    if (percentage < 0.80) {
+      console.log(`✅ User ${user_id} at ${Math.round(percentage * 100)}% — no warning needed`)
+      return new Response(
+        JSON.stringify({ success: true, warned: false }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')
       .select('expo_push_token, weekly_limit_warned')
@@ -63,7 +103,6 @@ Deno.serve(async (req: Request) => {
       .single()
 
     if (profileError || !profile) {
-      console.error('❌ Failed to fetch profile:', profileError)
       return new Response(
         JSON.stringify({ success: false, error: 'Profile not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -71,7 +110,6 @@ Deno.serve(async (req: Request) => {
     }
 
     if (profile.weekly_limit_warned) {
-      console.log(`⏭️ User ${user_id} already warned this week`)
       return new Response(
         JSON.stringify({ success: true, warned: false, reason: 'already_warned' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -85,7 +123,6 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Send the notification
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
@@ -94,7 +131,7 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         to: profile.expo_push_token,
-        title: "Heads up! ⚠️",
+        title: 'Heads up! ⚠️',
         body: `You've used ${Math.round(percentage * 100)}% of your weekly calorie budget.`,
         sound: 'default',
         channelId: 'default',
@@ -102,9 +139,8 @@ Deno.serve(async (req: Request) => {
     })
 
     const result = await response.json()
-    console.log('📤 Notification sent:', result)
+    console.log('📤 Notification sent')
 
-    // Mark as warned
     await adminClient
       .from('profiles')
       .update({
