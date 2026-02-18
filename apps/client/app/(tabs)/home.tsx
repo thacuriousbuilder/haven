@@ -107,17 +107,6 @@ export default function HomeScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [unreadCount, setUnreadCount] = useState(0);
   
-  
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        console.log('JWT:', session?.access_token)
-      } catch (e) {
-        console.warn('Failed to get session:', e)
-      }
-    })()
-  }, [])
 
   const {
     baseBudget,
