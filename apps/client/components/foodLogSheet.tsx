@@ -683,7 +683,7 @@ export function FoodLogSheet({
           {processingImage && (
             <View style={styles.processingOverlay}>
               <ActivityIndicator size="large" color="#FFFFFF" />
-              <Text style={styles.processingText}>HAVEN is reading your photo...</Text>
+              <Text style={styles.processingText}>HAVEN is almost done...</Text>
             </View>
           )}
         </View>
