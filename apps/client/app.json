@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": "haven",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splashnew.png",
@@ -14,6 +15,7 @@
     "ios": {
       "bundleIdentifier": "co.tryhaven.app",
       "buildNumber": "1",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification"
@@ -45,6 +47,13 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#206E6B"
+        }
+      ],
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+       "iosUrlScheme": "com.googleusercontent.apps.34620264454-bmm1u19r4cln7pfom1qng4ig4b174hah"
         }
       ]
     ],

@@ -8,16 +8,25 @@ export default function Index() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let initialCheckDone = false;
+
     const checkUserAndRoute = async (userId: string) => {
-      const { data: profile } = await supabase
+      console.log('checkUserAndRoute called for:', userId);
+      
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('onboarding_completed')
         .eq('id', userId)
         .maybeSingle();
-
+    
+      console.log('profile:', JSON.stringify(profile));
+      console.log('error:', JSON.stringify(error));
+    
       if (profile?.onboarding_completed) {
+        console.log('routing to home');
         router.replace('/(tabs)/home');
       } else {
+        console.log('routing to gender');
         router.replace('/(onboarding)/gender');
       }
     };
@@ -29,12 +38,14 @@ export default function Index() {
         router.replace('/(auth)/welcome');
       }
       setLoading(false);
+      initialCheckDone = true;
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!initialCheckDone) return;
+      if (event === 'SIGNED_IN' && session) {
         checkUserAndRoute(session.user.id);
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         router.replace('/(auth)/welcome');
       }
     });

@@ -1,7 +1,7 @@
+
 {
   "cli": {
-    "version": ">= 16.32.0",
-    "appVersionSource": "remote"
+    "version": ">= 5.0.0"
   },
   "build": {
     "development": {
@@ -11,12 +11,7 @@
     "preview": {
       "distribution": "internal"
     },
-    "production": {
-      "autoIncrement": true,
-      "android":{
-        "googleServicesFile": "google-sercices.json"
-      }
-    }
+    "production": {}
   },
   "submit": {
     "production": {}

@@ -4,6 +4,7 @@ import { requestNotificationPermissions } from "@/hooks/useNotificationPermissio
 import { useEffect } from 'react';
 import { usePushToken } from "@/hooks/usePushToken";
 import * as Notifications from 'expo-notifications'
+import { configureGoogleSignIn } from '@/lib/auth';
 
 
 Notifications.setNotificationHandler({
@@ -18,6 +19,7 @@ export default function RootLayout() {
   usePushToken();
   useEffect(() => {
     requestNotificationPermissions();
+    configureGoogleSignIn();
   }, []);
   return (
     <OnboardingProvider>
