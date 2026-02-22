@@ -133,7 +133,8 @@ export default function ManualPlanScreen() {
         .from('profiles')
         .upsert({
           id: user.id,
-          full_name: data.fullName,
+          first_name: data.firstName,
+          last_name: data.lastName,
           gender: data.gender || 'other',
           birth_date: birthDate,
           unit_system: 'imperial',
@@ -199,7 +200,7 @@ export default function ManualPlanScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={14} totalSteps={15} />
+      <ProgressBar currentStep={14} totalSteps={14} />
       
       <View style={styles.content}>
         <ScrollView 

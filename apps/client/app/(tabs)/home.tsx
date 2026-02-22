@@ -33,7 +33,8 @@ import { Colors } from '@/constants/colors';
 import { analyzeWeekPeriod, WeekInfo } from '@/utils/weekHelpers';
 
 interface ProfileData {
-  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   current_streak: number;
   baseline_start_date: string | null;
   baseline_complete: boolean;
@@ -1250,7 +1251,7 @@ const fetchMetrics = async () => {
   // ============= CLIENT VIEW =============
   
   const isBaselineActive = profile.baseline_start_date && !profile.baseline_complete;
-  const firstName = profile.full_name ? profile.full_name.split(' ')[0] : 'there';
+  const firstName = profile.first_name ? profile.first_name : 'there';
 
 
 

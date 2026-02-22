@@ -30,7 +30,8 @@ export default function NotificationPermissionScreen() {
         throw new Error('Missing required onboarding data');
       }
   
-      const fullName = user.user_metadata?.full_name || '';
+      const firstName = user.user_metadata?.first_name || '';
+      const lastName = user.user_metadata?.last_name || '';
       
       // Calculate birth date
       const birthDate = formatDateComponents(
@@ -76,7 +77,8 @@ export default function NotificationPermissionScreen() {
         .upsert({
           id: user.id,
           user_type: 'client',
-          full_name: fullName,
+          first_name: firstName,
+          last_name: lastName,
           gender: data.gender,
           birth_date: birthDate,
           unit_system: data.unitSystem || 'imperial',

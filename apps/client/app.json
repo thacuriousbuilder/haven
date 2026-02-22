@@ -4,11 +4,11 @@
     "slug": "haven",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon1.png",
     "scheme": "haven",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splashnew.png",
+      "image": "./assets/splash.png",
       "resizeMode": "cover",
       "backgroundColor": "#131311"
     },
@@ -28,16 +28,16 @@
       "googleServicesFile": "./google-services.json",
       "useNextNotificationsAPI": true,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/adaptive-icon1.png",
+        "backgroundColor": "#EF7828"
       },
       "permissions": [
         "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "notification": {
-      "icon": "./assets/notification-icon.png",
-      "color": "#206E6B",
+      "icon": "./assets/icon.png",
+      "color": "#EF7828",
       "androidMode": "default",
       "androidCollapsedTitle": "HAVEN Updates"
     },
@@ -45,8 +45,8 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
-          "color": "#206E6B"
+          "icon": "./assets/icon1.png",
+          "color": "#EF7828"
         }
       ],
       "expo-apple-authentication",

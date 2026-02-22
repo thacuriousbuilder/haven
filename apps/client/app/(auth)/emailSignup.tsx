@@ -1,4 +1,3 @@
-// apps/client/app/(auth)/emailSignup.tsx
 
 import {
   View,
@@ -26,7 +25,8 @@ export default function EmailSignup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -34,13 +34,14 @@ export default function EmailSignup() {
   const passwordStrength = validatePassword(password);
 
   async function handleSignUp() {
-    if (!fullName || !email || !password || !confirmPassword) {
+    if (!firstName || !lastName || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
+    
 
-    if (fullName.trim().length < 2) {
-      Alert.alert('Error', 'Please enter your full name');
+    if (firstName.trim().length < 2) {
+      Alert.alert('Error', 'Please enter your first name');
       return;
     }
 
@@ -62,7 +63,8 @@ export default function EmailSignup() {
       password: password,
       options: {
         data: {
-          full_name: sanitizeInput(fullName.trim(), 100),
+          first_name: sanitizeInput(firstName.trim(), 50),
+          last_name: sanitizeInput(lastName.trim(), 50),
         }
       }
     });
@@ -75,7 +77,7 @@ export default function EmailSignup() {
     }
 
     if (data.user || data.session) {
-      updateData({ fullName: fullName.trim() });
+      updateData({ firstName: firstName.trim(), lastName: lastName.trim() });
       router.replace('/(onboarding)/gender');
     }
   }
@@ -96,15 +98,24 @@ export default function EmailSignup() {
           <Text style={styles.title}>Create your account</Text>
 
           <View style={styles.formContainer}>
-            <TextInput
-              style={styles.input}
-              value={fullName}
-              onChangeText={setFullName}
-              autoCapitalize="words"
-              placeholder="Full Name"
-              placeholderTextColor="#999"
-              editable={!loading}
-            />
+          <TextInput
+            style={styles.input}
+            value={firstName}
+            onChangeText={setFirstName}
+            autoCapitalize="words"
+            placeholder="First Name"
+            placeholderTextColor="#999"
+            editable={!loading}
+          />
+          <TextInput
+            style={styles.input}
+            value={lastName}
+            onChangeText={setLastName}
+            autoCapitalize="words"
+            placeholder="Last Name"
+            placeholderTextColor="#999"
+            editable={!loading}
+          />
             <TextInput
               style={styles.input}
               value={email}

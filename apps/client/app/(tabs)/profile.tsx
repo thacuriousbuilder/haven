@@ -24,7 +24,8 @@ import * as Clipboard from 'expo-clipboard';
 
 interface UserProfile {
   id: string;
-  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
   avatar_url: string | null;
   current_streak: number;
   push_notifications_enabled: boolean;
@@ -205,7 +206,7 @@ export default function ClientProfileScreen() {
   };
   
   const handleTermsPrivacy = async () => {
-    const url = 'https://www.tryhaven.co/';
+    const url = 'https://www.tryhaven.co/privacy';
     
     try {
       const canOpen = await Linking.canOpenURL(url);
@@ -329,7 +330,11 @@ export default function ClientProfileScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <ProfileHeader
-          fullName={profile.full_name}
+          fullName={
+            [profile.first_name, profile.last_name]
+              .filter(Boolean)
+              .join(' ') || 'User'
+          }
           email={userEmail}
           currentStreak={profile.current_streak}
           currentWeight={currentWeight}

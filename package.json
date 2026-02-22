@@ -7,8 +7,12 @@
     "packages/*"
   ],
   "scripts": {
-    "client": "npm run start --workspace=apps/client",
-    "trainer": "npm run start --workspace=apps/trainer"
+  "client": "npm run start --workspace=apps/client",
+  "trainer": "npm run start --workspace=apps/trainer",
+  "client:tunnel": "npm run start:tunnel --workspace=apps/client",
+  "trainer:tunnel": "npm run start:tunnel --workspace=apps/trainer",
+  "build:client:android": "cd apps/client && eas build --platform android --profile development",
+  "build:client:ios": "cd apps/client && eas build --platform ios --profile development"
   },
   "devDependencies": {}
 
