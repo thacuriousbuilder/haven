@@ -1,4 +1,4 @@
-// app.config.ts
+
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
 const IS_DEV = process.env.APP_VARIANT === 'development';
@@ -12,7 +12,6 @@ const getAppName = () => {
 
 const getBundleId = () => {
   if (IS_DEV) return 'co.tryhaven.app.dev';
-  if (IS_PREVIEW) return 'co.tryhaven.app.preview';
   return 'co.tryhaven.app';
 };
 
@@ -52,7 +51,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: getBundleId(),
-    versionCode: 4,
     googleServicesFile: './google-services.json',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon1.png',
