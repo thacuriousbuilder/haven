@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -25,6 +24,7 @@ export default function PlanScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [totalReserved, setTotalReserved] = useState(0);
+  const [weeklyBudget, setWeeklyBudget] = useState(0);
   const [isInBaseline, setIsInBaseline] = useState(false);
   const [baselineProgress, setBaselineProgress] = useState({ daysLogged: 0, daysNeeded: 7 });
 
@@ -38,7 +38,6 @@ export default function PlanScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      // Refresh data whenever screen comes into focus
       loadData();
       checkBaselineStatus();
     }, [])
@@ -81,9 +80,9 @@ export default function PlanScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Use local date string consistently
       const today = getLocalDateString();
 
+      // Fetch upcoming cheat days
       const { data: cheatDaysData } = await supabase
         .from('planned_cheat_days')
         .select('*')
@@ -93,13 +92,26 @@ export default function PlanScreen() {
 
       if (cheatDaysData) {
         setCheatDays(cheatDaysData);
-        
         const reserved = cheatDaysData.reduce(
           (sum, day) => sum + (day.planned_calories || 0),
           0
         );
         setTotalReserved(reserved);
       }
+
+      // Fetch current week's budget from weekly_periods
+      const { data: weeklyPeriod } = await supabase
+        .from('weekly_periods')
+        .select('weekly_budget')
+        .eq('user_id', user.id)
+        .lte('week_start_date', today)
+        .gte('week_end_date', today)
+        .maybeSingle();
+
+      if (weeklyPeriod) {
+        setWeeklyBudget(weeklyPeriod.weekly_budget);
+      }
+
     } catch (error) {
       console.error('Error loading plan data:', error);
     } finally {
@@ -114,18 +126,12 @@ export default function PlanScreen() {
   };
 
   const formatCheatDayDate = (dateString: string) => {
-    // CRITICAL: Append T00:00:00 to force local timezone interpretation
     const date = new Date(dateString + 'T00:00:00');
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    
-    const dayName = days[date.getDay()];
-    const month = months[date.getMonth()];
-    const dayNum = date.getDate();
-    
     return {
-      dayName,
-      dateStr: `${month} ${dayNum}`,
+      dayName: days[date.getDay()],
+      dateStr: `${months[date.getMonth()]} ${date.getDate()}`,
     };
   };
 
@@ -134,10 +140,7 @@ export default function PlanScreen() {
       'Delete Treat Day',
       'Are you sure you want to delete this planned treat day?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
@@ -149,7 +152,6 @@ export default function PlanScreen() {
                 .eq('id', cheatDayId);
 
               if (error) throw error;
-
               loadData();
             } catch (error) {
               console.error('Error deleting treat day:', error);
@@ -172,6 +174,8 @@ export default function PlanScreen() {
       },
     });
   };
+
+  const isOverBudget = totalReserved > weeklyBudget && weeklyBudget > 0;
 
   if (loading) {
     return (
@@ -211,13 +215,23 @@ export default function PlanScreen() {
               </View>
             </View>
             <View style={styles.progressBar}>
-              <View 
+              <View
                 style={[
-                  styles.progressFill, 
+                  styles.progressFill,
                   { width: `${(baselineProgress.daysLogged / baselineProgress.daysNeeded) * 100}%` }
-                ]} 
+                ]}
               />
             </View>
+          </View>
+        )}
+
+        {/* Over Budget Warning */}
+        {isOverBudget && (
+          <View style={styles.overBudgetBanner}>
+            <Ionicons name="warning" size={20} color={Colors.error} />
+            <Text style={styles.overBudgetText}>
+              Your reserved treat day calories exceed your weekly budget of {weeklyBudget.toLocaleString()} cal. Consider removing or reducing a treat day.
+            </Text>
           </View>
         )}
 
@@ -233,12 +247,18 @@ export default function PlanScreen() {
           </View>
 
           {/* Reserved Cal Card */}
-          <View style={styles.statCard}>
+          <View style={[
+            styles.statCard,
+            isOverBudget && styles.statCardWarning,
+          ]}>
             <View style={[styles.iconCircle, { backgroundColor: Colors.orangeOverlay }]}>
               <Ionicons name="flame" size={24} color={Colors.energyOrange} />
             </View>
             <Text style={styles.statNumber}>{totalReserved.toLocaleString()}</Text>
             <Text style={styles.statLabel}>Reserved Cal</Text>
+            {isOverBudget && (
+              <Text style={styles.statWarningText}>Exceeds budget</Text>
+            )}
           </View>
         </View>
 
@@ -254,12 +274,11 @@ export default function PlanScreen() {
           <View style={styles.cheatDaysList}>
             {cheatDays.map((cheatDay) => {
               const { dayName, dateStr } = formatCheatDayDate(cheatDay.cheat_date);
-              
               return (
                 <View key={cheatDay.id} style={styles.cheatDayCard}>
                   <View style={styles.cheatDayLeft}>
                     <View style={styles.partyIconCircle}>
-                      <Ionicons name="pizza" size={24} color={Colors.energyOrange} />
+                      <Ionicons name="fast-food" size={24} color={Colors.energyOrange} />
                     </View>
                     <View style={styles.cheatDayInfo}>
                       <Text style={styles.cheatDayName}>{dayName}</Text>
@@ -268,7 +287,6 @@ export default function PlanScreen() {
                       </Text>
                     </View>
                   </View>
-                  
                   <View style={styles.cheatDayActions}>
                     <TouchableOpacity
                       onPress={() => handleEditCheatDay(cheatDay)}
@@ -360,8 +378,6 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: 100,
   },
-  
-  // Header
   header: {
     marginBottom: Spacing.xl,
   },
@@ -375,8 +391,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     color: Colors.steelBlue,
   },
-
-  // Baseline Banner
   baselineBanner: {
     backgroundColor: Colors.orangeOverlay,
     borderRadius: BorderRadius.lg,
@@ -415,8 +429,24 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.energyOrange,
     borderRadius: 3,
   },
-
-  // Stat Cards
+  overBudgetBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FEF2F2',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  overBudgetText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.error,
+    fontWeight: Typography.fontWeight.medium,
+    lineHeight: Typography.fontSize.sm * 1.5,
+  },
   statCardsRow: {
     flexDirection: 'row',
     gap: Spacing.md,
@@ -429,6 +459,11 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     alignItems: 'center',
     ...Shadows.small,
+  },
+  statCardWarning: {
+    borderWidth: 1,
+    borderColor: Colors.error,
+    backgroundColor: '#FEF2F2',
   },
   iconCircle: {
     width: 56,
@@ -448,8 +483,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.steelBlue,
   },
-
-  // Empty State
+  statWarningText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.error,
+    fontWeight: Typography.fontWeight.semibold,
+    marginTop: Spacing.xs,
+  },
   emptyStateCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
@@ -472,8 +511,6 @@ const styles = StyleSheet.create({
     color: Colors.steelBlue,
     textAlign: 'center',
   },
-
-  // Cheat Day Cards
   cheatDaysList: {
     marginBottom: Spacing.lg,
   },
@@ -522,8 +559,6 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: Spacing.sm,
   },
-
-  // Buttons
   primaryButton: {
     backgroundColor: Colors.vividTeal,
     borderRadius: BorderRadius.md,
@@ -564,8 +599,6 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.medium,
     marginLeft: Spacing.sm,
   },
-
-
   tipsCard: {
     backgroundColor: Colors.orangeOverlay,
     borderRadius: BorderRadius.lg,

@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '@haven/shared-utils';
 import { Ionicons } from '@expo/vector-icons';
 import WeeklyCalendar from '@/components/weeklyCalendar';
-import { BaselineCompleteModal } from '@/components/baseLineCompleteModal';
 import { 
   getLocalDateString, 
   getCurrentWeekDates,
@@ -31,6 +30,7 @@ import { useOverageCalculation } from '@/hooks/useOverageCalculation';
 import type { MealLogItem, MacroData } from '@/types/home';
 import { Colors } from '@/constants/colors';
 import { analyzeWeekPeriod, WeekInfo } from '@/utils/weekHelpers';
+import { BaselineWeightTrendModal } from '@/components/baselineWeightTrendModal';
 
 interface ProfileData {
   first_name: string | null;
@@ -93,6 +93,7 @@ export default function HomeScreen() {
   const [baselineModalType, setBaselineModalType] = useState<string | null>(null);
   const [baselineCompletionMessage, setBaselineCompletionMessage] = useState<string>();
   const [baselineDaysLogged, setBaselineDaysLogged] = useState(0);
+  const [showWeightTrend, setShowWeightTrend] = useState(false);
   const [completedBaselineDays, setCompletedBaselineDays] = useState<boolean[]>([
     false, false, false, false, false, false, false
   ]);
@@ -107,6 +108,8 @@ export default function HomeScreen() {
   const [currentPeriod, setCurrentPeriod] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [unreadCount, setUnreadCount] = useState(0);
+  const dismissedBudgetBanner = useRef(false);
+  const [isEstimatedBaseline, setIsEstimatedBaseline] = useState(false);
   
 
   const {
@@ -536,6 +539,33 @@ const calculateTodayMacros = (): MacroData => {
     }
   };
 
+  const handleWeightTrendSelected = async (trend: 'stable' | 'losing' | 'gaining') => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+  
+      await supabase
+        .from('profiles')
+        .update({ baseline_weight_trend: trend })
+        .eq('id', user.id);
+  
+    } catch (e) {
+      console.error('Error saving weight trend:', e);
+    } finally {
+      setShowWeightTrend(false);
+      router.push({
+        pathname: '/baselineComplete',
+        params: {
+          baselineAverage: String(baselineAverage),
+          reportedActivityLevel: profile?.activity_level || '',
+          actualActivityLevel: profile?.actual_activity_level || '',
+          daysUsed: String(baselineDaysLogged),
+          isEstimated: String(isEstimatedBaseline),
+        },
+      });
+    }
+  };
+
 const handleBaselineEnded = async () => {
   try {
     console.log('🔍 Handling baseline end...');
@@ -609,12 +639,11 @@ const completeBaselineNow = async () => {
     
     // Set data for completion modal
     setBaselineAverage(result?.data?.dailyTarget || 0);
-    
+    setIsEstimatedBaseline(false);
+    setBaselineModalType(null);
     // Show completion modal
-    setBaselineModalType('complete');
-    
-    // Refresh profile to show updated data
-    await fetchProfile();
+    setShowWeightTrend(true);
+     
     
   } catch (error) {
     console.error('❌ Error in completeBaselineNow:', error);
@@ -653,12 +682,11 @@ const useEstimatedData = async () => {
 
     // Set data for completion modal
     setBaselineAverage(result?.data?.dailyTarget || 0);
-
+    setIsEstimatedBaseline(true);
+    setBaselineModalType(null);
     // Show completion modal
-    setBaselineModalType('complete');
+    setShowWeightTrend(true);
 
-    // Refresh profile
-    await fetchProfile();
 
   } catch (error) {
     console.error('❌ Error in useEstimatedData:', error);
@@ -1430,7 +1458,7 @@ const fetchMetrics = async () => {
                   activeOpacity={0.8}
                 >
                   <View style={styles.bannerContent}>
-                    <Ionicons name="fitness" size={20} color="#EF7828" />
+                    <Ionicons name="fitness" size={20} color={Colors.vividTeal} />
                     <View style={styles.bannerTextContainer}>
                       <Text style={styles.bannerTitle}>Daily check-in</Text>
                       <Text style={styles.bannerSubtext}>
@@ -1438,28 +1466,39 @@ const fetchMetrics = async () => {
                       </Text>
                     </View>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#EF7828" />
+                  <Ionicons name="chevron-forward" size={20} color={Colors.vividTeal}  />
                 </TouchableOpacity>
               )}
 
              {/* Budget Adjustment Banner */}
-          {isSelectedDateToday() && !isSelectedDateCheatDay() && adjustment < 0 && cumulativeOverage > 0 && (
+          {isSelectedDateToday() && !isSelectedDateCheatDay() && adjustment < 0 && cumulativeOverage > 0 && !dismissedBudgetBanner.current  && (
             <TouchableOpacity
-              style={styles.budgetAdjustmentBanner}
-              activeOpacity={0.9}
-            >
-              <View style={styles.bannerContent}>
-                <Ionicons name="alert-circle" size={20} color="#EF7828" />
-                <View style={styles.bannerTextContainer}>
-                  <Text style={styles.budgetBannerTitle}>
-                    Budget adjusted for this week
-                  </Text>
-                  <Text style={styles.budgetBannerSubtext}>
-                    You're {cumulativeOverage} cal slightly over. Haven recommends eating: {adjustedBudget.toLocaleString()} cal rather than your normal {baseBudget.toLocaleString()} cal
-                  </Text>
-                </View>
+            style={styles.budgetAdjustmentBanner}
+            activeOpacity={0.9}
+          >
+            <View style={styles.bannerContent}>
+              <Ionicons name="alert-circle" size={20} color="#EF7828" />
+              <View style={styles.bannerTextContainer}>
+                <Text style={styles.budgetBannerTitle}>
+                  Budget adjusted for this week
+                </Text>
+                <Text style={styles.budgetBannerSubtext}>
+                  You're {cumulativeOverage} cal slightly over. Haven recommends eating: {adjustedBudget.toLocaleString()} cal rather than your normal {baseBudget.toLocaleString()} cal
+                </Text>
               </View>
+            </View>
+            {/* X button */}
+            <TouchableOpacity
+              onPress={() => {
+                dismissedBudgetBanner.current = true;
+                setSelectedDate(new Date(selectedDate)); // trigger re-render
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.bannerDismiss}
+            >
+              <Ionicons name="close" size={18} color="#EA580C" />
             </TouchableOpacity>
+          </TouchableOpacity>
             )}
             {/*  Cheat Day Banner */}
             {isSelectedDateCheatDay() && selectedCheatCalories && (
@@ -1560,19 +1599,6 @@ const fetchMetrics = async () => {
         </View>
       </ScrollView>
 
-      {/* Baseline Complete Modal */}
-      <BaselineCompleteModal
-  visible={baselineModalType === 'complete'}
-  baselineAverage={baselineAverage}
-  reportedActivityLevel={profile?.activity_level || undefined}
-  actualActivityLevel={profile?.actual_activity_level || undefined}
-  daysUsed={baselineDaysLogged}
-  onComplete={() => {
-    setBaselineModalType(null);
-    setBaselineCompletionMessage(undefined);
-    onRefresh();
-  }}
-/>
     {/* Choice Modal */}
     <BaselineChoiceModal
       visible={baselineModalType === 'choice'}
@@ -1589,6 +1615,11 @@ const fetchMetrics = async () => {
       daysLogged={baselineDaysLogged}
       onRestart={restartBaseline}
       onUseEstimatedData={useEstimatedData}
+    />
+     {/* Weight Trend Modal */}
+    <BaselineWeightTrendModal
+      visible={showWeightTrend}
+      onSelect={handleWeightTrendSelected}
     />
     </SafeAreaView>
   );
@@ -1833,16 +1864,17 @@ const styles = StyleSheet.create({
     color: Colors.graphite,
   },
   checkInBanner: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: Colors.tealOverlay,
     paddingVertical: 16,
     paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 12,         
-    marginBottom: 16,           
-    borderWidth: 1,              
-    borderColor: '#FFEDD5', 
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#10B981',
+    shadowColor: '#10B981',
   },
   bannerContent: {
     flexDirection: 'row',
@@ -1856,12 +1888,12 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#EA580C',
+    color: Colors.vividTeal,
     marginBottom: 2,
   },
   bannerSubtext: {
     fontSize: 13,
-    color: '#9A3412',
+    color: Colors.vividTeal,
   },
   bannerTitleD7: {
     fontSize: 15,
@@ -1944,6 +1976,10 @@ cheatDayBannerSubtext: {
   fontSize: 14,
   color: '#047857',
   lineHeight: 20,
+},
+bannerDismiss: {
+  padding: 4,
+  marginLeft: 8,
 },
 messageButton: {
   width: 44,

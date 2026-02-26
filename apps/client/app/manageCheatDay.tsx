@@ -201,6 +201,7 @@ export default function ManageCheatDaysScreen() {
       <FlatList
         data={cheatDays}
         keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
           // FIXED: Parse date in local timezone
           const date = new Date(item.cheat_date + 'T00:00:00');
@@ -299,7 +300,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingBottom: Spacing.lg,
     backgroundColor: Colors.lightCream,
   },
   circleBackButton: {

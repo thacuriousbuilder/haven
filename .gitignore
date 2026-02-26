@@ -45,3 +45,5 @@ yarn-error.*
 #supabase
 /supabase/.temp
 GoogleService-Info.plist
+
+.backup

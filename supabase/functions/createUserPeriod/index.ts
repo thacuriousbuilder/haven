@@ -1,4 +1,5 @@
 
+
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { validateUUID, buildValidationResponse } from '../_shared/validate.ts'
@@ -100,12 +101,48 @@ Deno.serve(async (req: Request) => {
       .or(`and(week_start_date.lte.${weekEndDate},week_end_date.gte.${weekStartDate})`)
 
     if (existingPeriods && existingPeriods.length > 0) {
-      console.log('⏭️ Period already exists for this week')
+      console.log('⏭️ Period already exists, syncing budget from profile...')
+
+      const existingPeriod = existingPeriods[0]
+
+      // Re-fetch latest profile values to sync
+      const { data: freshProfile } = await adminClient
+        .from('profiles')
+        .select('baseline_avg_daily_calories, weekly_budget')
+        .eq('id', user_id)
+        .single()
+
+      if (freshProfile?.weekly_budget) {
+        const freshBaselineAvg = freshProfile.baseline_avg_daily_calories || Math.round(freshProfile.weekly_budget / 7)
+        const freshWeeklyBudget = freshProfile.weekly_budget
+
+        if (
+          existingPeriod.baseline_average_daily !== freshBaselineAvg ||
+          existingPeriod.weekly_budget !== freshWeeklyBudget
+        ) {
+          const { error: updateError } = await adminClient
+            .from('weekly_periods')
+            .update({
+              baseline_average_daily: freshBaselineAvg,
+              weekly_budget: freshWeeklyBudget,
+            })
+            .eq('id', existingPeriod.id)
+
+          if (updateError) {
+            console.error('❌ Failed to sync period budget:', updateError)
+          } else {
+            console.log(`✅ Synced: ${freshBaselineAvg}/day → ${freshWeeklyBudget}/week`)
+          }
+        } else {
+          console.log('✅ Period budget already in sync, no update needed')
+        }
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
           reason: 'already_exists',
-          period_id: existingPeriods[0].id,
+          period_id: existingPeriod.id,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -138,7 +175,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const weeklyBudget = profile.weekly_budget
-    const baselineAvg = profile.baseline_avg_daily_calories || (weeklyBudget / 7)
+    const baselineAvg = profile.baseline_avg_daily_calories || Math.round(weeklyBudget / 7)
 
     console.log('💰 Budget:', weeklyBudget, '(', baselineAvg, 'cal/day)')
 
@@ -151,7 +188,7 @@ Deno.serve(async (req: Request) => {
         period_type: 'active',
         status: 'active',
         weekly_budget: weeklyBudget,
-        baseline_average_daily: baselineAvg || null,
+        baseline_average_daily: baselineAvg,
       })
       .select()
       .single()

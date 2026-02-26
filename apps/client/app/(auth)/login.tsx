@@ -35,7 +35,10 @@ async function handleGoogleSignIn() {
     router.replace(route);
   } catch (error: any) {
     if (error.code !== 'SIGN_IN_CANCELLED') {
-      Alert.alert('Error', error.message || 'Google sign-in failed');
+      Alert.alert(
+        'Error',
+        'Something went wrong while connecting to your Google account. Please try again or choose a different sign‑in method.'
+      );
     }
   } finally {
     setGoogleLoading(false);
@@ -50,7 +53,10 @@ async function handleAppleSignIn() {
     router.replace(route);
   } catch (error: any) {
     if (error.code !== 'ERR_REQUEST_CANCELED') {
-      Alert.alert('Error', error.message || 'Apple sign-in failed');
+      Alert.alert(
+        'Error',
+        'Something went wrong while connecting to your Apple account. Please try again or choose a different sign‑in method.'
+      );
     }
   } finally {
     setAppleLoading(false);
