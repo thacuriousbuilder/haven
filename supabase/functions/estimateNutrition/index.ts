@@ -1,57 +1,57 @@
 
-
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import {
+  validateString,
+  buildValidationResponse,
+  checkRateLimit,
+  rateLimitResponse,
+} from '../_shared/validate.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const VALID_MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack']
+
 interface NutritionEstimate {
-  food_name: string;
-  calories: number;
-  protein_grams: number;
-  carbs_grams: number;
-  fat_grams: number;
-  confidence: 'high' | 'medium' | 'low';
-  notes?: string;
+  food_name: string
+  calories: number
+  protein_grams: number
+  carbs_grams: number
+  fat_grams: number
+  confidence: 'high' | 'medium' | 'low'
+  notes?: string
 }
 
 //@ts-ignore
 Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.log('🚀 estimateNutrition called!')
+    console.log('🚀 estimateNutrition called')
 
-    // Get authorization header and extract token
+    // 1. Verify JWT
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      console.error('❌ No authorization header')
       return new Response(
         JSON.stringify({ success: false, error: 'Missing Authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const token = authHeader.replace('Bearer ', '')
-    console.log('🔑 Token received')
-
-    // Create Supabase client
-    const supabaseClient = createClient(
+    const userClient = createClient(
       //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
       //@ts-ignore
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
     )
 
-    // Verify user with token
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
-
+    const { data: { user }, error: userError } = await userClient.auth.getUser()
     if (userError || !user) {
       console.error('❌ Auth failed:', userError?.message)
       return new Response(
@@ -62,36 +62,62 @@ Deno.serve(async (req: Request) => {
 
     console.log('✅ User authenticated:', user.id)
 
-    // Get request body
+    // 2. Rate limit — 20 estimates per hour
+    const adminClient = createClient(
+      //@ts-ignore
+      Deno.env.get('SUPABASE_URL') ?? '',
+      //@ts-ignore
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    const { allowed, remaining } = await checkRateLimit(
+      adminClient,
+      user.id,
+      'estimateNutrition',
+      { maxRequests: 20, windowMinutes: 60 }
+    )
+
+    if (!allowed) {
+      console.warn('🚫 Rate limit exceeded for user:', user.id)
+      return rateLimitResponse(corsHeaders)
+    }
+
+    console.log(`📊 Rate limit ok — ${remaining} requests remaining this hour`)
+
+    // 3. Validate inputs
     const { food_description, meal_type } = await req.json()
-    
-    if (!food_description || !food_description.trim()) {
-      console.error('❌ No food description provided')
+
+    const validationResponse = buildValidationResponse([
+      validateString(food_description, 'food_description', { minLength: 3, maxLength: 500 }),
+    ], corsHeaders)
+    if (validationResponse) return validationResponse
+
+    if (meal_type && !VALID_MEAL_TYPES.includes(meal_type)) {
       return new Response(
-        JSON.stringify({ success: false, error: 'No food description provided' }),
+        JSON.stringify({
+          success: false,
+          error: `meal_type must be one of: ${VALID_MEAL_TYPES.join(', ')}`,
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     console.log('📝 Estimating nutrition for:', food_description, '| Meal:', meal_type)
 
-    // Call OpenAI API
     //@ts-ignore
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
     if (!openaiApiKey) {
-      console.error('❌ OpenAI API key not configured')
       return new Response(
         JSON.stringify({ success: false, error: 'Service configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('🤖 Calling OpenAI (GPT-4o-mini)...')
+    const mealContext = meal_type
+      ? `This is for ${meal_type}. Use typical ${meal_type} portion sizes as your reference.`
+      : 'Use standard restaurant portion sizes as your reference.'
 
-    // Build context-aware prompt based on meal type
-    const mealContext = meal_type 
-      ? `This is for ${meal_type}. Consider typical ${meal_type} portion sizes.`
-      : 'Consider standard portion sizes.';
+    console.log('🤖 Calling OpenAI (GPT-4o-mini)...')
 
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -106,23 +132,28 @@ Deno.serve(async (req: Request) => {
             role: 'system',
             content: `You are a nutrition expert estimating nutritional values from food descriptions. ${mealContext}
 
-Return ONLY a JSON object with this exact structure:
+RULES:
+- If multiple foods are described, sum ALL items into one total
+- If a weight or volume is given (e.g. 200g, 1 cup), use it precisely
+- If no portion is given, assume a standard restaurant serving for that meal type
+- Aim for accuracy — when uncertain, pick the midpoint estimate
+- Never guess wildly — if description is too vague, reflect that in confidence level
+
+Return ONLY valid JSON, no extra text:
 {
-  "food_name": "cleaned up version of the food description",
-  "calories": estimated total calories (number),
-  "protein_grams": estimated protein in grams (number),
-  "carbs_grams": estimated carbs in grams (number),
-  "fat_grams": estimated fat in grams (number),
+  "food_name": "cleaned up version of the full description",
+  "calories": estimated total calories as a number,
+  "protein_grams": estimated protein in grams as a number,
+  "carbs_grams": estimated carbs in grams as a number,
+  "fat_grams": estimated fat in grams as a number,
   "confidence": "high" | "medium" | "low",
-  "notes": "any assumptions about portions or ingredients"
+  "notes": "brief explanation of portion assumptions made"
 }
 
-Confidence guidelines:
-- "high": Very specific description with portion sizes (e.g., "8oz grilled chicken breast")
-- "medium": Good description but some assumptions needed (e.g., "chicken salad")
-- "low": Vague description requiring many assumptions (e.g., "salad")
-
-Be realistic about portions. If no portion size is mentioned, assume a standard restaurant serving.`
+Confidence guide:
+- "high": specific description with portion size (e.g. "8oz grilled chicken breast")
+- "medium": food identified but portion assumed (e.g. "grilled chicken breast")
+- "low": vague description with many unknowns (e.g. "chicken dish")`
           },
           {
             role: 'user',
@@ -147,16 +178,12 @@ Be realistic about portions. If no portion size is mentioned, assume a standard 
     const content = openaiData.choices[0]?.message?.content
 
     if (!content) {
-      console.error('❌ No response from OpenAI')
       return new Response(
         JSON.stringify({ success: false, error: 'No response from AI' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('📝 Raw OpenAI response:', content)
-
-    // Parse the JSON response
     let nutritionEstimate: NutritionEstimate
     try {
       const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
@@ -169,60 +196,43 @@ Be realistic about portions. If no portion size is mentioned, assume a standard 
       )
     }
 
-    // Validate the response
     if (!nutritionEstimate.food_name || typeof nutritionEstimate.calories !== 'number') {
-      console.error('❌ Incomplete nutrition data:', nutritionEstimate)
       return new Response(
         JSON.stringify({ success: false, error: 'Incomplete nutrition data' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('✅ Successfully estimated:', nutritionEstimate.food_name, '-', nutritionEstimate.calories, 'cal')
+    console.log('✅ Estimated:', nutritionEstimate.food_name, '-', nutritionEstimate.calories, 'cal')
 
-    // Log the AI usage for future analytics
+    // Log AI usage
     try {
-    //@ts-ignore
-    await supabaseClient
-      .from('ai_usage_logs')
-      .insert({
-        user_id: user.id,
-        feature: 'text_nutrition_estimate',
-        input_data: { food_description, meal_type },
-        output_data: nutritionEstimate,
-        model_used: 'gpt-4o-mini',
-        cost_estimate: 0.00015,
-      })
-    console.log('📊 Usage logged')
-  } catch (logError) {
-    // Don't fail the request if logging fails
-    console.warn('⚠️ Failed to log AI usage:', logError)
-  }
+      await userClient
+        .from('ai_usage_logs')
+        .insert({
+          user_id: user.id,
+          feature: 'text_nutrition_estimate',
+          input_data: { food_description, meal_type },
+          output_data: nutritionEstimate,
+          model_used: 'gpt-4o-mini',
+          cost_estimate: 0.00015,
+        })
+      console.log('📊 Usage logged')
+    } catch (logError) {
+      console.warn('⚠️ Failed to log AI usage:', logError)
+    }
 
-    // Return the estimate
     return new Response(
-      JSON.stringify({ 
-        success: true,
-        data: nutritionEstimate 
-      }),
-      { 
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ success: true, data: nutritionEstimate }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
     console.error('❌ Error in estimateNutrition:', error)
     return new Response(
-      JSON.stringify({ 
-        success: false,
-        //@ts-ignore
-        error: error.message || 'Internal server error'
-      }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      //@ts-ignore
+      JSON.stringify({ success: false, error: error.message || 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

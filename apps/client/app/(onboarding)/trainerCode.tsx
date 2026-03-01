@@ -112,7 +112,7 @@ export default function TrainerCodeScreen() {
           showsVerticalScrollIndicator={false}
         >
           <BackButton />
-          <ProgressBar currentStep={12} totalSteps={15} />
+          <ProgressBar currentStep={11} totalSteps={14} />
           
           <View style={styles.content}>
             <Text style={styles.title}>Do you have a coach?</Text>

@@ -1,6 +1,8 @@
 
+
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { validateUUID, buildValidationResponse } from '../_shared/validate.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,7 +13,6 @@ async function calculateStreakForUser(supabase: any, userId: string) {
   try {
     console.log('🔥 Calculating streak for user:', userId)
 
-    // Get all food logs for this user, sorted by date descending
     const { data: logs, error } = await supabase
       .from('food_logs')
       .select('log_date')
@@ -23,75 +24,61 @@ async function calculateStreakForUser(supabase: any, userId: string) {
       return { success: false, error: error.message }
     }
 
-    // If no logs at all, streak is 0
     if (!logs || logs.length === 0) {
       await supabase
         .from('profiles')
         .update({ current_streak: 0 })
         .eq('id', userId)
-      
-      console.log('✅ User has no logs, streak set to 0')
       return { success: true, streak: 0 }
     }
 
-    // Get unique dates (user might have multiple meals per day)
     const uniqueDates = [...new Set(logs.map((log: any) => log.log_date))].sort().reverse()
 
-    // Get today's date in YYYY-MM-DD format
     const today = new Date()
     const todayStr = today.toISOString().split('T')[0]
 
-    // Start counting streak from today backwards
     let streak = 0
     let currentDate = new Date(todayStr)
 
-    // Check if user logged today
     if (uniqueDates[0] === todayStr) {
       streak = 1
       currentDate.setDate(currentDate.getDate() - 1)
     } else {
-      // User didn't log today, check if they logged yesterday
       const yesterday = new Date(today)
       yesterday.setDate(yesterday.getDate() - 1)
       const yesterdayStr = yesterday.toISOString().split('T')[0]
 
       if (uniqueDates[0] === yesterdayStr) {
-        // They logged yesterday, streak is still alive
         streak = 1
         currentDate = new Date(yesterdayStr)
         currentDate.setDate(currentDate.getDate() - 1)
       } else {
-        // They missed yesterday, streak is broken
         streak = 0
       }
     }
 
-    // Count consecutive days backwards
     if (streak > 0) {
-      for (let i = (uniqueDates[0] === todayStr ? 1 : 1); i < uniqueDates.length; i++) {
+      for (let i = 1; i < uniqueDates.length; i++) {
         const expectedDateStr = currentDate.toISOString().split('T')[0]
-        
         if (uniqueDates[i] === expectedDateStr) {
           streak++
           currentDate.setDate(currentDate.getDate() - 1)
         } else {
-          // Gap found, stop counting
           break
         }
       }
     }
 
-    // Update profile with new streak
     await supabase
       .from('profiles')
       .update({ current_streak: streak })
       .eq('id', userId)
 
-    console.log(`✅ Streak calculated for user ${userId}: ${streak} days`)
+    console.log(`✅ Streak for user ${userId}: ${streak} days`)
     return { success: true, streak }
 
   } catch (error) {
-    console.error('❌ Error calculating streak for user:', userId, error)
+    console.error('❌ Error calculating streak:', userId, error)
     //@ts-ignore
     return { success: false, error: error.message }
   }
@@ -106,47 +93,84 @@ Deno.serve(async (req: Request) => {
   try {
     console.log('🚀 Streak calculation started at:', new Date().toISOString())
 
-    // Verify authorization
     const authHeader = req.headers.get('Authorization')
-    
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized - missing auth header' }),
+        JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Create admin client
-    const supabase = createClient(
+    const body = await req.json().catch(() => ({}))
+    const { userId } = body
+
+    // If single user request — verify JWT
+    if (userId) {
+      const userClient = createClient(
+        //@ts-ignore
+        Deno.env.get('SUPABASE_URL') ?? '',
+        //@ts-ignore
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        { global: { headers: { Authorization: authHeader } } }
+      )
+
+      const { data: { user }, error: userError } = await userClient.auth.getUser()
+      if (userError || !user) {
+        console.error('❌ Invalid token:', userError)
+        return new Response(
+          JSON.stringify({ error: 'Invalid token' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Validate UUID
+      const validationResponse = buildValidationResponse([
+        validateUUID(userId, 'userId'),
+      ], corsHeaders)
+      if (validationResponse) return validationResponse
+
+      // Ensure user can only update their own streak
+      if (user.id !== userId) {
+        console.error('❌ User attempted to update another users streak')
+        return new Response(
+          JSON.stringify({ error: 'Forbidden' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const adminClient = createClient(
+        //@ts-ignore
+        Deno.env.get('SUPABASE_URL') ?? '',
+        //@ts-ignore
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      )
+
+      const result = await calculateStreakForUser(adminClient, userId)
+      return new Response(
+        JSON.stringify({ success: result.success, streak: result.streak, userId }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Batch request — verify cron secret
+    //@ts-ignore
+    const cronSecret = Deno.env.get('CRON_SECRET')
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      console.error('❌ Unauthorized batch request')
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const adminClient = createClient(
       //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
       //@ts-ignore
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Check if this is a single-user request (real-time) or batch (cron)
-    const body = await req.json().catch(() => ({}))
-    const singleUserId = body.userId
-
-    if (singleUserId) {
-      // Real-time update for single user
-      console.log(`🎯 Single user request for: ${singleUserId}`)
-      const result = await calculateStreakForUser(supabase, singleUserId)
-      
-      return new Response(
-        JSON.stringify({
-          success: result.success,
-          streak: result.streak,
-          userId: singleUserId,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Batch processing for all users (cron job)
-    console.log('📅 Batch processing for all users (cron)')
-    
-    const { data: users, error: usersError } = await supabase
+    const { data: users, error: usersError } = await adminClient
       .from('profiles')
       .select('id')
 
@@ -157,10 +181,9 @@ Deno.serve(async (req: Request) => {
 
     console.log(`🔥 Found ${users?.length || 0} users to process`)
 
-    // Calculate streaks for each user
-    const results = []
+    const results: Array<{ user_id: string; success: boolean; streak?: number; error?: string }> = []
     for (const user of users || []) {
-      const result = await calculateStreakForUser(supabase, user.id)
+      const result = await calculateStreakForUser(adminClient, user.id)
       results.push({ user_id: user.id, ...result })
     }
 

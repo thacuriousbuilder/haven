@@ -1,3 +1,5 @@
+
+
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -40,9 +42,6 @@ async function createPeriodForUser(supabase: any, userId: string) {
     const weekStartDate = formatDate(thisMonday)
     const weekEndDate = formatDate(thisSunday)
 
-    console.log('  Week dates:', weekStartDate, 'to', weekEndDate)
-
-    // Check if any period overlaps with the new week we want to create
     const { data: existingPeriods } = await supabase
       .from('weekly_periods')
       .select('*')
@@ -50,13 +49,10 @@ async function createPeriodForUser(supabase: any, userId: string) {
       .or(`and(week_start_date.lte.${weekEndDate},week_end_date.gte.${weekStartDate})`)
 
     if (existingPeriods && existingPeriods.length > 0) {
-      console.log('⏭️  Period already exists that overlaps this week:', userId)
-      console.log('    Existing:', existingPeriods[0].week_start_date, 'to', existingPeriods[0].week_end_date)
-      console.log('    Attempted:', weekStartDate, 'to', weekEndDate)
+      console.log('⏭️ Period already exists:', userId)
       return { success: true, reason: 'already_exists' }
     }
 
-    // Get the user's most recent period to copy settings, or use profile data
     const { data: lastPeriod } = await supabase
       .from('weekly_periods')
       .select('*')
@@ -70,40 +66,32 @@ async function createPeriodForUser(supabase: any, userId: string) {
     let baselineAvg
 
     if (!lastPeriod) {
-      console.log('⏭️  No previous period found, using profile baseline data')
-      
-      // Get baseline data from profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('baseline_avg_daily_calories')
         .eq('id', userId)
         .single()
-      
+
       if (profileError || !profile?.baseline_avg_daily_calories) {
-        console.error('❌ Cannot create period: no baseline data for user:', userId)
+        console.error('❌ No baseline data for user:', userId)
         return { success: false, reason: 'no_baseline_data' }
       }
-      
+
       baselineAvg = profile.baseline_avg_daily_calories
       weeklyBudget = baselineAvg * 7
-      
-      console.log('  Using baseline avg:', baselineAvg, '→ weekly budget:', weeklyBudget)
     } else {
       weeklyBudget = lastPeriod.weekly_budget
       baselineAvg = lastPeriod.baseline_average_daily
-      
-      // Mark last week's period as completed if it's still active and ended before today
+
       if (lastPeriod.status === 'active' && lastPeriod.week_end_date < todayStr) {
         await supabase
           .from('weekly_periods')
           .update({ status: 'completed' })
           .eq('id', lastPeriod.id)
-        
         console.log('✅ Marked previous period as completed:', lastPeriod.id)
       }
     }
 
-    // Create new period for this week
     const { data: newPeriod, error: insertError } = await supabase
       .from('weekly_periods')
       .insert({
@@ -119,21 +107,18 @@ async function createPeriodForUser(supabase: any, userId: string) {
       .single()
 
     if (insertError) {
-      // If it's a duplicate key error, treat as "already exists"
       if (insertError.code === '23505') {
-        console.log('⏭️  Period already exists (duplicate key):', userId)
         return { success: true, reason: 'already_exists' }
       }
-      
       console.error('❌ Failed to create period:', insertError)
       throw insertError
     }
 
-    console.log('✅ Created new period for user:', userId, 'Week:', weekStartDate, 'to', weekEndDate)
+    console.log('✅ Created period for user:', userId)
     return { success: true, period_id: newPeriod.id }
 
   } catch (error) {
-    console.error('❌ Error creating period for user:', userId, error)
+    console.error('❌ Error for user:', userId, error)
     //@ts-ignore
     return { success: false, error: error.message }
   }
@@ -148,17 +133,19 @@ Deno.serve(async (req: Request) => {
   try {
     console.log('🚀 Weekly period creation job started at:', new Date().toISOString())
 
-    // Verify authorization
+    // Verify cron secret
     const authHeader = req.headers.get('Authorization')
-    
-    if (!authHeader) {
+    //@ts-ignore
+    const cronSecret = Deno.env.get('CRON_SECRET')
+
+    if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
+      console.error('❌ Unauthorized cron request')
       return new Response(
-        JSON.stringify({ error: 'Unauthorized - missing auth header' }),
+        JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Create admin client
     const supabase = createClient(
       //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -166,7 +153,6 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get all users who have completed baseline
     const { data: users, error: usersError } = await supabase
       .from('profiles')
       .select('id')
@@ -179,8 +165,7 @@ Deno.serve(async (req: Request) => {
 
     console.log(`📊 Found ${users?.length || 0} users with completed baseline`)
 
-    // Create periods for each user
-    const results = []
+    const results: Array<{ user_id: string; success: boolean; period_id?: any; reason?: string; error?: any }> = []
     for (const user of users || []) {
       const result = await createPeriodForUser(supabase, user.id)
       results.push({ user_id: user.id, ...result })
@@ -197,7 +182,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         processed: results.length,
-        created: created,
+        created,
         already_existed: alreadyExists,
         failed: failCount,
         timestamp: new Date().toISOString(),

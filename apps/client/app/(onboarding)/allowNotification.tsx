@@ -30,7 +30,8 @@ export default function NotificationPermissionScreen() {
         throw new Error('Missing required onboarding data');
       }
   
-      const fullName = user.user_metadata?.full_name || '';
+      const firstName = user.user_metadata?.first_name || '';
+      const lastName = user.user_metadata?.last_name || '';
       
       // Calculate birth date
       const birthDate = formatDateComponents(
@@ -75,8 +76,9 @@ export default function NotificationPermissionScreen() {
         .from('profiles')
         .upsert({
           id: user.id,
-          user_type: data.accountType,
-          full_name: fullName,
+          user_type: 'client',
+          first_name: firstName,
+          last_name: lastName,
           gender: data.gender,
           birth_date: birthDate,
           unit_system: data.unitSystem || 'imperial',
@@ -176,7 +178,7 @@ export default function NotificationPermissionScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={15} totalSteps={15} />
+      <ProgressBar currentStep={14} totalSteps={14} />
       
       <View style={styles.content}>
         <ScrollView 

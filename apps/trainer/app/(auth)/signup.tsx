@@ -34,7 +34,7 @@ export default function Signup() {
           <Text style={styles.title}>Create your account</Text>
           
           <Text style={styles.headline}>
-            Your goals shouldn't ruin your{' '}
+            Your clients goals shouldn't ruin their{' '}
             <Text style={styles.highlightText}>Saturday night.</Text>
           </Text>
           
@@ -52,7 +52,7 @@ export default function Signup() {
           >
             <Text style={styles.primaryButtonText}>Continue</Text>
           </TouchableOpacity>
-
+{/* 
           <Text style={styles.divider}>OR</Text>
 
          
@@ -82,7 +82,7 @@ export default function Signup() {
               <Ionicons name="logo-apple" size={20} color={Colors.vividTeal}/>
               <Text style={styles.socialButtonText}>Continue with Apple</Text>
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </View>
 

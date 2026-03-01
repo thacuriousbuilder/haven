@@ -1,72 +1,65 @@
-import { makeRedirectUri } from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
+
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import { supabase } from './supabase';
 
-WebBrowser.maybeCompleteAuthSession();
+export function configureGoogleSignIn() {
+  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  console.log('HAVEN: webClientId =', webClientId);
+  GoogleSignin.configure({
+    webClientId,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  });
+}
+
+async function generateNonce(): Promise<[string, string]> {
+  const rawNonce = Math.random().toString(36).substring(2);
+  const hashedNonce = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    rawNonce
+  );
+  return [rawNonce, hashedNonce];
+}
 
 export async function signInWithGoogle() {
-  // Use useProxy: true for development
-  const redirectUrl = makeRedirectUri({
-    scheme: 'haven',
-    path: 'auth/callback',
-  });
+  await GoogleSignin.hasPlayServices();
+  const userInfo = await GoogleSignin.signIn();
 
-  console.log('Redirect URL:', redirectUrl);
+  // console.log('Google full response:', JSON.stringify(userInfo.data));
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
+  const idToken = userInfo.data?.idToken;
+  if (!idToken) throw new Error('No ID token returned from Google');
+
+  const { data, error } = await supabase.auth.signInWithIdToken({
     provider: 'google',
-    options: {
-      redirectTo: redirectUrl,
-      queryParams: {
-        access_type: 'offline',
-        prompt: 'consent',
-      },
-    },
+    token: idToken,
   });
 
   if (error) throw error;
+  return data;
+}
 
-  const res = await WebBrowser.openAuthSessionAsync(
-    data.url ?? '',
-    redirectUrl
-  );
+export async function signInWithApple() {
+  const [rawNonce, hashedNonce] = await generateNonce();
 
-  if (res.type === 'success') {
-    const { url } = res;
-    
-    // Parse URL for access token
-    let access_token = null;
-    let refresh_token = null;
+  const credential = await AppleAuthentication.signInAsync({
+    requestedScopes: [
+      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      AppleAuthentication.AppleAuthenticationScope.EMAIL,
+    ],
+    nonce: hashedNonce,
+  });
 
-    // Try hash format first (#access_token=...)
-    if (url.includes('#')) {
-      const hash = url.split('#')[1];
-      const params = new URLSearchParams(hash);
-      access_token = params.get('access_token');
-      refresh_token = params.get('refresh_token');
-    }
-    
-    // Try query format (?access_token=...)
-    if (!access_token && url.includes('?')) {
-      const query = url.split('?')[1]?.split('#')[0];
-      const params = new URLSearchParams(query);
-      access_token = params.get('access_token');
-      refresh_token = params.get('refresh_token');
-    }
+  const idToken = credential.identityToken;
+  if (!idToken) throw new Error('No identity token returned from Apple');
 
-    console.log('Access token found:', !!access_token);
-    console.log('Refresh token found:', !!refresh_token);
+  const { data, error } = await supabase.auth.signInWithIdToken({
+    provider: 'apple',
+    token: idToken,
+    nonce: rawNonce,
+  });
 
-    if (access_token && refresh_token) {
-      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-        access_token,
-        refresh_token,
-      });
-
-      if (sessionError) throw sessionError;
-      return sessionData;
-    }
-  }
-
-  return null;
+  if (error) throw error;
+  return data;
 }

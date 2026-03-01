@@ -1,34 +1,51 @@
 
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { signInWithGoogle } from '../../lib/auth';
+import { signInWithApple, signInWithGoogle } from '../../lib/auth';
 import { BackButton } from '../../components/onboarding/backButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
+import { getPostAuthRoute } from '@/lib/getPostAuthRoute';
 
 export default function Signup() {
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
 
   async function handleGoogleSignIn() {
     try {
       setGoogleLoading(true);
-      const session = await signInWithGoogle();
-      
-      if (session) {
-        router.replace('/(tabs)/home');
-      }
+      await signInWithGoogle();
+      const route = await getPostAuthRoute();
+      router.replace(route);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Google sign-in failed');
+      if (error.code !== 'SIGN_IN_CANCELLED') {
+        Alert.alert('Error', error.message || 'Google sign-in failed');
+      }
     } finally {
       setGoogleLoading(false);
     }
   }
 
+  async function handleAppleSignIn() {
+    try {
+      setAppleLoading(true);
+      await signInWithApple();
+      const route = await getPostAuthRoute();
+      router.replace(route);
+    } catch (error: any) {
+      if (error.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('Error', error.message || 'Apple sign-in failed');
+      }
+    } finally {
+      setAppleLoading(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top','bottom']}>
-      <BackButton />
+     <BackButton onPress={() => router.replace('/(auth)/welcome')} />
       
       <View style={styles.content}>
         <View style={styles.textContainer}>
@@ -60,7 +77,7 @@ export default function Signup() {
           <TouchableOpacity
             style={styles.socialButton}
             onPress={handleGoogleSignIn}
-            disabled
+            disabled={googleLoading}
             activeOpacity={0.8}
           >
             {googleLoading ? (
@@ -73,17 +90,23 @@ export default function Signup() {
             )}
           </TouchableOpacity>
 
- 
-          <TouchableOpacity
-            style={styles.socialButton}
-            disabled
-            activeOpacity={1}
-          >
-            <View style={styles.buttonContent}>
-              <Ionicons name="logo-apple" size={20} color={Colors.vividTeal}/>
-              <Text style={styles.socialButtonText}>Continue with Apple</Text>
-            </View>
-          </TouchableOpacity>
+          {Platform.OS === 'ios' && (
+            <TouchableOpacity
+              style={styles.socialButton}
+              onPress={handleAppleSignIn}
+              disabled={appleLoading}
+              activeOpacity={0.8}
+            >
+              {appleLoading ? (
+                <ActivityIndicator color={Colors.vividTeal} />
+              ) : (
+                <View style={styles.buttonContent}>
+                  <Ionicons name="logo-apple" size={20} color={Colors.vividTeal} />
+                  <Text style={styles.socialButtonText}>Continue with Apple</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 

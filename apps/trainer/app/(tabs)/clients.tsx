@@ -16,6 +16,7 @@ import { supabase } from '@haven/shared-utils';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors } from '@/constants/colors';
+import { getLocalDateString } from '@haven/shared-utils/utils/timezone';
 
 // Import new card components
 import { ClientCardFollowUp } from '@/components/coach/clientCardFollowUp';
@@ -24,7 +25,8 @@ import { ClientCardBaseline } from '@/components/coach/clientCardBaseline';
 
 interface Client {
   id: string;
-  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   avatar_url: string | null;
   status: 'need_followup' | 'on_track' | 'in_baseline';
   baseline_days_completed: number | null;
@@ -55,7 +57,10 @@ export default function ClientsScreen() {
 
       // Use RPC function to get clients with status
       const { data: clientsData, error } = await supabase
-        .rpc('get_coach_clients_with_status', { coach_id: user.id });
+      .rpc('get_coach_clients_with_status', { 
+        coach_id: user.id,
+        today_date: getLocalDateString()
+      });
 
       if (error) {
         console.error('Error fetching clients:', error);
@@ -98,8 +103,8 @@ export default function ClientsScreen() {
     // Apply search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const name = (client.full_name || '').toLowerCase(); // Fix: Handle null
-      return name.includes(query);
+      const fullName = `${client.first_name || ''} ${client.last_name || ''}`.toLowerCase();
+      return fullName.includes(query);
     }
   
     return true;
@@ -112,7 +117,7 @@ export default function ClientsScreen() {
 
   // Render appropriate card based on status
   const renderClientCard = (client: Client) => {
-    const displayName = client.full_name || 'Client'; 
+    const displayName = `${client.first_name || ''} ${client.last_name || ''}`.trim() || 'Client';
     switch (client.status) {
       case 'need_followup':
         return (

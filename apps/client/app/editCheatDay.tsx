@@ -182,7 +182,7 @@ export default function EditCheatDayScreen() {
         if (existing) {
           Alert.alert(
             'Date Conflict',
-            'You already have a "cheat" day planned for this date. Please choose a different date.'
+            'You already have a treat day planned for this date. Please choose a different date.'
           );
           setLoading(false);
           return;
@@ -202,7 +202,7 @@ export default function EditCheatDayScreen() {
 
       Alert.alert(
         'Success',
-        '"Cheat" day updated!',
+        'Treat day updated!',
         [
           {
             text: 'OK',
@@ -212,7 +212,7 @@ export default function EditCheatDayScreen() {
       );
     } catch (error) {
       console.error('Error updating cheat day:', error);
-      Alert.alert('Error', 'Failed to update "cheat" day');
+      Alert.alert('Error', 'Failed to update treat day');
     } finally {
       setLoading(false);
     }
@@ -221,7 +221,7 @@ export default function EditCheatDayScreen() {
   const handleDelete = () => {
     Alert.alert(
       'Delete Cheat Day',
-      'Are you sure you want to delete this "cheat" day?',
+      'Are you sure you want to delete this treat day?',
       [
         {
           text: 'Cancel',
@@ -243,7 +243,7 @@ export default function EditCheatDayScreen() {
 
               Alert.alert(
                 'Deleted',
-                '"Cheat" day deleted successfully',
+                'Treat day deleted successfully',
                 [
                   {
                     text: 'OK',
@@ -253,7 +253,7 @@ export default function EditCheatDayScreen() {
               );
             } catch (error) {
               console.error('Error deleting cheat day:', error);
-              Alert.alert('Error', 'Failed to delete "cheat" day');
+              Alert.alert('Error', 'Failed to delete treat day');
             } finally {
               setLoading(false);
             }
@@ -275,7 +275,7 @@ export default function EditCheatDayScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.white} />
         </TouchableOpacity>
         
-        <Text style={styles.headerTitle}>Edit "Cheat" Day</Text>
+        <Text style={styles.headerTitle}>Edit Treat Day</Text>
         <View style={{ width: 48 }} />
       </View>
 
@@ -483,7 +483,7 @@ export default function EditCheatDayScreen() {
           disabled={loading}
           activeOpacity={0.7}
         >
-          <Text style={styles.deleteButtonText}>Delete "Cheat" Day</Text>
+          <Text style={styles.deleteButtonText}>Delete Treat Day</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

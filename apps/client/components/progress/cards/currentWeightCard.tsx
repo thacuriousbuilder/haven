@@ -1,10 +1,9 @@
-// components/progress/cards/currentWeightCard.tsx
+
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '@/constants/colors';
 
-// components/progress/cards/currentWeightCard.tsx
 
 interface CurrentWeightCardProps {
     currentWeight: number;
@@ -14,6 +13,7 @@ interface CurrentWeightCardProps {
     onLogWeight: () => void;
     startDate?: Date;
     weeklyGoal?: number;
+    hasLoggedWeight?: boolean,
   }
   
   export function CurrentWeightCard({
@@ -24,6 +24,7 @@ interface CurrentWeightCardProps {
     onLogWeight,
     startDate,
     weeklyGoal = 1.0,
+    hasLoggedWeight
   }: CurrentWeightCardProps) {
     
     const calculateProjectedDate = (): { 
@@ -32,6 +33,15 @@ interface CurrentWeightCardProps {
       isOnTrack: boolean;
       actualRate: number;
     } => {
+      if (!hasLoggedWeight) {
+        return { 
+          actualDate: 'Log your weight to see your projection', 
+          goalDate: '', 
+          isOnTrack: false,
+          actualRate: 0
+        };
+      }
+    
       if (currentWeight <= goalWeight) {
         return { 
           actualDate: 'Goal reached! 🎉', 
@@ -43,7 +53,7 @@ interface CurrentWeightCardProps {
   
       if (currentWeight >= startWeight) {
         return { 
-          actualDate: 'Keep tracking to see projection', 
+          actualDate: 'Keep going — progress takes time!', 
           goalDate: '',
           isOnTrack: false,
           actualRate: 0

@@ -21,8 +21,8 @@ export default function CommitmentScreen() {
     <SafeAreaView style={styles.container}>
       <BackButton backgroundColor="#000" iconColor="#fff" />
       <ProgressBar 
-        currentStep={14} 
-        totalSteps={15}
+        currentStep={13} 
+        totalSteps={14}
         backgroundColor="rgba(255, 255, 255, 0.3)"
         fillColor="#fff"
       />

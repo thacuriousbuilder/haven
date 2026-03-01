@@ -27,7 +27,7 @@ export default function WorkoutsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={10} totalSteps={15} />
+      <ProgressBar currentStep={9} totalSteps={14} />
       
       <View style={styles.content}>
         <ScrollView 

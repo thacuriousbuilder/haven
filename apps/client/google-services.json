@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "314572247613",
+    "project_id": "haven-f4026",
+    "storage_bucket": "haven-f4026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:314572247613:android:28a9bd5984d49dc3919054",
+        "android_client_info": {
+          "package_name": "co.tryhaven.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "314572247613-5tulhdrids2leanc0su6bn584mg6iusm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "co.tryhaven.app",
+            "certificate_hash": "07ef883bd3f5bba2c1dad8476a18b1bf452c3978"
+          }
+        },
+        {
+          "client_id": "314572247613-u8u36g6qekl525afmmn9vp91qf49dqgf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGQIhr8OBiiNAtwzZLMDF6e_ZD5xcq9JA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "314572247613-u8u36g6qekl525afmmn9vp91qf49dqgf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "314572247613-kvageosg17g1p4gho5tqgnnu5noe44er.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "co.tryhaven.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -45,7 +45,7 @@ export function QuickLogCard({
         />
         <QuickLogButton
           icon="restaurant"
-          label="Recipe"
+          label="Describe"
           onPress={onRecipe}
         />
       </View>

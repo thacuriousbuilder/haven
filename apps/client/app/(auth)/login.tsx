@@ -17,11 +17,51 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@haven/shared-utils';
 import { BackButton } from '../../components/onboarding/backButton';
 import { Colors } from '@/constants/colors';
+import { signInWithApple, signInWithGoogle } from '@/lib/auth';
+import { getPostAuthRoute } from '@/lib/getPostAuthRoute';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+
+async function handleGoogleSignIn() {
+  try {
+    setGoogleLoading(true);
+    await signInWithGoogle();
+    const route = await getPostAuthRoute();
+    router.replace(route);
+  } catch (error: any) {
+    if (error.code !== 'SIGN_IN_CANCELLED') {
+      Alert.alert(
+        'Error',
+        'Something went wrong while connecting to your Google account. Please try again or choose a different sign‑in method.'
+      );
+    }
+  } finally {
+    setGoogleLoading(false);
+  }
+}
+
+async function handleAppleSignIn() {
+  try {
+    setAppleLoading(true);
+    await signInWithApple();
+    const route = await getPostAuthRoute();
+    router.replace(route);
+  } catch (error: any) {
+    if (error.code !== 'ERR_REQUEST_CANCELED') {
+      Alert.alert(
+        'Error',
+        'Something went wrong while connecting to your Apple account. Please try again or choose a different sign‑in method.'
+      );
+    }
+  } finally {
+    setAppleLoading(false);
+  }
+}
 
   async function signInWithEmail() {
   
@@ -107,24 +147,38 @@ export default function Login() {
 
           <View style={styles.socialButtonsContainer}>
             <TouchableOpacity
-              style={styles.socialButton}
-              disabled
-            >
+            style={styles.socialButton}
+            onPress={handleGoogleSignIn}
+            disabled={googleLoading}
+            activeOpacity={0.8}
+          >
+            {googleLoading ? (
+              <ActivityIndicator color={Colors.vividTeal}/>
+            ) : (
               <View style={styles.buttonContent}>
-                <Ionicons name="logo-google" size={20} color={Colors.vividTeal} />
+                <Ionicons name="logo-google" size={20} color={Colors.vividTeal}/>
                 <Text style={styles.socialButtonText}>Continue with Google</Text>
               </View>
-            </TouchableOpacity>
+            )}
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.socialButton}
-              disabled
-            >
+          {Platform.OS === 'ios' && (
+          <TouchableOpacity
+            style={styles.socialButton}
+            onPress={handleAppleSignIn}
+            disabled={appleLoading}
+            activeOpacity={0.8}
+          >
+            {appleLoading ? (
+              <ActivityIndicator color={Colors.vividTeal} />
+            ) : (
               <View style={styles.buttonContent}>
                 <Ionicons name="logo-apple" size={20} color={Colors.vividTeal} />
                 <Text style={styles.socialButtonText}>Continue with Apple</Text>
               </View>
-            </TouchableOpacity>
+            )}
+          </TouchableOpacity>
+          )}
           </View>
 
           <View style={styles.footer}>

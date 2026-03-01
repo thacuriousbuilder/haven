@@ -26,8 +26,8 @@ export default function GenderScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <BackButton />
-      <ProgressBar currentStep={2} totalSteps={15} />
+     <BackButton onPress={() => router.replace('/(auth)/signup')} />
+      <ProgressBar currentStep={1} totalSteps={14} />
       
       <View style={styles.content}>
         <View style={styles.topSection}>

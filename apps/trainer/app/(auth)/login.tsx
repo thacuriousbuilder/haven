@@ -103,7 +103,7 @@ export default function Login() {
             <Text style={styles.forgotPassword}>Forgot password?</Text>
           </TouchableOpacity>
 
-          <Text style={styles.divider}>OR</Text>
+          {/* <Text style={styles.divider}>OR</Text>
 
           <View style={styles.socialButtonsContainer}>
             <TouchableOpacity
@@ -125,7 +125,7 @@ export default function Login() {
                 <Text style={styles.socialButtonText}>Continue with Apple</Text>
               </View>
             </TouchableOpacity>
-          </View>
+          </View> */}
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>
@@ -211,6 +211,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '500',
     marginTop: 16,
+    marginBottom:20
   },
   divider: {
     textAlign: 'center',

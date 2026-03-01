@@ -390,7 +390,7 @@ export default function DailyCheckInScreen() {
               Did you work out yesterday?
             </Text>
             <Text style={styles.subtitle}>
-              This helps us calculate your accurate maintenance calories
+            {hasCheckedIn ? 'You can update your response' : 'Help us keep your tracking accurate'}
             </Text>
           </View>
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,10 +12,17 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { supabase } from '@haven/shared-utils';
-import { searchFoods, getFoodDetails, getRecentFoods } from '@/utils/foodSearch';
+import {
+  searchFoods,
+  getFoodDetailsFromResult,
+  getRecentFoods,
+} from '@/utils/foodSearch';
+import type { FoodSearchResult, FoodDetails, RecentFood } from '@/utils/foodSearch';
 import * as ImagePicker from 'expo-image-picker';
-import { getLocalDateString } from '@/utils/timezone';
+import { getLocalDateString, formatLocalDate, getMonday, getSunday } from '@/utils/timezone';
+import { sanitizeFoodName } from '@/utils/sanitize'
 import { Colors } from '@/constants/colors';
 import { compressImageForUpload } from '@/utils/imageCompression';
 import { Platform, Linking } from 'react-native';
@@ -29,25 +37,8 @@ interface FoodLogSheetProps {
 type LogMethod = 'manual' | 'search' | 'image' | null;
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
-
-interface SearchResult {
-  food_id: string;
-  food_name: string;
-  brand_name?: string;
-  food_description: string;
-}
-
-interface RecentFood {
-  food_name: string;
-  calories: number;
-  protein_grams?: number;
-  carbs_grams?: number;
-  fat_grams?: number;
-  meal_type: string;
-}
-
-export function FoodLogSheet({ 
-  onSuccess, 
+export function FoodLogSheet({
+  onSuccess,
   initialMethod = null,
   initialImageBase64 = null,
   initialDate = undefined
@@ -62,14 +53,14 @@ export function FoodLogSheet({
   const [selectedImage, setSelectedImage] = useState<string | null>(initialImageBase64 || null);
   const [processingImage, setProcessingImage] = useState(false);
 
-  
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<FoodSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
-  const [selectedFood, setSelectedFood] = useState<any>(null);
-  
+  const [selectedFood, setSelectedFood] = useState<FoodDetails | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // AI estimation state
   const [estimatingNutrition, setEstimatingNutrition] = useState(false);
   const [showEstimateButton, setShowEstimateButton] = useState(false);
@@ -79,12 +70,11 @@ export function FoodLogSheet({
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const RECENT_DISPLAY_LIMIT = 3;
-  //daily checkin log state
-  const [logDate, setLogDate] = useState<string>(initialDate || getLocalDateString());
+
+  const [logDate] = useState<string>(initialDate || getLocalDateString());
 
   useEffect(() => {
     loadRecentFoods();
-    // Set initial method and image if provided
     if (initialMethod === 'search') {
       setSelectedMethod('search');
     } else if (initialMethod === 'manual') {
@@ -93,7 +83,7 @@ export function FoodLogSheet({
       setSelectedImage(initialImageBase64);
       setSelectedMethod('image');
     }
-  }, [initialMethod,initialImageBase64]);
+  }, [initialMethod, initialImageBase64]);
 
   useEffect(() => {
     if (selectedMethod === 'image' && selectedImage && !processingImage) {
@@ -101,12 +91,18 @@ export function FoodLogSheet({
     }
   }, [selectedMethod, selectedImage]);
 
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
+
   const loadRecentFoods = async () => {
     try {
       setLoadingRecent(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
       const recent = await getRecentFoods(user.id, 15);
       setRecentFoods(recent);
     } catch (error) {
@@ -116,53 +112,60 @@ export function FoodLogSheet({
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+  // Debounced search input handler
+  const handleSearchChange = (text: string) => {
+    const safe = text.replace(/[<>]/g, '').slice(0, 100)
+    setSearchQuery(safe);
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (!text.trim()) {
+      setSearchResults([]);
+      setHasSearched(false);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      handleSearch(text);
+    }, 500);
+  };
+
+  const handleSearch = async (query?: string) => {
+    const searchTerm = query || searchQuery;
+    if (!searchTerm.trim()) return;
 
     try {
       setSearching(true);
       setHasSearched(true);
-      const results = await searchFoods(searchQuery);
+      const results = await searchFoods(searchTerm);
       setSearchResults(results);
     } catch (error) {
       console.error('Search error:', error);
       Alert.alert('Error', 'Failed to search foods');
-      setHasSearched(true); // Mark as searched even on error
     } finally {
       setSearching(false);
     }
   };
 
-  const handleSelectFood = async (result: SearchResult) => {
-    try {
-      setSearching(true);
-      const details = await getFoodDetails(result.food_id);
-      
-      if (details) {
-        setSelectedFood(details);
-        setFoodDescription(details.name);
-        setEstimatedCalories(details.calories.toString());
-      }
-    } catch (error) {
-      console.error('Error getting food details:', error);
-      Alert.alert('Error', 'Failed to load food details');
-    } finally {
-      setSearching(false);
-    }
+  // No extra API call needed — full nutrition already in result
+  const handleSelectFood = (result: FoodSearchResult) => {
+    const details = getFoodDetailsFromResult(result);
+    setSelectedFood(details);
+    setFoodDescription(details.name);
+    setEstimatedCalories(details.calories.toString());
+    setSelectedMethod('manual');
   };
 
-  // Check if food description is substantial enough for AI estimation (minimum 3 words)
   const checkDescriptionForEstimate = (text: string) => {
     const words = text.trim().split(/\s+/);
-    //@ts-ignore
-    setShowEstimateButton(words.length >= 3 && words.filter((w: any) => w.length > 0).length >= 3);
+    setShowEstimateButton(words.length >= 3 && words.filter((w: string) => w.length > 0).length >= 3);
   };
 
   const handleSelectRecent = (food: RecentFood) => {
     setFoodDescription(food.food_name);
     setEstimatedCalories(food.calories.toString());
     setMealType(food.meal_type as MealType);
-    setSelectedMethod('manual'); // Skip to manual form with pre-filled data
+    setSelectedMethod('manual');
   };
 
   const handleSave = async () => {
@@ -175,7 +178,7 @@ export function FoodLogSheet({
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         Alert.alert('Error', 'Not authenticated');
         setSaving(false);
@@ -188,50 +191,46 @@ export function FoodLogSheet({
         .from('food_logs')
         .insert({
           user_id: user.id,
-          food_name: foodDescription,
+          food_name: sanitizeFoodName(foodDescription),
           calories: calories,
           protein_grams: selectedFood?.protein || null,
           carbs_grams: selectedFood?.carbs || null,
           fat_grams: selectedFood?.fat || null,
           log_date: logDate,
           meal_type: mealType,
-          entry_method: selectedMethod === 'search' 
-                                  ? 'database' 
-                                  : selectedMethod === 'image'
-                                  ? 'ai_image_scan'
-                                  : selectedFood 
-                                  ? 'ai_text_estimate' 
-                                  : 'manual',
+          entry_method: selectedMethod === 'search'
+            ? 'database'
+            : selectedMethod === 'image'
+            ? 'ai_image_scan'
+            : selectedFood
+            ? 'ai_text_estimate'
+            : 'manual',
         });
 
       if (error) {
-            console.error('Error saving food log:', error);
-            Alert.alert('Error', 'Failed to save food log');
-            setSaving(false);
-            return;
-          }
-          const { data: profile } = await supabase
-      .from('profiles')
-      .select('baseline_start_date, baseline_complete')
-      .eq('id', user.id)
-      .single();
+        console.error('Error saving food log:', error);
+        Alert.alert('Error', 'Failed to save food log');
+        setSaving(false);
+        return;
+      }
 
-    if (profile && !profile.baseline_complete && !profile.baseline_start_date) {
-      // This is the first food log - set baseline start date to today
-      const today = logDate;
-      await supabase
+      const { data: profile } = await supabase
         .from('profiles')
-        .update({ baseline_start_date: today })
-        .eq('id', user.id);
-      
-      console.log('✅ Baseline started on:', today);
-    }
+        .select('baseline_start_date, baseline_complete')
+        .eq('id', user.id)
+        .single();
 
+      if (profile && !profile.baseline_complete && !profile.baseline_start_date) {
+        await supabase
+          .from('profiles')
+          .update({ baseline_start_date: logDate })
+          .eq('id', user.id);
+        console.log('✅ Baseline started on:', logDate);
+      }
 
-      // Update daily summary
       if (calories > 0) {
-        const today =  getLocalDateString();
-        
+        const today = getLocalDateString();
+
         const { data: existingSummary } = await supabase
           .from('daily_summaries')
           .select('calories_consumed')
@@ -248,21 +247,51 @@ export function FoodLogSheet({
             summary_date: today,
             calories_consumed: newTotal,
             calories_burned: 0,
-          }, {
-            onConflict: 'user_id,summary_date'
-          });
+          }, { onConflict: 'user_id,summary_date' });
       }
-      
+
+      // Streak update
       try {
         await supabase.functions.invoke('calculateStreaks', {
           body: { userId: user.id }
         });
         console.log('✅ Streak updated');
       } catch (streakError) {
-        // Don't block the user if streak update fails
         console.error('⚠️ Streak update failed (non-critical):', streakError);
       }
-      // Success - reset form
+
+      // Weekly limit warning check
+      try {
+        const { data: summaries } = await supabase
+          .from('daily_summaries')
+          .select('calories_consumed')
+          .eq('user_id', user.id)
+          .gte('summary_date', formatLocalDate(getMonday()))
+          .lte('summary_date', formatLocalDate(getSunday()))
+
+        const { data: profileBudget } = await supabase
+          .from('profiles')
+          .select('weekly_calorie_budget')
+          .eq('id', user.id)
+          .single()
+
+        if (summaries && profileBudget?.weekly_calorie_budget) {
+          const totalThisWeek = summaries.reduce(
+            (sum: number, day: { calories_consumed: number }) => sum + day.calories_consumed, 0
+          )
+          await supabase.functions.invoke('sendWeeklyLimitWarning', {
+            body: {
+              user_id: user.id,
+              calories_consumed: totalThisWeek,
+              weekly_budget: profileBudget.weekly_calorie_budget,
+            },
+          })
+        }
+      } catch (limitError) {
+        console.error('⚠️ Weekly limit check failed (non-critical):', limitError);
+      }
+
+      // Reset form
       setFoodDescription('');
       setEstimatedCalories('');
       setMealType('breakfast');
@@ -272,7 +301,7 @@ export function FoodLogSheet({
       setSearchResults([]);
       setHasSearched(false);
       setSaving(false);
-      
+
       Alert.alert('Success', 'Food logged!');
       onSuccess();
     } catch (error) {
@@ -282,231 +311,104 @@ export function FoodLogSheet({
     }
   };
 
-  const handleTakePhoto = async () => {
-    // Check current permission status
-    const { status: currentStatus } = await ImagePicker.getCameraPermissionsAsync();
-    
-    let finalStatus = currentStatus;
-    
-    // If not determined yet, request permission
-    if (currentStatus !== 'granted') {
-      const { status: newStatus } = await ImagePicker.requestCameraPermissionsAsync();
-      finalStatus = newStatus;
-    }
-    
-    // Handle permission denial
-    if (finalStatus !== 'granted') {
-      Alert.alert(
-        'Permission Required',
-        'HAVEN needs camera access to scan food images. Please enable camera access in Settings.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Open Settings', 
-            onPress: () => {
-              if (Platform.OS === 'ios') {
-                Linking.openURL('app-settings:');
-              } else {
-                Linking.openSettings();
-              }
-            }
-          }
-        ]
-      );
-      return;
-    }
-    
-    // Permission granted, proceed with camera
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: 'images',
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-  
-    if (!result.canceled && result.assets[0].uri) {
-      try {
-        const compressed = await compressImageForUpload(result.assets[0].uri);
-        setSelectedImage(compressed.base64);
-        setSelectedMethod('image');
-        
-        console.log(`📷 Image compressed from ${compressed.originalSizeMB.toFixed(2)}MB to ${compressed.compressedSizeMB.toFixed(2)}MB`);
-      } catch (error) {
-        console.error('Compression error:', error);
-        Alert.alert(
-          'Image Too Large',
-          error instanceof Error ? error.message : 'Could not process this image. Please try a different photo.',
-          [{ text: 'OK' }]
-        );
-      }
-    }
+  const handleTakePhoto = () => {
+    router.push('/camera');
   };
-  
-  
+
   const handlePickImage = async () => {
-    // First, check current permission status
     const { status: currentStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
-    
     let finalStatus = currentStatus;
-    
-    // If not determined yet, request permission
+
     if (currentStatus !== 'granted') {
       const { status: newStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       finalStatus = newStatus;
     }
-    
-    // Handle permission denial
+
     if (finalStatus !== 'granted') {
       Alert.alert(
         'Permission Required',
-        'HAVEN needs access to your photo library to scan food images. Please enable photo library access in Settings.',
+        'HAVEN needs access to your photo library to scan food images.',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Open Settings', 
-            onPress: () => {
-              // Opens the app settings where user can enable permissions
-              if (Platform.OS === 'ios') {
-                Linking.openURL('app-settings:');
-              } else {
-                Linking.openSettings();
-              }
-            }
+          {
+            text: 'Open Settings',
+            onPress: () => Platform.OS === 'ios' ? Linking.openURL('app-settings:') : Linking.openSettings()
           }
         ]
       );
       return;
     }
-    
-    // Permission granted - proceed with image picker
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.8,
     });
-  
+
     if (!result.canceled && result.assets[0].uri) {
       try {
         const compressed = await compressImageForUpload(result.assets[0].uri);
         setSelectedImage(compressed.base64);
         setSelectedMethod('image');
-        
-        console.log(`🖼️ Image compressed from ${compressed.originalSizeMB.toFixed(2)}MB to ${compressed.compressedSizeMB.toFixed(2)}MB`);
       } catch (error) {
-        console.error('Compression error:', error);
-        Alert.alert(
-          'Image Too Large',
-          error instanceof Error ? error.message : 'Could not process this image. Please try a different photo.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('Image Too Large', error instanceof Error ? error.message : 'Could not process this image.');
       }
     }
   };
-  
+
   const processImageWithAI = async (base64Image: string) => {
     setProcessingImage(true);
     try {
-      // DEBUG: Log the size of what we're sending
       const imageSizeBytes = (base64Image.length * 3) / 4;
       const imageSizeMB = imageSizeBytes / (1024 * 1024);
-      console.log(`🔍 Sending image to Edge Function: ${imageSizeMB.toFixed(2)}MB`);
-      
-      // Check if image is too large BEFORE sending
+
       if (imageSizeMB > 5) {
-        throw new Error(`Image too large for upload: ${imageSizeMB.toFixed(2)}MB. Maximum is 5MB.`);
+        throw new Error(`Image too large: ${imageSizeMB.toFixed(2)}MB. Maximum is 5MB.`);
       }
-  
-      console.log('📤 Calling analyzeFoodImage function...');
-      
+
       const { data, error } = await supabase.functions.invoke('analyzeFoodImage', {
         body: { image_base64: base64Image },
       });
-  
-      console.log('📥 Response received');
-  
-      if (error) {
-        console.error('❌ Function error:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
-        throw error;
-      }
-  
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to analyze image');
-      }
-  
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Failed to analyze image');
+
       const analysis = data.data;
-  
-      // Pre-fill the form with AI results
+
       setFoodDescription(analysis.food_name);
       setEstimatedCalories(analysis.calories.toString());
-      
-      // Store the analysis
       setSelectedFood({
+        food_id: 'ai_scan',
         name: analysis.food_name,
+        serving_description: 'per serving',
         calories: analysis.calories,
         protein: analysis.protein_grams,
         carbs: analysis.carbs_grams,
         fat: analysis.fat_grams,
       });
-  
-      // Show confidence level to user
-      const confidenceMessage = analysis.confidence === 'high' 
-        ? 'High confidence' 
+
+      const confidenceMessage = analysis.confidence === 'high'
+        ? 'High confidence'
         : analysis.confidence === 'medium'
         ? 'Medium confidence - please verify'
         : 'Low confidence - please verify carefully';
-  
+
       Alert.alert(
         'Food Identified',
         `${analysis.food_name}\n${analysis.calories} calories\n\n${confidenceMessage}${analysis.notes ? '\n\n' + analysis.notes : ''}`,
         [
-          {
-            text: 'Edit Details',
-            onPress: () => setSelectedMethod('manual'),
-          },
-          {
-            text: 'Looks Good',
-            onPress: () => setSelectedMethod('manual'),
-            style: 'default',
-          },
+          { text: 'Edit Details', onPress: () => setSelectedMethod('manual') },
+          { text: 'Looks Good', onPress: () => setSelectedMethod('manual'), style: 'default' },
         ]
       );
-  
     } catch (error) {
-      console.error('❌ Image processing error:', error);
-      
-      // More detailed error message
-      let errorMessage = 'Could not analyze the image.';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to send a request')) {
-          errorMessage = 'Network error - could not reach the server. Please check your internet connection.';
-        } else if (error.message.includes('too large')) {
-          errorMessage = error.message;
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      
       Alert.alert(
         'Analysis Failed',
-        `${errorMessage}\n\nWould you like to enter details manually?`,
+        'Could not analyze the image. Would you like to enter details manually?',
         [
-          {
-            text: 'Cancel',
-            onPress: () => {
-              setSelectedImage(null);
-              setSelectedMethod(null);
-            },
-            style: 'cancel',
-          },
-          {
-            text: 'Enter Manually',
-            onPress: () => {
-              setSelectedMethod('manual');
-            },
-          },
+          { text: 'Cancel', onPress: () => { setSelectedImage(null); setSelectedMethod(null); }, style: 'cancel' },
+          { text: 'Enter Manually', onPress: () => setSelectedMethod('manual') },
         ]
       );
     } finally {
@@ -515,73 +417,44 @@ export function FoodLogSheet({
   };
 
   const handleEstimateNutrition = async (descriptionText?: string) => {
-    // Use passed text or current state
     const textToEstimate = descriptionText || foodDescription;
-    
     if (!textToEstimate.trim() || estimatingNutrition) return;
-  
+
     setEstimatingNutrition(true);
-  
+
     try {
-      console.log('🔍 Estimating for:', textToEstimate); // Debug log
-      
       const { data, error } = await supabase.functions.invoke('estimateNutrition', {
-        body: { 
-          food_description: textToEstimate,
-          meal_type: mealType 
-        },
+        body: { food_description: textToEstimate, meal_type: mealType },
       });
-  
-      if (error) {
-        console.error('Estimation error:', error);
-        throw error;
-      }
-  
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to estimate nutrition');
-      }
-  
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Failed to estimate nutrition');
+
       const estimate = data.data;
-  
-      console.log('✅ Received estimate:', estimate); // Debug log
-  
-      // Pre-fill the form with AI results
+
       setFoodDescription(estimate.food_name);
       setEstimatedCalories(estimate.calories.toString());
-      
-      // Store the estimate
       setSelectedFood({
+        food_id: 'ai_estimate',
         name: estimate.food_name,
+        serving_description: 'per serving',
         calories: estimate.calories,
         protein: estimate.protein_grams,
         carbs: estimate.carbs_grams,
         fat: estimate.fat_grams,
       });
-  
-      // Show confidence level to user
-      const confidenceMessage = estimate.confidence === 'high' 
-        ? 'High confidence' 
-        : estimate.confidence === 'medium'
-        ? 'Medium confidence - please verify'
-        : 'Low confidence - please verify carefully';
-  
+
       Alert.alert(
         'Nutrition Estimated',
-        `${estimate.food_name}\n${estimate.calories} calories\n\n${confidenceMessage}${estimate.notes ? '\n\n' + estimate.notes : ''}\n\nPlease review and adjust if needed.`,
+        `${estimate.food_name}\n${estimate.calories} calories\n\nPlease review and adjust if needed.`,
         [{ text: 'Got it', style: 'default' }]
       );
-  
     } catch (error) {
-      console.error('Nutrition estimation error:', error);
-      Alert.alert(
-        'Estimation Failed',
-        'Could not estimate nutrition. Please enter values manually.'
-      );
+      Alert.alert('Estimation Failed', 'Could not estimate nutrition. Please enter values manually.');
     } finally {
       setEstimatingNutrition(false);
     }
   };
-
 
   const mealTypes: { value: MealType; label: string; icon: string }[] = [
     { value: 'breakfast', label: 'Breakfast', icon: 'sunny' },
@@ -594,109 +467,72 @@ export function FoodLogSheet({
   if (!selectedMethod) {
     return (
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>How would you like to log?</Text>
           <Text style={styles.headerSubtitle}>Choose a method below</Text>
         </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles.methodSelection}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.methodContent}
         >
-          {/* Logging Method Cards */}
           <View style={styles.methodsSection}>
-            {/* Take Photo - AI Badge */}
-            <TouchableOpacity
-              style={styles.methodCard}
-              onPress={handleTakePhoto}
-            >
+            <TouchableOpacity style={styles.methodCard} onPress={handleTakePhoto}>
               <View style={[styles.methodIcon, styles.methodIconTeal]}>
                 <Ionicons name="camera" size={24} color="#206E6B" />
               </View>
               <View style={styles.methodInfo}>
-                <View style={styles.methodTitleRow}>
-                  <Text style={styles.methodTitle}>Take Photo</Text>
-                </View>
-                <Text style={styles.methodDescription}>
-                  Quick and easy food recognition
-                </Text>
+                <Text style={styles.methodTitle}>Take Photo</Text>
+                <Text style={styles.methodDescription}>Quick and easy food recognition</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
             </TouchableOpacity>
 
-            {/* Search Database */}
-            <TouchableOpacity
-              style={styles.methodCard}
-              onPress={() => setSelectedMethod('search')}
-            >
+            <TouchableOpacity style={styles.methodCard} onPress={() => setSelectedMethod('search')}>
               <View style={[styles.methodIcon, styles.methodIconTeal]}>
                 <Ionicons name="search" size={24} color="#206E6B" />
               </View>
               <View style={styles.methodInfo}>
                 <Text style={styles.methodTitle}>Search Database</Text>
-                <Text style={styles.methodDescription}>
-                  Find foods with nutrition info
-                </Text>
+                <Text style={styles.methodDescription}>Find foods with nutrition info</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
             </TouchableOpacity>
 
-            {/* Select Photo */}
-            <TouchableOpacity
-              style={styles.methodCard}
-              onPress={handlePickImage}
-            >
+            <TouchableOpacity style={styles.methodCard} onPress={() => setSelectedMethod('manual')}>
+              <View style={[styles.methodIcon, styles.methodIconTeal]}>
+                <Ionicons name="create" size={24} color="#206E6B" />
+              </View>
+              <View style={styles.methodInfo}>
+                <Text style={styles.methodTitle}>Describe</Text>
+                <Text style={styles.methodDescription}>Food description with text</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.methodCard} onPress={handlePickImage}>
               <View style={[styles.methodIcon, styles.methodIconTeal]}>
                 <Ionicons name="images" size={24} color="#206E6B" />
               </View>
               <View style={styles.methodInfo}>
                 <Text style={styles.methodTitle}>Select Photo</Text>
-                <Text style={styles.methodDescription}>
-                  Choose from your gallery
-                </Text>
+                <Text style={styles.methodDescription}>Choose from your gallery</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
             </TouchableOpacity>
 
-            {/* Manual Input */}
-            <TouchableOpacity
-              style={styles.methodCard}
-              onPress={() => setSelectedMethod('manual')}
-            >
-              <View style={[styles.methodIcon, styles.methodIconTeal]}>
-                <Ionicons name="create" size={24} color="#206E6B" />
-              </View>
-              <View style={styles.methodInfo}>
-                <Text style={styles.methodTitle}>Recipe</Text>
-                <Text style={styles.methodDescription}>
-                 Add a recipe
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-            </TouchableOpacity>
           </View>
 
-          {/* Recent Foods Section */}
           {recentFoods.length > 0 && (
             <View style={styles.recentSection}>
               <Text style={styles.recentSectionTitle}>RECENT FOODS</Text>
-              
               <View style={styles.recentCard}>
                 {(showAllRecent ? recentFoods : recentFoods.slice(0, RECENT_DISPLAY_LIMIT)).map((food, index) => (
                   <View key={index}>
-                    <TouchableOpacity
-                      style={styles.recentItem}
-                      onPress={() => handleSelectRecent(food)}
-                    >
+                    <TouchableOpacity style={styles.recentItem} onPress={() => handleSelectRecent(food)}>
                       <View style={styles.recentInfo}>
-                        <Text style={styles.recentName} numberOfLines={1}>
-                          {food.food_name}
-                        </Text>
-                        <Text style={styles.recentCalories}>
-                          {food.calories} cal
-                        </Text>
+                        <Text style={styles.recentName} numberOfLines={1}>{food.food_name}</Text>
+                        <Text style={styles.recentCalories}>{food.calories} cal</Text>
                       </View>
                       <View style={styles.recentAddButton}>
                         <Ionicons name="add" size={20} color="#206E6B" />
@@ -710,21 +546,11 @@ export function FoodLogSheet({
               </View>
 
               {recentFoods.length > RECENT_DISPLAY_LIMIT && (
-                <TouchableOpacity
-                  style={styles.showMoreButton}
-                  onPress={() => setShowAllRecent(!showAllRecent)}
-                >
+                <TouchableOpacity style={styles.showMoreButton} onPress={() => setShowAllRecent(!showAllRecent)}>
                   <Text style={styles.showMoreText}>
-                    {showAllRecent 
-                      ? 'Show Less' 
-                      : `Show More (${recentFoods.length - RECENT_DISPLAY_LIMIT} more)`
-                    }
+                    {showAllRecent ? 'Show Less' : `Show More (${recentFoods.length - RECENT_DISPLAY_LIMIT} more)`}
                   </Text>
-                  <Ionicons 
-                    name={showAllRecent ? "chevron-up" : "chevron-down"} 
-                    size={16} 
-                    color="#206E6B" 
-                  />
+                  <Ionicons name={showAllRecent ? 'chevron-up' : 'chevron-down'} size={16} color="#206E6B" />
                 </TouchableOpacity>
               )}
             </View>
@@ -744,7 +570,6 @@ export function FoodLogSheet({
   if (selectedMethod === 'search') {
     return (
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.searchHeader}>
           <TouchableOpacity
             onPress={() => {
@@ -762,49 +587,34 @@ export function FoodLogSheet({
         </View>
 
         <View style={styles.searchContent}>
-          {/* Search Input */}
           <View style={styles.searchInputContainer}>
-            <Ionicons 
-              name="search" 
-              size={20} 
-              color="#9CA3AF" 
-              style={styles.searchIcon}
-            />
+            <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
             <TextInput
               style={styles.searchInputField}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={handleSearchChange}
               placeholder="Search for a food..."
               placeholderTextColor="#9CA3AF"
-              onSubmitEditing={handleSearch}
               returnKeyType="search"
               autoFocus
             />
+            {searching && (
+              <ActivityIndicator size="small" color="#206E6B" style={{ marginRight: 8 }} />
+            )}
           </View>
 
-          <ScrollView 
+          <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.searchScrollContent}
             keyboardShouldPersistTaps="handled"
           >
-         
-
-            {/* Search Results */}
             {searchResults.length > 0 && (
               <View style={styles.searchResultsSection}>
-                <View style={styles.searchResultsHeader}>
-                  <Ionicons name="time" size={18} color="#9CA3AF" />
-                  <Text style={styles.searchResultsTitle}>Recent</Text>
-                </View>
-            
-                {searchResults.map((result) => (
+                {searchResults.map((result, index) => (
                   <TouchableOpacity
-                    key={result.food_id}
+                    key={`${result.food_id}_${index}`}
                     style={styles.searchResultCard}
-                    onPress={() => {
-                      handleSelectFood(result);
-                      setSelectedMethod('manual');
-                    }}
+                    onPress={() => handleSelectFood(result)}
                   >
                     <View style={styles.searchResultInfo}>
                       <Text style={styles.searchResultName} numberOfLines={2}>
@@ -815,8 +625,8 @@ export function FoodLogSheet({
                           {result.brand_name}
                         </Text>
                       )}
-                      <Text style={styles.searchResultCalories} numberOfLines={1}>
-                        {result.food_description}
+                      <Text style={styles.searchResultCalories}>
+                        {`${result.calories} cal | P: ${result.protein}g | C: ${result.carbs}g | F: ${result.fat}g`}
                       </Text>
                     </View>
                     <View style={styles.searchResultAddButton}>
@@ -827,26 +637,14 @@ export function FoodLogSheet({
               </View>
             )}
 
-            {/* No Results */}
             {hasSearched && searchQuery && searchResults.length === 0 && !searching && (
               <View style={styles.noResults}>
                 <Ionicons name="search" size={48} color="#D1D5DB" />
                 <Text style={styles.noResultsText}>No foods found</Text>
-                <Text style={styles.noResultsSubtext}>
-                  Try a different search term or add it manually
-                </Text>
+                <Text style={styles.noResultsSubtext}>Try a different search term or add it manually</Text>
               </View>
             )}
 
-            {/* Loading */}
-            {searching && (
-              <View style={styles.searchLoadingContainer}>
-                <ActivityIndicator size="large" color="#206E6B" />
-                <Text style={styles.searchLoadingText}>Searching...</Text>
-              </View>
-            )}
-
-            {/* Initial State - No Search Yet */}
             {!hasSearched && !searching && (
               <View style={styles.searchEmptyState}>
                 <Ionicons name="search" size={64} color="#E5E7EB" />
@@ -861,107 +659,87 @@ export function FoodLogSheet({
       </View>
     );
   }
+
   // Image processing screen
-  if (selectedMethod === 'image' && selectedImage) 
-    {
-     return (
+  if (selectedMethod === 'image' && selectedImage) {
+    return (
       <View style={styles.imageProcessingContainer}>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => {
-          setSelectedMethod(null);
-          setSelectedImage(null);
-        }}
-      >
-        <Ionicons name="arrow-back" size={20} color="#3D5A5C" />
-        <Text style={styles.backText}>Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.formTitle}>Analyzing your food...</Text>
-
-      <View style={styles.imagePreview}>
-        <Image 
-          source={{ uri: `data:image/jpeg;base64,${selectedImage}` }}
-          style={styles.previewImage}
-          resizeMode="cover"
-        />
-        {processingImage && (
-          <View style={styles.processingOverlay}>
-            <ActivityIndicator size="large" color="#FFFFFF" />
-            <Text style={styles.processingText}>HAVEN is reading your photo...</Text>
-          </View>
-        )}
-      </View>
-
-      {!processingImage && (
         <TouchableOpacity
-          style={styles.retryButton}
-          onPress={() => processImageWithAI(selectedImage)}
+          style={styles.backButton}
+          onPress={() => { setSelectedMethod(null); setSelectedImage(null); }}
         >
-          <Text style={styles.retryButtonText}>Analyze Image</Text>
+          <Ionicons name="arrow-back" size={20} color="#3D5A5C" />
+          <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
-      )}
 
-      <TouchableOpacity
-        style={styles.skipButton}
-        onPress={() => {
-          setSelectedMethod('manual');
-          setSelectedImage(null);
-        }}
-      >
-        <Text style={styles.skipButtonText}>Skip & Enter Manually</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
+        <Text style={styles.formTitle}>Analyzing your food...</Text>
 
+        <View style={styles.imagePreview}>
+          <Image
+            source={{ uri: `data:image/jpeg;base64,${selectedImage}` }}
+            style={styles.previewImage}
+            resizeMode="cover"
+          />
+          {processingImage && (
+            <View style={styles.processingOverlay}>
+              <ActivityIndicator size="large" color="#FFFFFF" />
+              <Text style={styles.processingText}>HAVEN is almost done...</Text>
+            </View>
+          )}
+        </View>
+
+        {!processingImage && (
+          <TouchableOpacity style={styles.retryButton} onPress={() => processImageWithAI(selectedImage)}>
+            <Text style={styles.retryButtonText}>Analyze Image</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={styles.skipButton}
+          onPress={() => { setSelectedMethod('manual'); setSelectedImage(null); }}
+        >
+          <Text style={styles.skipButtonText}>Skip & Enter Manually</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Manual entry screen
   return (
-    <ScrollView 
-      style={styles.formContainer} 
+    <ScrollView
+      style={styles.formContainer}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.formContent}
       keyboardShouldPersistTaps="handled"
     >
       <TouchableOpacity
         style={styles.backButton}
-        onPress={() => {
-          setSelectedMethod(null);
-          setSelectedFood(null);
-        }}
+        onPress={() => { setSelectedMethod(null); setSelectedFood(null); }}
       >
-        <Ionicons name="arrow-back" size={24} color= {Colors.graphite} />
-        
+        <Ionicons name="arrow-back" size={24} color={Colors.graphite} />
       </TouchableOpacity>
-      
+
       {selectedFood && (
         <View style={styles.selectedFoodBanner}>
           <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-          {/* <Text style={styles.selectedFoodText}>Food selected from database</Text> */}
         </View>
       )}
 
-      {/* Meal Type Selection */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Meal type</Text>
         <View style={styles.mealTypeGrid}>
           {mealTypes.map((type) => (
             <TouchableOpacity
               key={type.value}
-              style={[
-                styles.mealTypeCard,
-                mealType === type.value && styles.mealTypeCardActive
-              ]}
+              style={[styles.mealTypeCard, mealType === type.value && styles.mealTypeCardActive]}
               onPress={() => setMealType(type.value)}
             >
-              <Ionicons 
-                name={type.icon as any} 
-                size={24} 
-                color={mealType === type.value ? '#FFFFFF' : '#3D5A5C'} 
+              <Ionicons
+                name={type.icon as any}
+                size={24}
+                color={mealType === type.value ? '#FFFFFF' : '#3D5A5C'}
               />
-              <Text style={[
-                styles.mealTypeText,
-                mealType === type.value && styles.mealTypeTextActive
-              ]}>
+              <Text style={[styles.mealTypeText, mealType === type.value && styles.mealTypeTextActive]}>
                 {type.label}
               </Text>
             </TouchableOpacity>
@@ -975,48 +753,44 @@ export function FoodLogSheet({
           style={styles.textInput}
           value={foodDescription}
           onChangeText={(text: string) => {
-        setFoodDescription(text);
-        //@ts-ignore
-        checkDescriptionForEstimate(text);
-    }}
-       placeholder="e.g., Chicken salad with ranch dressing"
-       placeholderTextColor="#9CA3AF"
-       multiline
-      numberOfLines={3}
-    textAlignVertical="top"
-  />
-  
-    {/* AI Estimate Button - only show when description is substantial (minimum 3 words) */}
-  {showEstimateButton && !selectedFood && (
-    <TouchableOpacity
-      style={[styles.estimateButton, estimatingNutrition && styles.estimateButtonDisabled]}
-      onPress={() => handleEstimateNutrition(foodDescription)}
-      disabled={estimatingNutrition}
-    >
-      {estimatingNutrition ? (
-        <>
-          <ActivityIndicator size="small" color="#3D5A5C" />
-          <Text style={styles.estimateButtonText}>Estimating...</Text>
-        </>
-      ) : (
-        <>
-          <Ionicons name="sparkles" size={16} color="#3D5A5C" />
-          <Text style={styles.estimateButtonText}>Estimate Nutrition with AI</Text>
-        </>
-      )}
-    </TouchableOpacity>
-  )}
-  
-  {/* Show when AI has already estimated */}
-  {selectedFood && (
-    <View style={styles.aiEstimateBadge}>
-      <Ionicons name="sparkles" size={14} color="#10B981" />
-      <Text style={styles.aiEstimateText}>AI estimated - please review</Text>
-    </View>
-  )}
-</View>
+            setFoodDescription(text);
+            checkDescriptionForEstimate(text);
+          }}
+          placeholder="e.g., Chicken salad with ranch dressing"
+          placeholderTextColor="#9CA3AF"
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+        />
 
-      {/* Nutrition Info if from database */}
+        {showEstimateButton && !selectedFood && (
+          <TouchableOpacity
+            style={[styles.estimateButton, estimatingNutrition && styles.estimateButtonDisabled]}
+            onPress={() => handleEstimateNutrition(foodDescription)}
+            disabled={estimatingNutrition}
+          >
+            {estimatingNutrition ? (
+              <>
+                <ActivityIndicator size="small" color="#3D5A5C" />
+                <Text style={styles.estimateButtonText}>Estimating...</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="sparkles" size={16} color="#3D5A5C" />
+                <Text style={styles.estimateButtonText}>Estimate Nutrition with AI</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {selectedFood && (
+          <View style={styles.aiEstimateBadge}>
+            <Ionicons name="sparkles" size={14} color="#10B981" />
+            <Text style={styles.aiEstimateText}>AI estimated - please review</Text>
+          </View>
+        )}
+      </View>
+
       {selectedFood && (
         <View style={styles.nutritionCard}>
           <Text style={styles.nutritionTitle}>Nutrition Info</Text>
@@ -1052,7 +826,6 @@ export function FoodLogSheet({
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1079,7 +852,7 @@ const styles = StyleSheet.create({
   },
   methodContent: {
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 100,
   },
   methodsSection: {
     marginTop: 24,
@@ -1570,7 +1343,7 @@ const styles = StyleSheet.create({
     color: '#504D47',
   },
   searchScrollContent: {
-    paddingBottom: 24,
+    paddingBottom: 100,
   },
   searchResultsSection: {
     paddingHorizontal: 20,

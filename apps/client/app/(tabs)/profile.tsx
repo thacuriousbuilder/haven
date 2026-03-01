@@ -21,10 +21,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 interface UserProfile {
   id: string;
-  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
   avatar_url: string | null;
   current_streak: number;
   push_notifications_enabled: boolean;
@@ -205,7 +207,7 @@ export default function ClientProfileScreen() {
   };
   
   const handleTermsPrivacy = async () => {
-    const url = 'https://www.tryhaven.co/';
+    const url = 'https://www.tryhaven.co/privacy';
     
     try {
       const canOpen = await Linking.canOpenURL(url);
@@ -231,6 +233,7 @@ export default function ClientProfileScreen() {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
+            await GoogleSignin.signOut();
             await supabase.auth.signOut();
             router.replace('/(auth)/login');
           },
@@ -238,6 +241,72 @@ export default function ClientProfileScreen() {
       ]
     );
   };
+
+ 
+
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all your data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete My Account',
+          style: 'destructive',
+          onPress: () => {
+            // Second confirmation
+            Alert.alert(
+              'Are you sure?',
+              'Your food logs, progress, and all data will be lost forever.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Yes, Delete Everything',
+                  style: 'destructive',
+                  onPress: confirmDeleteAccount,
+                },
+              ]
+            )
+          },
+        },
+      ]
+    )
+  }
+
+  const confirmDeleteAccount = async () => {
+    try {
+      setLoading(true)
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('No active session')
+
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/deleteAccount`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      )
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to delete account')
+      }
+
+      await supabase.auth.signOut()
+      router.replace('/(auth)/login')
+
+    } catch (error) {
+      console.error('Error deleting account:', error)
+      Alert.alert('Error', 'Failed to delete account. Please try again or contact support.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const formatMemberSince = (dateString: string): string => {
     const date = new Date(dateString);
@@ -263,7 +332,11 @@ export default function ClientProfileScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <ProfileHeader
-          fullName={profile.full_name}
+          fullName={
+            [profile.first_name, profile.last_name]
+              .filter(Boolean)
+              .join(' ') || 'User'
+          }
           email={userEmail}
           currentStreak={profile.current_streak}
           currentWeight={currentWeight}
@@ -338,6 +411,14 @@ export default function ClientProfileScreen() {
             label="Terms & Privacy"
             onPress={handleTermsPrivacy}
           />
+          <View style={styles.divider} />
+        <SettingsRow
+          icon="trash"
+          label="Delete Account"
+          iconColor="#EF4444"
+          iconBgColor="#FEF2F2"
+          onPress={handleDeleteAccount}
+        />
         </Card>
 
         {/* Footer */}

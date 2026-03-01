@@ -1,6 +1,8 @@
 
+
 //@ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { validateUUID, buildValidationResponse } from '../_shared/validate.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,28 +41,50 @@ Deno.serve(async (req: Request) => {
   try {
     console.log('🎯 Create user period request received')
 
-    // Get user_id from request body
-    const { user_id } = await req.json()
-
-    if (!user_id) {
+    // 1. Verify JWT
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: 'Missing user_id in request body' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('📝 Creating period for user:', user_id)
+    const userClient = createClient(
+      //@ts-ignore
+      Deno.env.get('SUPABASE_URL') ?? '',
+      //@ts-ignore
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    )
 
-    // Create supabase client with service role
-    // RLS policies will still enforce user can only create their own periods
-    const supabase = createClient(
+    const { data: { user }, error: userError } = await userClient.auth.getUser()
+    if (userError || !user) {
+      console.error('❌ Invalid token:', userError)
+      return new Response(
+        JSON.stringify({ error: 'Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // 2. Use user_id from JWT — ignore any user_id in body
+    const user_id = user.id
+    console.log('✅ Authenticated user:', user_id)
+
+    // 3. Validate user_id just to be safe
+    const validationResponse = buildValidationResponse([
+      validateUUID(user_id, 'user_id'),
+    ], corsHeaders)
+    if (validationResponse) return validationResponse
+
+    // 4. Admin client for DB operations
+    const adminClient = createClient(
       //@ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
       //@ts-ignore
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Calculate current week dates (Monday-Sunday)
     const today = new Date()
     const thisMonday = getMonday(today)
     const thisSunday = getSunday(thisMonday)
@@ -69,27 +93,63 @@ Deno.serve(async (req: Request) => {
 
     console.log('📅 Creating period for:', weekStartDate, 'to', weekEndDate)
 
-    // Check if period already exists for this week
-    const { data: existingPeriods } = await supabase
+    // Check if period already exists
+    const { data: existingPeriods } = await adminClient
       .from('weekly_periods')
       .select('*')
       .eq('user_id', user_id)
       .or(`and(week_start_date.lte.${weekEndDate},week_end_date.gte.${weekStartDate})`)
 
     if (existingPeriods && existingPeriods.length > 0) {
-      console.log('⏭️  Period already exists for this week')
+      console.log('⏭️ Period already exists, syncing budget from profile...')
+
+      const existingPeriod = existingPeriods[0]
+
+      // Re-fetch latest profile values to sync
+      const { data: freshProfile } = await adminClient
+        .from('profiles')
+        .select('baseline_avg_daily_calories, weekly_budget')
+        .eq('id', user_id)
+        .single()
+
+      if (freshProfile?.weekly_budget) {
+        const freshBaselineAvg = freshProfile.baseline_avg_daily_calories || Math.round(freshProfile.weekly_budget / 7)
+        const freshWeeklyBudget = freshProfile.weekly_budget
+
+        if (
+          existingPeriod.baseline_average_daily !== freshBaselineAvg ||
+          existingPeriod.weekly_budget !== freshWeeklyBudget
+        ) {
+          const { error: updateError } = await adminClient
+            .from('weekly_periods')
+            .update({
+              baseline_average_daily: freshBaselineAvg,
+              weekly_budget: freshWeeklyBudget,
+            })
+            .eq('id', existingPeriod.id)
+
+          if (updateError) {
+            console.error('❌ Failed to sync period budget:', updateError)
+          } else {
+            console.log(`✅ Synced: ${freshBaselineAvg}/day → ${freshWeeklyBudget}/week`)
+          }
+        } else {
+          console.log('✅ Period budget already in sync, no update needed')
+        }
+      }
+
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           reason: 'already_exists',
-          period_id: existingPeriods[0].id,
+          period_id: existingPeriod.id,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Get user profile for baseline data
-    const { data: profile, error: profileError } = await supabase
+    // Get user profile
+    const { data: profile, error: profileError } = await adminClient
       .from('profiles')
       .select('baseline_avg_daily_calories, weekly_budget, baseline_complete')
       .eq('id', user_id)
@@ -98,43 +158,37 @@ Deno.serve(async (req: Request) => {
     if (profileError || !profile) {
       console.error('❌ Error loading profile:', profileError)
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Failed to load user profile' 
-        }),
+        JSON.stringify({ success: false, error: 'Failed to load user profile' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Check if user has completed baseline or has a weekly budget set
     if (!profile.weekly_budget) {
-      console.error('❌ No weekly budget found for user')
       return new Response(
-        JSON.stringify({ 
-          success: false, 
+        JSON.stringify({
+          success: false,
           reason: 'no_baseline_data',
-          error: 'Complete onboarding or baseline week first' 
+          error: 'Complete onboarding or baseline week first',
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     const weeklyBudget = profile.weekly_budget
-    const baselineAvg = profile.baseline_avg_daily_calories || (weeklyBudget / 7)
+    const baselineAvg = profile.baseline_avg_daily_calories || Math.round(weeklyBudget / 7)
 
     console.log('💰 Budget:', weeklyBudget, '(', baselineAvg, 'cal/day)')
 
-    // Create new period
-    const { data: newPeriod, error: insertError } = await supabase
+    const { data: newPeriod, error: insertError } = await adminClient
       .from('weekly_periods')
       .insert({
-        user_id: user_id,
+        user_id,
         week_start_date: weekStartDate,
         week_end_date: weekEndDate,
         period_type: 'active',
         status: 'active',
         weekly_budget: weeklyBudget,
-        baseline_average_daily: baselineAvg|| null,
+        baseline_average_daily: baselineAvg,
       })
       .select()
       .single()
@@ -142,10 +196,7 @@ Deno.serve(async (req: Request) => {
     if (insertError) {
       console.error('❌ Failed to create period:', insertError)
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: insertError.message 
-        }),
+        JSON.stringify({ success: false, error: insertError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -164,7 +215,7 @@ Deno.serve(async (req: Request) => {
     )
 
   } catch (error) {
-    console.error('❌ Error in create-user-period:', error)
+    console.error('❌ Error in createUserPeriod:', error)
     return new Response(
       //@ts-ignore
       JSON.stringify({ success: false, error: error.message }),

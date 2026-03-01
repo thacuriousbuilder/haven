@@ -1,18 +1,25 @@
+
 {
   "expo": {
-    "name": "HAVEN",
-    "slug": "haven",
+    "name": "HAVEN Coach",
+    "slug": "haven-coach",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon2.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/splashNew.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "ios": {
+      "bundleIdentifier": "co.tryhaven.coach",
+      "buildNumber": "1",
+      "supportsTablet": false
+    },
     "android": {
-      "package": "co.tryhaven.app",
+      "package": "co.tryhaven.coach",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -25,7 +32,7 @@
       "icon": "./assets/notification-icon.png",
       "color": "#206E6B",
       "androidMode": "default",
-      "androidCollapsedTitle": "HAVEN Updates"
+      "androidCollapsedTitle": "HAVEN Coach Updates"
     },
     "plugins": [
       [
