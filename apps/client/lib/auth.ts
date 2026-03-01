@@ -5,8 +5,10 @@ import * as Crypto from 'expo-crypto';
 import { supabase } from './supabase';
 
 export function configureGoogleSignIn() {
+  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  console.log('HAVEN: webClientId =', webClientId);
   GoogleSignin.configure({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    webClientId,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   });
 }
@@ -24,7 +26,7 @@ export async function signInWithGoogle() {
   await GoogleSignin.hasPlayServices();
   const userInfo = await GoogleSignin.signIn();
 
-  console.log('Google full response:', JSON.stringify(userInfo.data));
+  // console.log('Google full response:', JSON.stringify(userInfo.data));
 
   const idToken = userInfo.data?.idToken;
   if (!idToken) throw new Error('No ID token returned from Google');

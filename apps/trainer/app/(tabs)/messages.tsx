@@ -31,7 +31,8 @@ interface Message {
 interface Profile {
   id: string;
   trainer_id: string | null;
-  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
 }
 
 export default function MessagesScreen() {
@@ -158,7 +159,7 @@ export default function MessagesScreen() {
       // Get user's profile to check user_type
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('user_type, trainer_id, full_name')
+        .select('user_type, trainer_id, first_name, last_name')
         .eq('id', user.id)
         .single();
   
@@ -182,14 +183,14 @@ export default function MessagesScreen() {
         // Get trainer's name
         const { data: trainerProfile } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('first_name, last_name')
           .eq('id', profile.trainer_id)
           .single();
   
-        if (trainerProfile?.full_name) {
-          setTrainerName(trainerProfile.full_name);
-        }
-  
+          if (trainerProfile) {
+            const name = `${trainerProfile.first_name || ''} ${trainerProfile.last_name || ''}`.trim();
+            setTrainerName(name || 'Coach');
+          }
         // Fetch messages
         await fetchMessages(user.id, profile.trainer_id);
       } 
@@ -228,7 +229,7 @@ export default function MessagesScreen() {
       // Get all clients
       const { data: clients, error: clientsError } = await supabase
         .from('profiles')
-        .select('id, full_name')
+        .select('id, first_name, last_name')
         .eq('trainer_id', trainerId);
   
       if (clientsError || !clients) {
@@ -258,7 +259,7 @@ export default function MessagesScreen() {
   
           return {
             clientId: client.id,
-            clientName: client.full_name || 'Client',
+            clientName: `${client.first_name || ''} ${client.last_name || ''}`.trim() || 'Client',
             lastMessage: lastMessage?.message_text || 'No messages yet',
             lastMessageTime: lastMessage?.created_at || null,
             unreadCount: unreadCount || 0,

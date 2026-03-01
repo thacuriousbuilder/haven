@@ -162,7 +162,7 @@ async function handleAppleSignIn() {
             )}
           </TouchableOpacity>
 
-
+          {Platform.OS === 'ios' && (
           <TouchableOpacity
             style={styles.socialButton}
             onPress={handleAppleSignIn}
@@ -178,6 +178,7 @@ async function handleAppleSignIn() {
               </View>
             )}
           </TouchableOpacity>
+          )}
           </View>
 
           <View style={styles.footer}>

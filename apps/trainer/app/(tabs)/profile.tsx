@@ -23,7 +23,8 @@ import * as Clipboard from 'expo-clipboard';
 
 interface UserProfile {
   id: string;
-  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
   avatar_url: string | null;
   current_streak: number;
   push_notifications_enabled: boolean;
@@ -192,7 +193,7 @@ export default function TrainerProfileScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <ProfileHeader
-          fullName={profile.full_name}
+          fullName={`${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Coach'}
           email={userEmail}
           currentStreak={0}
           currentWeight={null}
@@ -200,6 +201,7 @@ export default function TrainerProfileScreen() {
           goal={null}
           userType="trainer"
           targetWeight={null}
+          totalClients={totalClients}
         />
 
         {/* Coaching Stats */}

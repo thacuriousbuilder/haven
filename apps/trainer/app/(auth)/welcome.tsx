@@ -9,9 +9,9 @@ const WELCOME_COMPLETED_KEY = '@haven_trainer_welcome_completed';
 
 export default function TrainerWelcome() {
   // UNCOMMENT TO RESET WELCOME 
-  // useEffect(() => {
-  //   AsyncStorage.removeItem(WELCOME_COMPLETED_KEY);
-  // }, []);
+  useEffect(() => {
+    AsyncStorage.removeItem(WELCOME_COMPLETED_KEY);
+  }, []);
 
   const [isLoading, setIsLoading] = useState(true);
   
@@ -142,7 +142,7 @@ export default function TrainerWelcome() {
           ]}
         >
           <Text style={styles.messageText}>
-            Nutrition coaching{'\n'}that fits client lifestyles{'\n'}and achieves results
+            Your clients aren't failing{'\n'} <Text style={{color:Colors.energyOrange, fontSize:36, lineHeight:40, paddingHorizontal:20}}>Their plans are.</Text>
           </Text>
         </Animated.View>
 
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   messageText: {
-    fontSize: 28,
+    fontSize: 32,
     color: '#FFFFFF',
     fontWeight: '600',
     textAlign: 'center',

@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 interface UserProfile {
   id: string;
@@ -232,6 +233,7 @@ export default function ClientProfileScreen() {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
+            await GoogleSignin.signOut();
             await supabase.auth.signOut();
             router.replace('/(auth)/login');
           },

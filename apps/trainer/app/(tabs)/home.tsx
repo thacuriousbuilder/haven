@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { supabase } from '@haven/shared-utils';
+import { getLocalDateString, supabase } from '@haven/shared-utils';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
 
@@ -24,7 +24,8 @@ import { ClientCardOnTrack } from '@/components/coach/clientCardOnTrack';
 
 interface ClientStatus {
   id: string;
-  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   last_log_time: string | null;
   meals_today: number;
   current_streak: number;
@@ -38,7 +39,8 @@ interface ClientStatus {
 }
 
 interface ProfileData {
-  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   user_type: 'client' | 'trainer';
 }
 
@@ -83,11 +85,10 @@ export default function TrainerHome() {
       }
 
       const { data, error } = await supabase
-        .from('profiles')
-        .select('full_name, user_type')
-        .eq('id', user.id)
-        .single();
-
+      .from('profiles')
+      .select('first_name, last_name, user_type')
+      .eq('id', user.id)
+      .single();
       if (error) {
         console.error('Error fetching profile:', error);
         setLoading(false);
@@ -109,11 +110,7 @@ export default function TrainerHome() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      const todayDateStr = `${year}-${month}-${day}`;
+      const todayDateStr = getLocalDateString();
 
       // Use the RPC function to get client data
       const { data: clientsData, error: clientsError } = await supabase
@@ -151,7 +148,8 @@ export default function TrainerHome() {
       // Transform client data
       const clientStatuses: ClientStatus[] = clientsData.map((client: any) => ({
         id: client.id,
-        full_name: client.full_name,
+        first_name: client.first_name,
+        last_name: client.last_name,
         last_log_time: null,
         meals_today: client.meals_logged_today || 0,
         current_streak: client.current_streak || 0,
@@ -227,7 +225,7 @@ export default function TrainerHome() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <CoachDashboardHeader
-        coachName={profile.full_name || 'Coach'}
+        coachName={profile.first_name || 'Coach'}
         unreadMessagesCount={dashboardStats.unreadMessagesCount}
         clientsNeedingAttention={dashboardStats.clientsNeedingAttention}
         onNotificationPress={() => {
@@ -271,7 +269,7 @@ export default function TrainerHome() {
                     <ClientCardFollowUp
                       key={client.id}
                       clientId={client.id}
-                      fullName={client.full_name || 'Client'}
+                      fullName={client.first_name || 'Client'}
                       avatarUrl={null}
                       lastActiveDaysAgo={client.days_inactive || 0}
                       avgDailyCalories={client.baseline_avg_daily_calories}
@@ -297,7 +295,7 @@ export default function TrainerHome() {
                     <ClientCardBaseline
                       key={client.id}
                       clientId={client.id}
-                      fullName={client.full_name || 'Client'}
+                      fullName={client.first_name || 'Client'}
                       avatarUrl={null}
                       mealsLoggedToday={client.meals_today}
                       baselineDaysCompleted={client.baseline_days_completed || 0}
@@ -323,7 +321,7 @@ export default function TrainerHome() {
                     <ClientCardOnTrack
                       key={client.id}
                       clientId={client.id}
-                      fullName={client.full_name || 'Client'}
+                      fullName={client.first_name || 'Client'}
                       avatarUrl={null}
                       mealsLoggedToday={client.meals_today}
                       weeklyProgress={calculateWeeklyProgress()}

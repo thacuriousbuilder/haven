@@ -48,6 +48,42 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:314572247613:android:99977111aa199d81919054",
+        "android_client_info": {
+          "package_name": "co.tryhaven.app.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "314572247613-u8u36g6qekl525afmmn9vp91qf49dqgf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGQIhr8OBiiNAtwzZLMDF6e_ZD5xcq9JA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "314572247613-u8u36g6qekl525afmmn9vp91qf49dqgf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "314572247613-kvageosg17g1p4gho5tqgnnu5noe44er.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "co.tryhaven.app"
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

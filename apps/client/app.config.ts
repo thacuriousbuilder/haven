@@ -47,11 +47,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         'HAVEN uses your camera to identify food and log meals, and to update your profile photo.',
       NSPhotoLibraryUsageDescription:
         'HAVEN accesses your photo library so you can log meals from existing photos.',
+     CFBundleURLTypes: [
+          {
+            CFBundleURLSchemes: [
+              IS_DEV
+              ? 'com.googleusercontent.apps.314572247613-s4rveu9of4i48hcuoptla9hn5h8nskil'
+              : 'com.googleusercontent.apps.314572247613-kvageosg17g1p4gho5tqgnnu5noe44er'
+            ]
+          }
+        ]
     },
   },
   android: {
     package: getBundleId(),
-    googleServicesFile: './google-services.json',
+    googleServicesFile: IS_DEV
+    ? './google-services.dev.json'
+    : './google-services.json',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon1.png',
       backgroundColor: '#206E6B',
@@ -75,10 +86,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-apple-authentication',
     [
       '@react-native-google-signin/google-signin',
-      {
-        iosUrlScheme:
-          'com.googleusercontent.apps.34620264454-bmm1u19r4cln7pfom1qng4ig4b174hah',
-      },
     ],
   ],
   extra: {
