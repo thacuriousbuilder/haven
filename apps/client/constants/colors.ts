@@ -35,6 +35,7 @@ export const Colors = {
     blackOverlay: 'rgba(0, 0, 0, 0.1)',
     tealOverlay: 'rgba(32, 110, 107, 0.1)',
     orangeOverlay: 'rgba(239, 120, 40, 0.1)',
+    purpleOverlay: 'rgba(139, 92, 246, 0.1)',
   };
   
   /**

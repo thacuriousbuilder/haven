@@ -31,6 +31,7 @@ import type { MealLogItem, MacroData } from '@/types/home';
 import { Colors } from '@/constants/colors';
 import { analyzeWeekPeriod, WeekInfo } from '@/utils/weekHelpers';
 import { BaselineWeightTrendModal } from '@/components/baselineWeightTrendModal';
+import { DailyCaloriesChart } from '@/components/homeactive/cards/dailyCaloriesChart';
 
 interface ProfileData {
   first_name: string | null;
@@ -110,6 +111,7 @@ export default function HomeScreen() {
   const [unreadCount, setUnreadCount] = useState(0);
   const dismissedBudgetBanner = useRef(false);
   const [isEstimatedBaseline, setIsEstimatedBaseline] = useState(false);
+  const [weeklySummaries, setWeeklySummaries] = useState<{ summary_date: string; calories_consumed: number }[]>([]);
   
 
   const {
@@ -191,7 +193,7 @@ export default function HomeScreen() {
     userId: string,
     weekStartDate: string,
     profile: any
-  ): Promise<MetricsData> => {
+  ): Promise<MetricsData & { summaries: { summary_date: string; calories_consumed: number }[] }> => {
     try {
       console.log('📊 Calculating metrics client-side for week:', weekStartDate);
       
@@ -208,7 +210,6 @@ export default function HomeScreen() {
         .eq('user_id', userId)
         .gte('summary_date', weekStartDate)
         .lte('summary_date', todayStr);
-  
       if (summariesError) {
         console.error('Error loading summaries:', summariesError);
         throw summariesError;
@@ -259,6 +260,7 @@ export default function HomeScreen() {
         calories_reserved,
         projected_end,
         on_track,
+        summaries: summaries || []
       };
       
     } catch (error) {
@@ -270,6 +272,7 @@ export default function HomeScreen() {
         calories_reserved: 0,
         projected_end: 0,
         on_track: true,
+        summaries: [],
       };
     }
   };
@@ -974,6 +977,7 @@ const fetchMetrics = async () => {
     // Calculate metrics
     const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, profile);
     setMetrics(metricsData);
+    setWeeklySummaries(metricsData.summaries);
 
     // Fetch cheat days
     const { data: cheatDays } = await supabase
@@ -1079,7 +1083,7 @@ const fetchMetrics = async () => {
       // Calculate metrics client-side
       const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, data);
       setMetrics(metricsData);
-  
+      setWeeklySummaries(metricsData.summaries);
       // Get cheat days
       const { weekEnd: sundayDateStr } = getCurrentWeekDates();
       
@@ -1562,18 +1566,18 @@ const fetchMetrics = async () => {
                   />
                 </View>
               )}
-
-              {/* Next Cheat Day Card (conditional) */}
-              {getNextCheatDayInfo() && (
+              {/* Daily Calories Chart */}
+              {metrics && currentPeriod && (
                 <View style={styles.cardSpacing}>
-                  <NextCheatDayCard
-                    dayName={getNextCheatDayInfo()!.dayName}
-                    dateString={getNextCheatDayInfo()!.dateString}
-                    reservedCalories={metrics?.calories_reserved || 0}
-                    onPress={() => router.push('/(tabs)/plan')}
+                  <DailyCaloriesChart
+                    weekStartDate={currentPeriod.week_start_date}
+                    summaries={weeklySummaries}
+                    dailyTarget={Math.round(metrics.weekly_budget / 7)}
+                    cheatDates={cheatDates}
                   />
                 </View>
               )}
+              
 
               {/* Today's Meals Card */}
               <View style={styles.cardSpacing}>
@@ -1584,6 +1588,18 @@ const fetchMetrics = async () => {
                   dateLabel={getSelectedDateLabel()}
                 />
               </View>
+
+               {/* Next Cheat Day Card (conditional) */}
+               {getNextCheatDayInfo() && (
+                <View style={styles.cardSpacing}>
+                  <NextCheatDayCard
+                    dayName={getNextCheatDayInfo()!.dayName}
+                    dateString={getNextCheatDayInfo()!.dateString}
+                    reservedCalories={metrics?.calories_reserved || 0}
+                    onPress={() => router.push('/(tabs)/plan')}
+                  />
+                </View>
+              )}
 
               {/* Quick Log Card */}
               <View style={styles.cardSpacing}>
