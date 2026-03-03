@@ -7,6 +7,27 @@ import * as Notifications from 'expo-notifications';
 import { configureGoogleSignIn } from '@/lib/auth';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { Platform } from 'react-native';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  environment: process.env.APP_VARIANT || 'production',
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: true,
+
+  // Enable Logs
+  enableLogs: true,
+
+  // Configure Session Replay
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1,
+  integrations: [Sentry.mobileReplayIntegration(), Sentry.feedbackIntegration()],
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 configureGoogleSignIn();
 const REVENUECAT_APPLE_KEY = process.env.EXPO_PUBLIC_REVENUECAT_APPLE_KEY;
@@ -21,7 +42,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export default function RootLayout() {
+export default Sentry.wrap(function RootLayout() {
   usePushToken();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -72,4 +93,4 @@ export default function RootLayout() {
       </Stack>
     </OnboardingProvider>
   );
-}
+});

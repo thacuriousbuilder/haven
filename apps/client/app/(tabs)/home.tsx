@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert, Button } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '@haven/shared-utils';
@@ -24,7 +24,7 @@ import { BaselineRestartModal } from '@/components/baseLineRestartModal';
 import * as ImagePicker from 'expo-image-picker';
 import { completeBaseline, completeBaselineWithEstimatedData } from '@/lib/baselineCompletion';
 import { useOverageCalculation } from '@/hooks/useOverageCalculation';
-
+import * as Sentry from '@sentry/react-native';
 
 // Type imports
 import type { MealLogItem, MacroData } from '@/types/home';
@@ -1577,8 +1577,7 @@ const fetchMetrics = async () => {
                   />
                 </View>
               )}
-              
-
+          
               {/* Today's Meals Card */}
               <View style={styles.cardSpacing}>
                 <TodayMealsCard
