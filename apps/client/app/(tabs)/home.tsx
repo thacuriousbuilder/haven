@@ -32,6 +32,7 @@ import { Colors } from '@/constants/colors';
 import { analyzeWeekPeriod, WeekInfo } from '@/utils/weekHelpers';
 import { BaselineWeightTrendModal } from '@/components/baselineWeightTrendModal';
 import { DailyCaloriesChart } from '@/components/homeactive/cards/dailyCaloriesChart';
+import { BudgetAdjustmentBanner } from '@/components/homeactive/cards/budgetAdjustmentBanner';
 
 interface ProfileData {
   first_name: string | null;
@@ -830,6 +831,7 @@ const checkDailyCheckIn = async () => {
       .select('id')
       .eq('user_id', user.id)
       .eq('check_in_date', todayDate)
+      .eq('skipped', false) 
       .maybeSingle();
 
     if (checkInError) {
@@ -1170,7 +1172,7 @@ const fetchMetrics = async () => {
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .eq('recipient_id', user.id) 
-        .eq('is_read', false); 
+        .eq('read', false); 
 
       if (error) {
         console.error('Error fetching unread count:', error);
@@ -1475,35 +1477,14 @@ const fetchMetrics = async () => {
               )}
 
              {/* Budget Adjustment Banner */}
-          {isSelectedDateToday() && !isSelectedDateCheatDay() && adjustment < 0 && cumulativeOverage > 0 && !dismissedBudgetBanner.current  && (
-            <TouchableOpacity
-            style={styles.budgetAdjustmentBanner}
-            activeOpacity={0.9}
-          >
-            <View style={styles.bannerContent}>
-              <Ionicons name="alert-circle" size={20} color="#EF7828" />
-              <View style={styles.bannerTextContainer}>
-                <Text style={styles.budgetBannerTitle}>
-                  Budget adjusted for this week
-                </Text>
-                <Text style={styles.budgetBannerSubtext}>
-                  You're {cumulativeOverage} cal slightly over. Haven recommends eating: {adjustedBudget.toLocaleString()} cal rather than your normal {baseBudget.toLocaleString()} cal
-                </Text>
-              </View>
-            </View>
-            {/* X button */}
-            <TouchableOpacity
-              onPress={() => {
-                dismissedBudgetBanner.current = true;
-                setSelectedDate(new Date(selectedDate)); // trigger re-render
-              }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={styles.bannerDismiss}
-            >
-              <Ionicons name="close" size={18} color="#EA580C" />
-            </TouchableOpacity>
-          </TouchableOpacity>
-            )}
+             {isSelectedDateToday() && !isSelectedDateCheatDay() && (
+                <BudgetAdjustmentBanner
+                  cumulativeOverage={cumulativeOverage}
+                  adjustedBudget={adjustedBudget}
+                  baseBudget={baseBudget}
+                  weekStartDate={currentPeriod?.week_start_date || ''}
+                />
+              )}
             {/*  Cheat Day Banner */}
             {isSelectedDateCheatDay() && selectedCheatCalories && (
                   <View style={styles.cheatDayBanner}>

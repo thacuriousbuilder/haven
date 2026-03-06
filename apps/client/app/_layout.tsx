@@ -1,13 +1,14 @@
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { OnboardingProvider } from '@/contexts/onboardingContext';
 import { requestNotificationPermissions } from "@/hooks/useNotificationPermissions";
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePushToken } from "@/hooks/usePushToken";
 import * as Notifications from 'expo-notifications';
 import { configureGoogleSignIn } from '@/lib/auth';
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { Platform } from 'react-native';
 import * as Sentry from '@sentry/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -43,12 +44,34 @@ Notifications.setNotificationHandler({
 });
 
 export default Sentry.wrap(function RootLayout() {
-  usePushToken();
   const [isMounted, setIsMounted] = useState(false);
+  const notificationListener = useRef<ReturnType<typeof Notifications.addNotificationReceivedListener> | null>(null);
+  const responseListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener> | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
+    AsyncStorage.removeItem('budget_banner_dismissed_date');
   }, []);
+  useEffect(() => {
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      console.log('📬 Notification received in foreground:', notification);
+    });
+
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      console.log('👆 Notification tapped, data:', data);
+
+      if (data?.type === 'message' && data?.sender_id) {
+        router.push(`messages/${data.sender_id}`);
+      }
+    });
+
+    return () => {
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
+    };
+  }, []);
+
 
   useEffect(() => {
     if (!isMounted) return;
@@ -90,7 +113,17 @@ export default Sentry.wrap(function RootLayout() {
             headerShown: false,
           }}
         />
-      </Stack>
+  
+      <Stack.Screen
+    name="dailyCheckin"
+    options={{
+      presentation: 'modal',
+      animation: 'slide_from_bottom',
+      headerShown: false,
+      gestureEnabled: true,
+    }}
+  />
+  </Stack>
     </OnboardingProvider>
   );
 });

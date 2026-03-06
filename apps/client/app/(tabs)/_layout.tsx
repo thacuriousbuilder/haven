@@ -4,9 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/colors';
+import { usePushToken } from '@/hooks/usePushToken';
+import { useDailyCheckIn } from '@/hooks/useDailyCheckin';
 
 export default function ClientTabLayout() {
   const insets = useSafeAreaInsets();
+  usePushToken();
+  useDailyCheckIn();
 
   return (
     <Tabs

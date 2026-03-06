@@ -208,6 +208,7 @@ export default function DailyCheckInScreen() {
         .upsert({
           user_id: user.id,
           check_in_date: todayDate,
+          skipped: false,
           has_unlogged_food: hasUnloggedFood,
           workout_completed: workedOutYesterday,
           workout_calories_burned: caloriesBurned,
@@ -255,9 +256,22 @@ export default function DailyCheckInScreen() {
     }
   };
 
-  const handleSkip = () => {
-    // Just go back - we won't prompt again today since the check ran once
-    router.back();
+  const handleSkip = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('check_ins').upsert({
+          user_id: user.id,
+          check_in_date: getLocalDateString(),
+          skipped: true,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,check_in_date' });
+      }
+    } catch (error) {
+      console.error('Error saving skip:', error);
+    } finally {
+      router.back();
+    }
   };
 
   // Check if save button should be enabled
