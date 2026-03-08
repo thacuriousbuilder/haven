@@ -17,6 +17,7 @@ import { supabase } from '@haven/shared-utils';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
 import { getLocalDateString } from '@haven/shared-utils';
+import { getYesterdayDateString } from '@/utils/timezone';
 
 export default function DailyCheckInScreen() {
   const [hasUnloggedFood, setHasUnloggedFood] = useState<boolean | null>(null);
@@ -236,7 +237,13 @@ export default function DailyCheckInScreen() {
           [
             {
               text: 'OK',
-              onPress: () => router.push('/log'),
+              onPress: () =>router.push({
+                pathname: '/log',
+                params: { 
+                  targetDate: getYesterdayDateString(),
+                  returnTo: 'home',
+                },
+              }),
             }
           ]
         );

@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   value: {
-    fontSize: 32,
+    fontSize: 25,
     fontWeight: '700',
     color: Colors.graphite,
     marginBottom: 2,

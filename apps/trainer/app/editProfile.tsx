@@ -49,14 +49,9 @@ export default function TrainerEditProfileScreen() {
 
       if (error) throw error;
 
-      // Split full name into first and last
-      const nameParts = (profile.full_name || '').trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
-
       setData({
-        firstName,
-        lastName,
+        firstName: profile.first_name || '',
+        lastName: profile.last_name || '',
         email: user.email || '',
       });
     } catch (error) {
@@ -89,11 +84,12 @@ export default function TrainerEditProfileScreen() {
       const fullName = `${data.firstName.trim()} ${data.lastName.trim()}`.trim();
 
       const { error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: fullName,
-        })
-        .eq('id', user.id);
+      .from('profiles')
+      .update({
+        first_name: data.firstName.trim(),
+        last_name: data.lastName.trim() || null,
+      })
+      .eq('id', user.id);
 
       if (error) throw error;
 

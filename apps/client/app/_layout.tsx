@@ -62,7 +62,7 @@ export default Sentry.wrap(function RootLayout() {
       console.log('👆 Notification tapped, data:', data);
 
       if (data?.type === 'message' && data?.sender_id) {
-        router.push(`messages/${data.sender_id}`);
+        router.push('/messages');
       }
     });
 

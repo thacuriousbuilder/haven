@@ -190,6 +190,31 @@ export default function HomeScreen() {
     }));
   };
 
+  // Derives weekly summaries directly from recentLogs (always reflects true state)
+const buildWeeklySummariesFromLogs = (
+  logs: FoodLog[],
+  weekStartDate: string,
+  weekEndDate: string
+): { summary_date: string; calories_consumed: number }[] => {
+  const startDate = new Date(weekStartDate + 'T00:00:00');
+  const endDate = new Date(weekEndDate + 'T00:00:00');
+
+  const grouped = new Map<string, number>();
+
+  logs.forEach(log => {
+    const logDate = new Date(log.log_date + 'T00:00:00');
+    if (logDate >= startDate && logDate <= endDate) {
+      const existing = grouped.get(log.log_date) || 0;
+      grouped.set(log.log_date, existing + (log.calories || 0));
+    }
+  });
+
+  return Array.from(grouped.entries()).map(([summary_date, calories_consumed]) => ({
+    summary_date,
+    calories_consumed,
+  }));
+};
+
   const calculateMetricsClientSide = async (
     userId: string,
     weekStartDate: string,
@@ -979,7 +1004,16 @@ const fetchMetrics = async () => {
     // Calculate metrics
     const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, profile);
     setMetrics(metricsData);
-    setWeeklySummaries(metricsData.summaries);
+    const { data: freshLogs } = await supabase
+    .from('food_logs')
+    .select('id, food_name, calories, meal_type, log_date, created_at, protein_grams, carbs_grams, fat_grams')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  
+  const logsForChart = freshLogs || [];
+  setRecentLogs(logsForChart);
+  setWeeklySummaries(buildWeeklySummariesFromLogs(logsForChart, weekStartDate, sundayDateStr));
 
     // Fetch cheat days
     const { data: cheatDays } = await supabase
@@ -1085,16 +1119,26 @@ const fetchMetrics = async () => {
       // Calculate metrics client-side
       const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, data);
       setMetrics(metricsData);
-      setWeeklySummaries(metricsData.summaries);
-      // Get cheat days
-      const { weekEnd: sundayDateStr } = getCurrentWeekDates();
+      // Fetch logs fresh (don't rely on recentLogs state here)
+      const { data: freshLogs } = await supabase
+      .from('food_logs')
+      .select('id, food_name, calories, meal_type, log_date, created_at, protein_grams, carbs_grams, fat_grams')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+      const logsForChart = freshLogs || [];
+      setRecentLogs(logsForChart); // keep state in sync too
+
+      const { weekEnd: sundayStr } = getCurrentWeekDates();
+      setWeeklySummaries(buildWeeklySummariesFromLogs(logsForChart, weekStartDate, sundayStr));
       
       const { data: cheatDays } = await supabase
         .from('planned_cheat_days')
         .select('cheat_date, planned_calories')
         .eq('user_id', user.id)
         .gte('cheat_date', weekStartDate)
-        .lte('cheat_date', sundayDateStr);
+        .lte('cheat_date', sundayStr);
   
       if (cheatDays) {
         setCheatDates(cheatDays.map(cd => cd.cheat_date));

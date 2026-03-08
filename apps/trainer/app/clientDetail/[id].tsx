@@ -23,6 +23,8 @@ import { NextCheatDayCard } from '@/components/cards/nextCheatDayCard';
 import { ClientFoodLogs } from '@/components/coach/clientFoodLogs';
 
 interface ClientProfile {
+  last_name: string;
+  first_name: string;
   id: string;
   full_name: string | null;
   current_streak: number;
@@ -202,7 +204,7 @@ export default function ClientDetailScreen() {
   };
 
   const handleFoodPress = (foodId: string) => {
-    router.push(`/food/${foodId}`);
+    router.push(`/clientFood/${foodId}`);
   };
   
 
@@ -241,7 +243,7 @@ export default function ClientDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.graphite} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerName}>{client.full_name || 'Client'}</Text>
+          <Text style={styles.headerName}>{client.first_name + ' ' + client.last_name || 'Client'}</Text>
           {!client.baseline_complete && client.baseline_start_date && (
             <Text style={styles.headerStatus}>Day {client.current_streak} of 7</Text>
           )}

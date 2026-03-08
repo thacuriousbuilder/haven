@@ -1,3 +1,4 @@
+
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet, Text } from 'react-native';
@@ -5,6 +6,8 @@ import { useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@haven/shared-utils';
 import { Colors } from '@/constants/colors';
+import { usePushToken } from '@/hooks/usePushToken';
+import * as Notifications from 'expo-notifications';
 
 function TabBarBadge({ count }: { count: number }) {
   if (count === 0) return null;
@@ -17,13 +20,24 @@ function TabBarBadge({ count }: { count: number }) {
 }
 
 export default function TrainerTabLayout() {
+  usePushToken();
   const insets = useSafeAreaInsets();
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Request notification permissions on first load
+  useEffect(() => {
+    const requestPermissions = async () => {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        await Notifications.requestPermissionsAsync();
+      }
+    };
+    requestPermissions();
+  }, []);
 
   useEffect(() => {
     fetchUnreadCount();
 
-    // Set up real-time subscription
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const setupSubscription = async () => {
@@ -117,11 +131,7 @@ export default function TrainerTabLayout() {
           title: '',
           tabBarIcon: ({ focused }) => (
             <View style={styles.addButton}>
-              <Ionicons 
-                name="add" 
-                size={32} 
-                color="#FFFFFF" 
-              />
+              <Ionicons name="add" size={32} color="#FFFFFF" />
             </View>
           ),
         }}

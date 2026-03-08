@@ -33,20 +33,15 @@ export function QuickLogCard({
           label="Scan"
           onPress={onCamera}
         />
-        <QuickLogButton
-          icon="search"
-          label="Search"
-          onPress={onSearch}
-        />
+          <QuickLogButton
+            icon="restaurant"
+            label="Describe"
+            onPress={onRecipe}
+          />
         <QuickLogButton
           icon="image"
           label="Photo"
           onPress={onPhoto}
-        />
-        <QuickLogButton
-          icon="restaurant"
-          label="Describe"
-          onPress={onRecipe}
         />
       </View>
     </View>

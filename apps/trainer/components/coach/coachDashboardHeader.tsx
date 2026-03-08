@@ -36,7 +36,7 @@ export function CoachDashboardHeader({
         </View>
         
         {/* Notification Badge */}
-        <TouchableOpacity 
+        {/* <TouchableOpacity 
           style={styles.notificationButton}
           onPress={onNotificationPress}
         >
@@ -48,7 +48,7 @@ export function CoachDashboardHeader({
               </Text>
             </View>
           )}
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       {/* Greeting */}
