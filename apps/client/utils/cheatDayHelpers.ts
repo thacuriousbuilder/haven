@@ -208,6 +208,11 @@ export function calculateComfortFloor(goal: string, gender: string): number {
  * @param date - Today's date (YYYY-MM-DD)
  * @returns Success status and updated cumulative overage
  */
+// utils/cheatDayHelpers.ts
+// Replace ONLY the calculateAndDistributeOverage function
+
+const OVERAGE_THRESHOLD = 150;
+
 export async function calculateAndDistributeOverage(
   userId: string,
   weeklyPeriodId: string,
@@ -219,7 +224,6 @@ export async function calculateAndDistributeOverage(
     // ============================================
     // STEP 1: Get weekly period details
     // ============================================
-    
     const { data: weeklyPeriod, error: periodError } = await supabase
       .from('weekly_periods')
       .select('*')
@@ -227,7 +231,6 @@ export async function calculateAndDistributeOverage(
       .single();
 
     if (periodError || !weeklyPeriod) {
-      console.error('Error fetching weekly period:', periodError);
       return { success: false, cumulativeOverage: 0, error: 'Weekly period not found' };
     }
 
@@ -239,7 +242,6 @@ export async function calculateAndDistributeOverage(
     // ============================================
     // STEP 2: Get all cheat days for this week
     // ============================================
-    
     const { data: cheatDays } = await supabase
       .from('planned_cheat_days')
       .select('*')
@@ -248,32 +250,34 @@ export async function calculateAndDistributeOverage(
       .lte('cheat_date', weekEndDate);
 
     const cheatDayDates = new Set(cheatDays?.map(day => day.cheat_date) || []);
-    const totalCheatCalories = cheatDays?.reduce((sum, day) => sum + day.planned_calories, 0) || 0;
-
-    console.log(`🎉 Cheat days this week: ${cheatDayDates.size}, Total reserved: ${totalCheatCalories} cal`);
 
     // ============================================
-    // STEP 3: Get all daily summaries up to TODAY
+    // STEP 3: Get all daily summaries up to yesterday
+    // (We exclude today — it's not complete yet)
     // ============================================
-    
+    const yesterday = new Date(date);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayString = yesterday.toISOString().split('T')[0];
+
     const { data: dailySummaries } = await supabase
       .from('daily_summaries')
       .select('*')
       .eq('user_id', userId)
       .gte('summary_date', weekStartDate)
-      .lte('summary_date', date)
+      .lte('summary_date', yesterdayString)
       .order('summary_date', { ascending: true });
 
     if (!dailySummaries || dailySummaries.length === 0) {
-      console.log('✅ No consumption data yet, no overage to calculate');
+      console.log('✅ No completed days yet, no overage to calculate');
       return { success: true, cumulativeOverage: 0 };
     }
 
     // ============================================
-    // STEP 4: Calculate cumulative overage
+    // STEP 4: Calculate signed cumulative delta
+    // Positive = overage, Negative = savings
+    // Only count days where |delta| > 150
     // ============================================
-    
-    let cumulativeOverage = 0;
+    let cumulativeDelta = 0;
 
     for (const daySummary of dailySummaries) {
       const dayDate = daySummary.summary_date;
@@ -281,55 +285,41 @@ export async function calculateAndDistributeOverage(
       const burned = daySummary.calories_burned || 0;
       const netConsumed = consumed - burned;
 
-      // Is this a cheat day?
       const isCheatDay = cheatDayDates.has(dayDate);
+      const dayBudget = isCheatDay
+        ? (cheatDays?.find(cd => cd.cheat_date === dayDate)?.planned_calories ?? dailyBase)
+        : dailyBase;
 
-      if (isCheatDay) {
-        // For cheat days, compare against PLANNED amount
-        const cheatDay = cheatDays?.find(cd => cd.cheat_date === dayDate);
-        const plannedAmount = cheatDay?.planned_calories || 0;
-        
-        if (netConsumed > plannedAmount) {
-          const overage = netConsumed - plannedAmount;
-          cumulativeOverage += overage;
-          console.log(`🎉 Cheat day ${dayDate}: Ate ${netConsumed}, planned ${plannedAmount}, overage: +${overage}`);
-        } else {
-          console.log(`🎉 Cheat day ${dayDate}: Ate ${netConsumed}, planned ${plannedAmount}, no overage ✓`);
-        }
+      const delta = netConsumed - dayBudget;
+
+      if (Math.abs(delta) > OVERAGE_THRESHOLD) {
+        cumulativeDelta += delta;
+        const label = isCheatDay ? '🎉 Cheat' : '📅 Regular';
+        const sign = delta > 0 ? '+' : '';
+        console.log(`${label} day ${dayDate}: net ${netConsumed}, budget ${Math.round(dayBudget)}, delta: ${sign}${Math.round(delta)}`);
       } else {
-        // For regular days, compare against DAILY BASE
-        if (netConsumed > dailyBase) {
-          const overage = netConsumed - dailyBase;
-          cumulativeOverage += overage;
-          console.log(`📅 Regular day ${dayDate}: Ate ${netConsumed}, base ${Math.round(dailyBase)}, overage: +${overage}`);
-        } else {
-          console.log(`📅 Regular day ${dayDate}: Ate ${netConsumed}, base ${Math.round(dailyBase)}, no overage ✓`);
-        }
+        console.log(`✅ ${dayDate}: delta ${Math.round(delta)} within threshold, ignored`);
       }
     }
 
-    console.log(`💰 Total cumulative overage: ${Math.round(cumulativeOverage)} cal`);
+    // cumulativeDelta can be negative (net savings) or positive (net overage)
+    console.log(`💰 Net cumulative delta: ${Math.round(cumulativeDelta)} cal`);
 
     // ============================================
-    // STEP 5: Update weekly period with cumulative overage
+    // STEP 5: Persist to weekly_periods
+    // We store the raw signed delta as cumulative_overage
+    // getTodaysAdjustedBudget handles the floor logic
     // ============================================
-    
     const { error: updateError } = await supabase
       .from('weekly_periods')
-      .update({ cumulative_overage: Math.round(cumulativeOverage) })
+      .update({ cumulative_overage: Math.round(cumulativeDelta) })
       .eq('id', weeklyPeriodId);
 
     if (updateError) {
-      console.error('Error updating cumulative overage:', updateError);
       return { success: false, cumulativeOverage: 0, error: 'Failed to update overage' };
     }
 
-    console.log('✅ Cumulative overage updated successfully');
-
-    return { 
-      success: true, 
-      cumulativeOverage: Math.round(cumulativeOverage) 
-    };
+    return { success: true, cumulativeOverage: Math.round(cumulativeDelta) };
 
   } catch (error) {
     console.error('Error in calculateAndDistributeOverage:', error);

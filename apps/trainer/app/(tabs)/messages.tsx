@@ -16,7 +16,8 @@ import {
 import { SafeAreaView ,useSafeAreaInsets} from 'react-native-safe-area-context';
 import { supabase } from '@haven/shared-utils';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { Colors } from '@/constants/colors';
 
 interface Message {
@@ -144,6 +145,14 @@ export default function MessagesScreen() {
       supabase.removeChannel(channel);
     };
   }, [userType, currentUserId]);
+  
+  useFocusEffect(
+    React.useCallback(() => {
+      if (userType === 'trainer' && currentUserId) {
+        fetchTrainerConversations(currentUserId);
+      }
+    }, [currentUserId, userType])
+  );
 
   const fetchUserAndMessages = async () => {
     try {

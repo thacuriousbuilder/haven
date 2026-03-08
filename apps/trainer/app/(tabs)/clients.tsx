@@ -107,7 +107,7 @@ export default function ClientsScreen() {
       return fullName.includes(query);
     }
   
-    return true;
+    return true;  
   });
 
   const getFilterCount = (filter: FilterType) => {

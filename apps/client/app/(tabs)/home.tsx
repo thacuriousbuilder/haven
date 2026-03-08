@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert, Button } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '@haven/shared-utils';
@@ -24,13 +24,15 @@ import { BaselineRestartModal } from '@/components/baseLineRestartModal';
 import * as ImagePicker from 'expo-image-picker';
 import { completeBaseline, completeBaselineWithEstimatedData } from '@/lib/baselineCompletion';
 import { useOverageCalculation } from '@/hooks/useOverageCalculation';
-
+import * as Sentry from '@sentry/react-native';
 
 // Type imports
 import type { MealLogItem, MacroData } from '@/types/home';
 import { Colors } from '@/constants/colors';
 import { analyzeWeekPeriod, WeekInfo } from '@/utils/weekHelpers';
 import { BaselineWeightTrendModal } from '@/components/baselineWeightTrendModal';
+import { DailyCaloriesChart } from '@/components/homeactive/cards/dailyCaloriesChart';
+import { BudgetAdjustmentBanner } from '@/components/homeactive/cards/budgetAdjustmentBanner';
 
 interface ProfileData {
   first_name: string | null;
@@ -110,6 +112,7 @@ export default function HomeScreen() {
   const [unreadCount, setUnreadCount] = useState(0);
   const dismissedBudgetBanner = useRef(false);
   const [isEstimatedBaseline, setIsEstimatedBaseline] = useState(false);
+  const [weeklySummaries, setWeeklySummaries] = useState<{ summary_date: string; calories_consumed: number }[]>([]);
   
 
   const {
@@ -187,11 +190,36 @@ export default function HomeScreen() {
     }));
   };
 
+  // Derives weekly summaries directly from recentLogs (always reflects true state)
+const buildWeeklySummariesFromLogs = (
+  logs: FoodLog[],
+  weekStartDate: string,
+  weekEndDate: string
+): { summary_date: string; calories_consumed: number }[] => {
+  const startDate = new Date(weekStartDate + 'T00:00:00');
+  const endDate = new Date(weekEndDate + 'T00:00:00');
+
+  const grouped = new Map<string, number>();
+
+  logs.forEach(log => {
+    const logDate = new Date(log.log_date + 'T00:00:00');
+    if (logDate >= startDate && logDate <= endDate) {
+      const existing = grouped.get(log.log_date) || 0;
+      grouped.set(log.log_date, existing + (log.calories || 0));
+    }
+  });
+
+  return Array.from(grouped.entries()).map(([summary_date, calories_consumed]) => ({
+    summary_date,
+    calories_consumed,
+  }));
+};
+
   const calculateMetricsClientSide = async (
     userId: string,
     weekStartDate: string,
     profile: any
-  ): Promise<MetricsData> => {
+  ): Promise<MetricsData & { summaries: { summary_date: string; calories_consumed: number }[] }> => {
     try {
       console.log('📊 Calculating metrics client-side for week:', weekStartDate);
       
@@ -208,7 +236,6 @@ export default function HomeScreen() {
         .eq('user_id', userId)
         .gte('summary_date', weekStartDate)
         .lte('summary_date', todayStr);
-  
       if (summariesError) {
         console.error('Error loading summaries:', summariesError);
         throw summariesError;
@@ -259,6 +286,7 @@ export default function HomeScreen() {
         calories_reserved,
         projected_end,
         on_track,
+        summaries: summaries || []
       };
       
     } catch (error) {
@@ -270,6 +298,7 @@ export default function HomeScreen() {
         calories_reserved: 0,
         projected_end: 0,
         on_track: true,
+        summaries: [],
       };
     }
   };
@@ -827,6 +856,7 @@ const checkDailyCheckIn = async () => {
       .select('id')
       .eq('user_id', user.id)
       .eq('check_in_date', todayDate)
+      .eq('skipped', false) 
       .maybeSingle();
 
     if (checkInError) {
@@ -974,6 +1004,16 @@ const fetchMetrics = async () => {
     // Calculate metrics
     const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, profile);
     setMetrics(metricsData);
+    const { data: freshLogs } = await supabase
+    .from('food_logs')
+    .select('id, food_name, calories, meal_type, log_date, created_at, protein_grams, carbs_grams, fat_grams')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  
+  const logsForChart = freshLogs || [];
+  setRecentLogs(logsForChart);
+  setWeeklySummaries(buildWeeklySummariesFromLogs(logsForChart, weekStartDate, sundayDateStr));
 
     // Fetch cheat days
     const { data: cheatDays } = await supabase
@@ -1079,16 +1119,26 @@ const fetchMetrics = async () => {
       // Calculate metrics client-side
       const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, data);
       setMetrics(metricsData);
-  
-      // Get cheat days
-      const { weekEnd: sundayDateStr } = getCurrentWeekDates();
+      // Fetch logs fresh (don't rely on recentLogs state here)
+      const { data: freshLogs } = await supabase
+      .from('food_logs')
+      .select('id, food_name, calories, meal_type, log_date, created_at, protein_grams, carbs_grams, fat_grams')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+      const logsForChart = freshLogs || [];
+      setRecentLogs(logsForChart); // keep state in sync too
+
+      const { weekEnd: sundayStr } = getCurrentWeekDates();
+      setWeeklySummaries(buildWeeklySummariesFromLogs(logsForChart, weekStartDate, sundayStr));
       
       const { data: cheatDays } = await supabase
         .from('planned_cheat_days')
         .select('cheat_date, planned_calories')
         .eq('user_id', user.id)
         .gte('cheat_date', weekStartDate)
-        .lte('cheat_date', sundayDateStr);
+        .lte('cheat_date', sundayStr);
   
       if (cheatDays) {
         setCheatDates(cheatDays.map(cd => cd.cheat_date));
@@ -1166,7 +1216,7 @@ const fetchMetrics = async () => {
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .eq('recipient_id', user.id) 
-        .eq('is_read', false); 
+        .eq('read', false); 
 
       if (error) {
         console.error('Error fetching unread count:', error);
@@ -1471,35 +1521,14 @@ const fetchMetrics = async () => {
               )}
 
              {/* Budget Adjustment Banner */}
-          {isSelectedDateToday() && !isSelectedDateCheatDay() && adjustment < 0 && cumulativeOverage > 0 && !dismissedBudgetBanner.current  && (
-            <TouchableOpacity
-            style={styles.budgetAdjustmentBanner}
-            activeOpacity={0.9}
-          >
-            <View style={styles.bannerContent}>
-              <Ionicons name="alert-circle" size={20} color="#EF7828" />
-              <View style={styles.bannerTextContainer}>
-                <Text style={styles.budgetBannerTitle}>
-                  Budget adjusted for this week
-                </Text>
-                <Text style={styles.budgetBannerSubtext}>
-                  You're {cumulativeOverage} cal slightly over. Haven recommends eating: {adjustedBudget.toLocaleString()} cal rather than your normal {baseBudget.toLocaleString()} cal
-                </Text>
-              </View>
-            </View>
-            {/* X button */}
-            <TouchableOpacity
-              onPress={() => {
-                dismissedBudgetBanner.current = true;
-                setSelectedDate(new Date(selectedDate)); // trigger re-render
-              }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={styles.bannerDismiss}
-            >
-              <Ionicons name="close" size={18} color="#EA580C" />
-            </TouchableOpacity>
-          </TouchableOpacity>
-            )}
+             {isSelectedDateToday() && !isSelectedDateCheatDay() && (
+                <BudgetAdjustmentBanner
+                  cumulativeOverage={cumulativeOverage}
+                  adjustedBudget={adjustedBudget}
+                  baseBudget={baseBudget}
+                  weekStartDate={currentPeriod?.week_start_date || ''}
+                />
+              )}
             {/*  Cheat Day Banner */}
             {isSelectedDateCheatDay() && selectedCheatCalories && (
                   <View style={styles.cheatDayBanner}>
@@ -1562,19 +1591,18 @@ const fetchMetrics = async () => {
                   />
                 </View>
               )}
-
-              {/* Next Cheat Day Card (conditional) */}
-              {getNextCheatDayInfo() && (
+              {/* Daily Calories Chart */}
+              {metrics && currentPeriod && (
                 <View style={styles.cardSpacing}>
-                  <NextCheatDayCard
-                    dayName={getNextCheatDayInfo()!.dayName}
-                    dateString={getNextCheatDayInfo()!.dateString}
-                    reservedCalories={metrics?.calories_reserved || 0}
-                    onPress={() => router.push('/(tabs)/plan')}
+                  <DailyCaloriesChart
+                    weekStartDate={currentPeriod.week_start_date}
+                    summaries={weeklySummaries}
+                    dailyTarget={Math.round(metrics.weekly_budget / 7)}
+                    cheatDates={cheatDates}
                   />
                 </View>
               )}
-
+          
               {/* Today's Meals Card */}
               <View style={styles.cardSpacing}>
                 <TodayMealsCard
@@ -1584,6 +1612,18 @@ const fetchMetrics = async () => {
                   dateLabel={getSelectedDateLabel()}
                 />
               </View>
+
+               {/* Next Cheat Day Card (conditional) */}
+               {getNextCheatDayInfo() && (
+                <View style={styles.cardSpacing}>
+                  <NextCheatDayCard
+                    dayName={getNextCheatDayInfo()!.dayName}
+                    dateString={getNextCheatDayInfo()!.dateString}
+                    reservedCalories={metrics?.calories_reserved || 0}
+                    onPress={() => router.push('/(tabs)/plan')}
+                  />
+                </View>
+              )}
 
               {/* Quick Log Card */}
               <View style={styles.cardSpacing}>

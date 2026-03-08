@@ -27,7 +27,8 @@
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "APP_VARIANT": "production"
+        "APP_VARIANT": "production",
+        "SENTRY_AUTH_TOKEN": "$SENTRY_AUTH_TOKEN"
       },
       "ios": {
         "credentialsSource": "remote"

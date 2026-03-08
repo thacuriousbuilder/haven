@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,9 +17,9 @@ export function MealListItem({ meal, onPress }: MealListItemProps) {
 
   return (
     <Container
-      style={styles.container}
+      style={[styles.container, onPress && styles.containerTappable]}
       onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
+      activeOpacity={onPress ? 0.6 : 1}
     >
       {/* Left: Icon */}
       <View style={styles.iconContainer}>
@@ -36,10 +34,15 @@ export function MealListItem({ meal, onPress }: MealListItemProps) {
         <Text style={styles.mealTime}>{meal.time}</Text>
       </View>
 
-      {/* Right: Calories */}
-      <View style={styles.caloriesContainer}>
-        <Text style={styles.caloriesValue}>{formatNumber(meal.calories)}</Text>
-        <Text style={styles.caloriesUnit}>kcal</Text>
+      {/* Right: Calories + chevron */}
+      <View style={styles.rightContainer}>
+        <View style={styles.caloriesContainer}>
+          <Text style={styles.caloriesValue}>{formatNumber(meal.calories)}</Text>
+          <Text style={styles.caloriesUnit}>kcal</Text>
+        </View>
+        {onPress && (
+          <Ionicons name="chevron-forward" size={16} color={Colors.steelBlue} style={styles.chevron} />
+        )}
       </View>
     </Container>
   );
@@ -51,6 +54,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.md,
     gap: Spacing.md,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 4,
+  },
+  containerTappable: {
+    marginHorizontal: -4,
+    paddingHorizontal: 4,
   },
   iconContainer: {
     width: 44,
@@ -74,6 +83,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.steelBlue,
   },
+  rightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   caloriesContainer: {
     alignItems: 'flex-end',
   },
@@ -86,5 +100,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
     color: Colors.steelBlue,
+  },
+  chevron: {
+    marginLeft: 2,
+    opacity: 0.6,
   },
 });

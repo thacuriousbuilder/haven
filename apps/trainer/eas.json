@@ -1,48 +1,49 @@
-
 {
-    "cli": {
-      "version": ">= 5.0.0"
-    },
-    "build": {
-      "development": {
-        "developmentClient": true,
-        "distribution": "internal",
-        "env": {
-          "APP_VARIANT": "development"
-        },
-        "ios": {
-          "simulator": false
-        }
+  "cli": {
+    "version": ">= 5.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "development"
       },
-      "preview": {
-        "distribution": "internal",
-        "env": {
-          "APP_VARIANT": "preview"
-        },
-        "ios": {
-          "simulator": false
-        }
-      },
-      "production": {
-        "autoIncrement": true,
-        "env": {
-          "APP_VARIANT": "production"
-        },
-        "ios": {
-          "buildConfiguration": "Release"
-        },
-        "android": {
-          "buildType": "app-bundle"
-        }
+      "ios": {
+        "simulator": false
       }
     },
-    "submit": {
-        "production": {
-          "ios": {
-            "appleId": "housencamara18@gmail.com",
-            "ascAppId": "6759740790",
-            "appleTeamId": "JJP43AVJDG"
-          }
-        }
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "preview"
+      },
+      "ios": {
+        "simulator": false
       }
+    },
+    "production": {
+      "autoIncrement": true,
+      "channel": "production",
+      "env": {
+        "APP_VARIANT": "production"
+      },
+      "ios": {
+        "buildConfiguration": "Release"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "housencamara18@gmail.com",
+        "ascAppId": "6759740790",
+        "appleTeamId": "JJP43AVJDG"
+      }
+    }
   }
+}

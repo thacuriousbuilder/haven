@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -29,12 +28,40 @@ interface FoodLogData {
   meal_type: MealType;
 }
 
+// ── Shared helper: re-sum food_logs for a date and upsert daily_summaries ──────
+async function recalculateDailySummary(userId: string, logDate: string) {
+  const { data: logs } = await supabase
+    .from('food_logs')
+    .select('calories')
+    .eq('user_id', userId)
+    .eq('log_date', logDate);
+
+  const total = logs?.reduce((sum, log) => sum + (log.calories || 0), 0) || 0;
+
+  if (total === 0) {
+    await supabase
+      .from('daily_summaries')
+      .delete()
+      .eq('user_id', userId)
+      .eq('summary_date', logDate);
+  } else {
+    await supabase
+      .from('daily_summaries')
+      .upsert(
+        { user_id: userId, summary_date: logDate, calories_consumed: total, calories_burned: 0 },
+        { onConflict: 'user_id,summary_date' }
+      );
+  }
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function EditFoodScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
+  const [logDate, setLogDate] = useState<string | null>(null);
+
   // Form fields
   const [foodName, setFoodName] = useState('');
   const [calories, setCalories] = useState('');
@@ -44,9 +71,7 @@ export default function EditFoodScreen() {
   const [mealType, setMealType] = useState<MealType>('lunch');
 
   useEffect(() => {
-    if (id) {
-      fetchFoodLog();
-    }
+    if (id) fetchFoodLog();
   }, [id]);
 
   const fetchFoodLog = async () => {
@@ -60,13 +85,13 @@ export default function EditFoodScreen() {
 
       if (error) throw error;
 
-      // Populate form
       setFoodName(data.food_name);
-      setCalories(data.calories.toString());
-      setProtein(data.protein_grams.toString());
-      setCarbs(data.carbs_grams.toString());
-      setFat(data.fat_grams.toString());
+      setCalories(data.calories?.toString() || '0');
+      setProtein(data.protein_grams?.toString() || '0');
+      setCarbs(data.carbs_grams?.toString() || '0');
+      setFat(data.fat_grams?.toString() || '0');
       setMealType(data.meal_type);
+      setLogDate(data.log_date); // store for recalc
     } catch (error) {
       console.error('Error fetching food log:', error);
       Alert.alert('Error', 'Could not load food details');
@@ -77,7 +102,6 @@ export default function EditFoodScreen() {
   };
 
   const handleSave = async () => {
-    // Validation
     if (!foodName.trim()) {
       Alert.alert('Validation Error', 'Please enter a food name');
       return;
@@ -92,17 +116,14 @@ export default function EditFoodScreen() {
       Alert.alert('Validation Error', 'Please enter valid calories');
       return;
     }
-
     if (isNaN(proteinNum) || proteinNum < 0) {
       Alert.alert('Validation Error', 'Please enter valid protein grams');
       return;
     }
-
     if (isNaN(carbsNum) || carbsNum < 0) {
       Alert.alert('Validation Error', 'Please enter valid carbs grams');
       return;
     }
-
     if (isNaN(fatNum) || fatNum < 0) {
       Alert.alert('Validation Error', 'Please enter valid fat grams');
       return;
@@ -110,6 +131,9 @@ export default function EditFoodScreen() {
 
     try {
       setSaving(true);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
       const updates: FoodLogData = {
         food_name: foodName.trim(),
@@ -127,11 +151,14 @@ export default function EditFoodScreen() {
 
       if (error) throw error;
 
+      // ── Recalculate daily_summaries from updated logs ────────────────────────
+      if (logDate) {
+        await recalculateDailySummary(user.id, logDate);
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       Alert.alert('Success', 'Meal updated successfully', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
+        { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (error) {
       console.error('Error updating food log:', error);
@@ -169,22 +196,11 @@ export default function EditFoodScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={handleCancel}
-          style={styles.headerButton}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity onPress={handleCancel} style={styles.headerButton} activeOpacity={0.7}>
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
-
         <Text style={styles.headerTitle}>Edit Meal</Text>
-
-        <TouchableOpacity
-          onPress={handleSave}
-          style={styles.headerButton}
-          activeOpacity={0.7}
-          disabled={saving}
-        >
+        <TouchableOpacity onPress={handleSave} style={styles.headerButton} activeOpacity={0.7} disabled={saving}>
           {saving ? (
             <ActivityIndicator size="small" color={Colors.vividTeal} />
           ) : (
@@ -193,11 +209,7 @@ export default function EditFoodScreen() {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -233,7 +245,6 @@ export default function EditFoodScreen() {
           {/* Macros */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Macronutrients</Text>
-            
             <View style={styles.macrosGrid}>
               <View style={styles.macroInputContainer}>
                 <Text style={styles.label}>Protein (g)</Text>
@@ -246,7 +257,6 @@ export default function EditFoodScreen() {
                   keyboardType="decimal-pad"
                 />
               </View>
-
               <View style={styles.macroInputContainer}>
                 <Text style={styles.label}>Carbs (g)</Text>
                 <TextInput
@@ -258,7 +268,6 @@ export default function EditFoodScreen() {
                   keyboardType="decimal-pad"
                 />
               </View>
-
               <View style={styles.macroInputContainer}>
                 <Text style={styles.label}>Fat (g)</Text>
                 <TextInput
@@ -280,26 +289,16 @@ export default function EditFoodScreen() {
               {mealTypes.map((option) => (
                 <TouchableOpacity
                   key={option.value}
-                  style={[
-                    styles.mealTypeButton,
-                    mealType === option.value && styles.mealTypeButtonActive,
-                  ]}
+                  style={[styles.mealTypeButton, mealType === option.value && styles.mealTypeButtonActive]}
                   onPress={() => setMealType(option.value)}
                   activeOpacity={0.7}
                 >
                   <Ionicons
                     name={option.icon as any}
                     size={24}
-                    color={
-                      mealType === option.value ? Colors.white : Colors.vividTeal
-                    }
+                    color={mealType === option.value ? Colors.white : Colors.vividTeal}
                   />
-                  <Text
-                    style={[
-                      styles.mealTypeText,
-                      mealType === option.value && styles.mealTypeTextActive,
-                    ]}
-                  >
+                  <Text style={[styles.mealTypeText, mealType === option.value && styles.mealTypeTextActive]}>
                     {option.label}
                   </Text>
                 </TouchableOpacity>
@@ -313,15 +312,8 @@ export default function EditFoodScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.lightCream,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { flex: 1, backgroundColor: Colors.lightCream },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -330,47 +322,15 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     backgroundColor: Colors.lightCream,
   },
-  headerButton: {
-    minWidth: 60,
-  },
-  cancelText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.steelBlue,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.graphite,
-  },
-  saveText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.vividTeal,
-    textAlign: 'right',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xxl,
-  },
-  section: {
-    marginBottom: Spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.graphite,
-    marginBottom: Spacing.md,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.steelBlue,
-    marginBottom: Spacing.sm,
-  },
+  headerButton: { minWidth: 60 },
+  cancelText: { fontSize: 16, fontWeight: '500', color: Colors.steelBlue },
+  headerTitle: { fontSize: 17, fontWeight: '600', color: Colors.graphite },
+  saveText: { fontSize: 16, fontWeight: '600', color: Colors.vividTeal, textAlign: 'right' },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  section: { marginBottom: Spacing.xl },
+  sectionTitle: { fontSize: 16, fontWeight: '600', color: Colors.graphite, marginBottom: Spacing.md },
+  label: { fontSize: 14, fontWeight: '500', color: Colors.steelBlue, marginBottom: Spacing.sm },
   input: {
     backgroundColor: Colors.white,
     borderWidth: 1,
@@ -382,18 +342,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.graphite,
   },
-  macrosGrid: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  macroInputContainer: {
-    flex: 1,
-  },
-  mealTypeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
+  macrosGrid: { flexDirection: 'row', gap: Spacing.md },
+  macroInputContainer: { flex: 1 },
+  mealTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
   mealTypeButton: {
     flex: 1,
     minWidth: '45%',
@@ -407,16 +358,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     ...Shadows.small,
   },
-  mealTypeButtonActive: {
-    backgroundColor: Colors.vividTeal,
-    borderColor: Colors.vividTeal,
-  },
-  mealTypeText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.vividTeal,
-  },
-  mealTypeTextActive: {
-    color: Colors.white,
-  },
+  mealTypeButtonActive: { backgroundColor: Colors.vividTeal, borderColor: Colors.vividTeal },
+  mealTypeText: { fontSize: 14, fontWeight: '600', color: Colors.vividTeal },
+  mealTypeTextActive: { color: Colors.white },
 });

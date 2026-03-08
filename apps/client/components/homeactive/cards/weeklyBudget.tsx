@@ -67,7 +67,7 @@ export function WeeklyBudgetCard({
           <View style={[styles.statBox, styles.remainingBox]}>
             <Text style={styles.statLabel}>REMAINING</Text>
             <Text style={[styles.statValue, styles.remainingValue]}>
-              {formatNumber(totalRemaining)}
+            {formatNumber(Math.max(0, totalRemaining))}
             </Text>
             {weekInfo?.isPartialWeek && (
               <Text style={styles.partialWeekHint}>

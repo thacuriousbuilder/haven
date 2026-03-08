@@ -15,11 +15,12 @@ export default function Complete() {
   async function handleGetStarted() {
     try {
       setLoading(true);
-
+  
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error('No authenticated user');
-
-      const { error } = await supabase
+  
+     
+      const { error: trainerError } = await supabase
         .from('trainer_profiles')
         .upsert({
           id: user.id,
@@ -27,11 +28,19 @@ export default function Complete() {
           client_count_range: data.clientCountRange,
           onboarding_completed: true,
         });
-
-      if (error) throw error;
-
+  
+      if (trainerError) throw trainerError;
+  
+      
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ user_type: 'trainer' })
+        .eq('id', user.id);
+  
+      if (profileError) throw profileError;
+  
       router.replace('/(tabs)/home');
-
+  
     } catch (error: any) {
       Alert.alert('Error', 'Something went wrong. Please try again.');
       console.error(error);

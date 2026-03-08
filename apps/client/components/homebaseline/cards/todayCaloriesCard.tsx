@@ -51,9 +51,9 @@ export function TodayCaloriesCard({ todayStats, isBaseline = false, dateLabel= "
 
             {/* Remaining */}
             <View style={styles.statColumn}>
-              <Text style={[styles.mainValue, styles.remainingValue]}>
-                {formatNumber(remaining)}
-              </Text>
+            <Text style={[styles.mainValue, remaining < 50 ? styles.overBudgetValue : styles.remainingValue]}>
+            {formatNumber(Math.max(0, remaining))}
+          </Text>
               <Text style={styles.remainingLabel}>Remaining</Text>
             </View>
           </>
@@ -148,5 +148,8 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+  },
+  overBudgetValue: {
+    color: Colors.energyOrange,
   },
 });

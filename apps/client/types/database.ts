@@ -52,7 +52,9 @@ export interface FoodLog {
   carbs_grams: number | null;
   fat_grams: number | null;
   image_url: string | null;
-  entry_method: string; // 'manual' | 'barcode' | 'photo'
+  entry_method: string; 
+  serving_description: string | null;  
+  ai_confidence: string | null;
   created_at: string;
 }
 
@@ -209,7 +211,7 @@ export interface UpdatePlannedCheatDay {
 export type UnitSystem = 'imperial' | 'metric';
 export type Goal = 'lose_weight' | 'maintain' | 'gain_weight';
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
-export type EntryMethod = 'manual' | 'barcode' | 'photo';
+export type EntryMethod = 'manual' | 'barcode' | 'ai_image' | 'ai_text' | 'database';
 export type DayType = 'baseline' | 'different' | 'same';
 
 // HELPER TYPES FOR API RESPONSES
