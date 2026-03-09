@@ -1,4 +1,3 @@
-
 import { supabase } from './supabase';
 import { createWeeklyPeriodForUser } from './weeklyPeriod';
 
@@ -9,6 +8,29 @@ const ACTIVITY_LEVELS = {
   moderately_active: { threshold: 2000, factor: 1.55, label: 'Moderately Active' },
   very_active: { threshold: Infinity, factor: 1.725, label: 'Very Active' },
 };
+
+interface ValidationResult {
+  valid: boolean;
+  reason: 'under_logging' | 'over_logging' | 'ok';
+}
+
+function validateBaselineData(
+  avgDailyIntake: number,
+  formulaTDEE: number
+): ValidationResult {
+  if (avgDailyIntake < 800) {
+    console.log('⚠️  Baseline invalid: under-logging detected', avgDailyIntake, 'cal/day');
+    return { valid: false, reason: 'under_logging' };
+  }
+
+  if (avgDailyIntake > formulaTDEE * 1.5) {
+    console.log('⚠️  Baseline invalid: over-logging detected', avgDailyIntake, 'cal/day vs TDEE', formulaTDEE);
+    return { valid: false, reason: 'over_logging' };
+  }
+
+  console.log('✅ Baseline data valid:', avgDailyIntake, 'cal/day');
+  return { valid: true, reason: 'ok' };
+}
 
 interface BaselineCompletionResult {
   success: boolean;
@@ -54,9 +76,9 @@ export async function completeBaseline(
     const { bmr, daily_deficit, gender } = profile;
 
     if (!bmr || !daily_deficit) {
-      return { 
-        success: false, 
-        error: 'Missing BMR or deficit in profile. Complete onboarding first.' 
+      return {
+        success: false,
+        error: 'Missing BMR or deficit in profile. Complete onboarding first.',
       };
     }
 
@@ -69,7 +91,7 @@ export async function completeBaseline(
       .eq('user_id', userId)
       .gte('summary_date', baselineStartDate)
       .lte('summary_date', baselineEndDate)
-      .gt('calories_consumed', 0) // Only count days with actual food logged
+      .gt('calories_consumed', 0)
       .order('summary_date');
 
     if (summariesError) {
@@ -78,9 +100,9 @@ export async function completeBaseline(
     }
 
     if (!summaries || summaries.length < 3) {
-      return { 
-        success: false, 
-        error: `Need at least 3 days of data. Found: ${summaries?.length || 0}` 
+      return {
+        success: false,
+        error: `Need at least 3 days of data. Found: ${summaries?.length || 0}`,
       };
     }
 
@@ -101,7 +123,8 @@ export async function completeBaseline(
 
     // Step 3: Calculate totals
     const totalFood = summaries.reduce((sum, day) => sum + (day.calories_consumed || 0), 0);
-    const totalExercise = checkIns?.reduce((sum, day) => sum + (day.workout_calories_burned || 0), 0) || 0;
+    const totalExercise =
+      checkIns?.reduce((sum, day) => sum + (day.workout_calories_burned || 0), 0) || 0;
     const avgDailyIntake = Math.round(totalFood / summaries.length);
     const daysUsed = summaries.length;
 
@@ -135,56 +158,51 @@ export async function completeBaseline(
     const formulaTDEE = Math.round(bmr * actualActivityFactor);
     console.log('🧮 Formula TDEE:', formulaTDEE, 'cal/day');
 
-    // Step 6: Blend formula + baseline (50/50) for maintenance estimate
-    const finalTDEE = Math.round((formulaTDEE + avgDailyIntake) / 2);
-    console.log('✨ Final TDEE (blended):', finalTDEE, 'cal/day');
-
-    // Step 7: Smart deficit application
-    console.log('🎯 Calculating targets with smart deficit logic...');
-
-    // Check how much deficit is already implied by baseline eating
-    const impliedDeficit = formulaTDEE - avgDailyIntake;
-    console.log('📊 Deficit Analysis:', {
-      formulaTDEE,
-      baselineAvg: avgDailyIntake,
-      impliedDeficit,
-      goalDeficit: daily_deficit,
-      percentOfGoal: Math.round((impliedDeficit / daily_deficit) * 100) + '%',
-    });
+    // Step 6: Validate baseline data before blending
+    const validation = validateBaselineData(avgDailyIntake, formulaTDEE);
 
     let dailyTarget: number;
     let weeklyBudget: number;
+    let usedEstimate = false;
+    let finalTDEE: number;
 
-    if (impliedDeficit >= daily_deficit * 0.8) {
-      // Baseline already shows they're eating at 80%+ of goal deficit
-      // Use baseline average - they're already there!
-      dailyTarget = avgDailyIntake;
-      weeklyBudget = dailyTarget * 7;
-      
-      console.log('✅ Baseline already at goal deficit!');
-      console.log('   Implied deficit:', impliedDeficit, 'cal (', Math.round((impliedDeficit / daily_deficit) * 100) + '% of goal)');
-      console.log('   Using baseline average as target:', dailyTarget, 'cal');
-      
+    if (!validation.valid) {
+      // Fallback: pure formula path (ignore logged data)
+      console.log('🔄 Falling back to formula estimate. Reason:', validation.reason);
+      finalTDEE = formulaTDEE;
+      dailyTarget = formulaTDEE - daily_deficit;
+      usedEstimate = true;
     } else {
-      // Baseline is closer to maintenance - apply the goal deficit
-      const targetWithDeficit = finalTDEE - daily_deficit;
-      
-      // But never go below baseline average (don't restrict more than natural habits)
-      dailyTarget = Math.max(targetWithDeficit, avgDailyIntake);
-      weeklyBudget = dailyTarget * 7;
-      
-      console.log('✅ Applying deficit to Final TDEE');
-      console.log('   Target with deficit:', targetWithDeficit, 'cal');
-      console.log('   Adjusted to (not below baseline):', dailyTarget, 'cal');
+      // Blend formula + baseline (50/50)
+      finalTDEE = Math.round((formulaTDEE + avgDailyIntake) / 2);
+      console.log('✨ Final TDEE (blended):', finalTDEE, 'cal/day');
+
+      const impliedDeficit = formulaTDEE - avgDailyIntake;
+      console.log('📊 Deficit Analysis:', {
+        formulaTDEE,
+        baselineAvg: avgDailyIntake,
+        impliedDeficit,
+        goalDeficit: daily_deficit,
+        percentOfGoal: Math.round((impliedDeficit / daily_deficit) * 100) + '%',
+      });
+
+      if (impliedDeficit >= daily_deficit * 0.8) {
+        dailyTarget = avgDailyIntake;
+        console.log('✅ Baseline already at goal deficit, using baseline avg:', dailyTarget);
+      } else {
+        const targetWithDeficit = finalTDEE - daily_deficit;
+        dailyTarget = Math.max(targetWithDeficit, avgDailyIntake);
+        console.log('✅ Applying deficit to blended TDEE:', dailyTarget);
+      }
     }
 
-    // Safety checks - prevent unhealthy extremes
+    // Safety checks (always apply regardless of path)
     const minCalories = gender === 'female' ? 1200 : 1500;
-    const maxCalories = finalTDEE + 1000; // Cap surplus for gaining weight
+    const maxCalories = formulaTDEE + 1000;
 
     const originalTarget = dailyTarget;
     dailyTarget = Math.max(minCalories, Math.min(maxCalories, dailyTarget));
-    
+
     if (dailyTarget !== originalTarget) {
       console.log('⚠️  Safety adjustment applied:', originalTarget, '→', dailyTarget);
     }
@@ -194,9 +212,9 @@ export async function completeBaseline(
     console.log('🎯 Final Targets:');
     console.log('  - Daily target:', dailyTarget, 'cal');
     console.log('  - Weekly budget:', weeklyBudget, 'cal');
-    console.log('  - Actual deficit from formula:', formulaTDEE - dailyTarget, 'cal');
+    console.log('  - Used estimate:', usedEstimate);
 
-    // Step 8: Save to user profile
+    // Step 7: Save to user profile
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
@@ -207,6 +225,7 @@ export async function completeBaseline(
         daily_target: dailyTarget,
         weekly_budget: weeklyBudget,
         baseline_complete: true,
+        used_estimated_baseline: usedEstimate,
         baseline_completion_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -224,8 +243,6 @@ export async function completeBaseline(
 
     if (!periodResult.success) {
       console.error('⚠️  Warning: Failed to create weekly period:', periodResult.error);
-      // Don't fail the entire baseline completion - just log the warning
-      // User can still proceed, cron will create it later
     }
 
     if (periodResult.reason === 'created') {
@@ -233,7 +250,7 @@ export async function completeBaseline(
     } else if (periodResult.reason === 'already_exists') {
       console.log('ℹ️  Weekly period already exists');
     }
-    
+
     return {
       success: true,
       data: {
@@ -251,9 +268,9 @@ export async function completeBaseline(
 
   } catch (error) {
     console.error('❌ Error in completeBaseline:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -268,7 +285,6 @@ export async function completeBaselineWithEstimatedData(
   try {
     console.log('🔮 Completing baseline with estimated data...');
 
-    // Step 1: Get user profile for BMR, activity level, deficit, and sex
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('bmr, daily_deficit, activity_level, baseline_start_date, gender')
@@ -283,35 +299,29 @@ export async function completeBaselineWithEstimatedData(
     const { bmr, daily_deficit, activity_level, gender } = profile;
 
     if (!bmr || !daily_deficit || !activity_level) {
-      return { 
-        success: false, 
-        error: 'Missing BMR, deficit, or activity level. Complete onboarding first.' 
+      return {
+        success: false,
+        error: 'Missing BMR, deficit, or activity level. Complete onboarding first.',
       };
     }
 
     console.log('✅ Profile loaded - BMR:', bmr, 'Deficit:', daily_deficit, 'Activity:', activity_level);
 
-    // Step 2: Get activity factor from reported level
     const activityFactors: Record<string, number> = {
-      'sedentary': 1.2,
-      'lightly_active': 1.375,
-      'moderately_active': 1.55,
-      'very_active': 1.725,
+      sedentary: 1.2,
+      lightly_active: 1.375,
+      moderately_active: 1.55,
+      very_active: 1.725,
     };
 
     const activityFactor = activityFactors[activity_level.toLowerCase()] || 1.2;
-
-    // Step 3: Calculate TDEE using formula (no baseline averaging)
     const estimatedTDEE = Math.round(bmr * activityFactor);
     console.log('🧮 Estimated TDEE:', estimatedTDEE, 'cal/day');
 
-    // Step 4: Calculate daily target and weekly budget with safety checks
     let dailyTarget = estimatedTDEE - daily_deficit;
-    
-    // Safety minimums
+
     const minCalories = gender === 'female' ? 1200 : 1500;
     const maxCalories = estimatedTDEE + 1000;
-    
     dailyTarget = Math.max(minCalories, Math.min(maxCalories, dailyTarget));
     const weeklyBudget = dailyTarget * 7;
 
@@ -319,7 +329,6 @@ export async function completeBaselineWithEstimatedData(
     console.log('  - Daily:', dailyTarget, 'cal');
     console.log('  - Weekly:', weeklyBudget, 'cal');
 
-    // Step 5: Get any logged days count (even if <3)
     let daysLogged = 0;
     if (profile.baseline_start_date) {
       const { count } = await supabase
@@ -328,21 +337,21 @@ export async function completeBaselineWithEstimatedData(
         .eq('user_id', userId)
         .gte('summary_date', profile.baseline_start_date)
         .gt('calories_consumed', 0);
-      
+
       daysLogged = count || 0;
     }
 
-    // Step 6: Save to user profile with estimated flag
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
-        baseline_avg_daily_calories: null, // No baseline avg since estimated
-        baseline_total_exercise: 0, // No exercise data
-        actual_activity_level: activity_level, // Use reported since no data
+        baseline_avg_daily_calories: null,
+        baseline_total_exercise: 0,
+        actual_activity_level: activity_level,
         tdee: estimatedTDEE,
         daily_target: dailyTarget,
         weekly_budget: weeklyBudget,
         baseline_complete: true,
+        used_estimated_baseline: true, // always true for this path
         baseline_completion_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -357,23 +366,22 @@ export async function completeBaselineWithEstimatedData(
 
     console.log('🎯 Creating first weekly period...');
     const periodResult = await createWeeklyPeriodForUser(userId);
-    
+
     if (!periodResult.success) {
       console.error('⚠️  Warning: Failed to create weekly period:', periodResult.error);
-      // Don't fail the entire baseline completion - just log the warning
     }
-    
+
     if (periodResult.reason === 'created') {
       console.log('✅ First weekly period created!');
     } else if (periodResult.reason === 'already_exists') {
       console.log('ℹ️  Weekly period already exists');
     }
-    
+
     return {
       success: true,
       data: {
         daysUsed: daysLogged,
-        baselineAvgDailyIntake: 0, // No baseline data
+        baselineAvgDailyIntake: 0,
         baselineTotalExercise: 0,
         actualActivityLevel: activity_level,
         actualActivityFactor: activityFactor,
@@ -386,9 +394,9 @@ export async function completeBaselineWithEstimatedData(
 
   } catch (error) {
     console.error('❌ Error in completeBaselineWithEstimatedData:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }

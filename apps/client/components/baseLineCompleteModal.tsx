@@ -7,6 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius } from '@/constants/colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getActivityLevelLabel } from '@/lib/baselineCompletion';
 
 interface BaselineCompleteModalProps {
   visible: boolean;
@@ -35,16 +36,17 @@ export function BaselineCompleteModal({
     actualActivityLevel &&
     reportedActivityLevel.toLowerCase() !== actualActivityLevel.toLowerCase();
 
-  const getActivityLabel = (level?: string) => {
-    if (!level) return '';
-    const labels: Record<string, string> = {
-      not_very_active: 'Sedentary',
-      lightly_active: 'Lightly Active',
-      moderately_active: 'Moderately Active',
-      very_active: 'Very Active',
-    };
-    return labels[level.toLowerCase()] || level;
-  };
+  // const getActivityLabel = (level?: string) => {
+  //   if (!level) return '';
+  //   const labels: Record<string, string> = {
+  //     sedentary: 'Sedentary', 
+  //     not_very_active: 'Sedentary',
+  //     lightly_active: 'Lightly Active',
+  //     moderately_active: 'Moderately Active',
+  //     very_active: 'Very Active',
+  //   };
+  //   return labels[level.toLowerCase()] || level;
+  // };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={() => {}}>
@@ -105,7 +107,7 @@ export function BaselineCompleteModal({
                       <View>
                         <Text style={styles.activityMeta}>Reported:</Text>
                         <Text style={styles.activityValue}>
-                          {getActivityLabel(reportedActivityLevel)}
+                         {getActivityLevelLabel(reportedActivityLevel || '')}
                         </Text>
                       </View>
                       <Ionicons
@@ -117,7 +119,7 @@ export function BaselineCompleteModal({
                       <View>
                         <Text style={styles.activityMeta}>Actual:</Text>
                         <Text style={[styles.activityValue, styles.activityOrange]}>
-                          {getActivityLabel(actualActivityLevel)}
+                          {getActivityLevelLabel(actualActivityLevel || '')}
                         </Text>
                       </View>
                     </View>
@@ -131,7 +133,7 @@ export function BaselineCompleteModal({
                       <View>
                         <Text style={styles.activityMeta}>Reported:</Text>
                         <Text style={styles.activityValue}>
-                          {getActivityLabel(reportedActivityLevel)}
+                         {getActivityLevelLabel(reportedActivityLevel || '')}
                         </Text>
                       </View>
                       <Ionicons
@@ -143,7 +145,7 @@ export function BaselineCompleteModal({
                       <View>
                         <Text style={styles.activityMeta}>Actual:</Text>
                         <Text style={[styles.activityValue, styles.activityOrange]}>
-                          {getActivityLabel(actualActivityLevel)}
+                          {getActivityLevelLabel(actualActivityLevel || '')}
                         </Text>
                       </View>
                     </View>
