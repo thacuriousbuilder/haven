@@ -40,7 +40,9 @@ SCOPE:
 - If multiple items are listed, sum ALL into one total — never estimate just one item
 - If a weight or volume is given (e.g. 200g, 1 cup, 8oz), use it precisely
 - If no portion is given: ${mealContext}
-- If the description is too vague to estimate (e.g. "food", "stuff"), set confidence "low" and make your best guess
+- If the description is vague but recognizable (e.g. "chicken and rice"), assume standard portions.
+- If it is extremely vague (e.g. "food", "meal"),
+return a conservative estimate and set confidence "low".
 
 RECIPE HANDLING:
 If the input looks like a recipe with ingredients and a serving count:

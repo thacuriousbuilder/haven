@@ -6,11 +6,12 @@ import { formatNumber } from '@/utils/homeHelpers';
 import { WeekInfo } from '@/utils/weekHelpers';
 
 interface WeeklyBudgetCardProps {
-  weeklyBudget: number;      // Total weekly budget (e.g., 14000)
-  totalConsumed: number;     // Calories used so far (e.g., 11430)
-  totalRemaining: number;    // Calories remaining (e.g., 2570)
-  daysIntoWeek: number;      // How many days into the week (for avg calculation)
-  weekInfo?: WeekInfo | null; // Optional: for partial week handling
+  weeklyBudget: number;
+  totalConsumed: number;
+  totalRemaining: number;
+  daysIntoWeek: number;
+  weekInfo?: WeekInfo | null;
+  isFirstWeek?: boolean; // NEW
 }
 
 export function WeeklyBudgetCard({
@@ -19,20 +20,18 @@ export function WeeklyBudgetCard({
   totalRemaining,
   daysIntoWeek,
   weekInfo,
+  isFirstWeek = false, // NEW
 }: WeeklyBudgetCardProps) {
-  // Calculate avg per day
   const avgPerDay = daysIntoWeek > 0 ? Math.round(totalConsumed / daysIntoWeek) : 0;
-  
-  // Calculate percentage for ring
-  const percentage = weeklyBudget > 0 ? (totalConsumed / weeklyBudget) * 100 : 0;
 
-  // Determine label based on partial week
-  const budgetLabel = weekInfo?.isPartialWeek 
-    ? `${weekInfo.daysTracked}-DAY BUDGET`
+  // Only show partial week messaging if it's ALSO the user's first week
+  const isActuallyPartial = weekInfo?.isPartialWeek && isFirstWeek;
+
+  const budgetLabel = isActuallyPartial
+    ? `${weekInfo!.daysTracked}-DAY BUDGET`
     : 'WEEKLY BUDGET';
 
-  // Show subtext for partial weeks
-  const budgetSubtext = weekInfo?.isPartialWeek
+  const budgetSubtext = isActuallyPartial
     ? `First week • Started mid-week`
     : `${formatNumber(avgPerDay)} avg/day`;
 
@@ -54,25 +53,21 @@ export function WeeklyBudgetCard({
 
         {/* Right: Stats boxes */}
         <View style={styles.statsContainer}>
-          {/* Weekly Budget */}
+          {/* Budget box */}
           <View style={styles.statBox}>
             <Text style={styles.statLabel}>{budgetLabel}</Text>
             <Text style={styles.statValue}>{formatNumber(weeklyBudget)}</Text>
-            <Text style={styles.statSubtext}>
-              {budgetSubtext}
-            </Text>
+            <Text style={styles.statSubtext}>{budgetSubtext}</Text>
           </View>
 
-          {/* Remaining */}
-          <View style={[styles.statBox, styles.remainingBox]}>
+          {/* Remaining box */}
+          <View style={styles.statBox}>
             <Text style={styles.statLabel}>REMAINING</Text>
             <Text style={[styles.statValue, styles.remainingValue]}>
-            {formatNumber(Math.max(0, totalRemaining))}
+              {formatNumber(Math.max(0, totalRemaining))}
             </Text>
-            {weekInfo?.isPartialWeek && (
-              <Text style={styles.partialWeekHint}>
-                Extra flexibility this week!
-              </Text>
+            {isActuallyPartial && (
+              <Text style={styles.partialWeekHint}>Extra flexibility this week!</Text>
             )}
           </View>
         </View>
@@ -95,9 +90,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  ringContainer: {
-    // Ring takes up left side
-  },
+  ringContainer: {},
   statsContainer: {
     flex: 1,
     marginLeft: Spacing.lg,
@@ -108,9 +101,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.md,
-  },
-  remainingBox: {
-    // Same styling as statBox
   },
   statLabel: {
     fontSize: 11,

@@ -471,6 +471,15 @@ const calculateTodayMacros = (): MacroData => {
     );
   };
 
+  const isFirstWeek = (() => {
+    if (!currentPeriod || !profile?.baseline_completion_at) return false;
+    const completionDate = formatLocalDate(new Date(profile.baseline_completion_at));
+    return (
+      completionDate >= currentPeriod.week_start_date &&
+      completionDate <= currentPeriod.week_end_date
+    );
+  })();
+
   // Get next cheat day info (detailed version for card)
   const getNextCheatDayInfo = () => {
     if (cheatDates.length === 0) return null;
@@ -1598,6 +1607,7 @@ const fetchMetrics = async () => {
                     totalRemaining={metrics.total_remaining}
                     daysIntoWeek={getDaysIntoWeek()}
                     weekInfo={getWeekInfo()}
+                    isFirstWeek={isFirstWeek} 
                   />
                 </View>
               )}
