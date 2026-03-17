@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xxxl,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.graphite,
-    marginBottom: Spacing.xs,
+    paddingBottom: Spacing.md,
   },
   subtitle: {
     fontSize: Typography.fontSize.base,

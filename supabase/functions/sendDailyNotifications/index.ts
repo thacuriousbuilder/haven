@@ -1,4 +1,4 @@
-
+// TODO: Use proper timezone library when onboarding stores user timezone
 // @ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {

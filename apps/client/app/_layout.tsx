@@ -64,6 +64,10 @@ export default Sentry.wrap(function RootLayout() {
       if (data?.type === 'message' && data?.sender_id) {
         router.push('/messages');
       }
+      
+      if (data?.type === 'evening_recap') {
+        router.push('/(tabs)/weekly?showEveningRecap=true');
+      }
     });
 
     return () => {

@@ -205,7 +205,6 @@ export function formatDateDisplay(dateString: string): string {
       year: yearNum !== currentYear ? 'numeric' : undefined,
     });
   }
-
   // Handle ISO timestamp format (fallback for message timestamps)
   const date = new Date(dateString);
   const today = new Date();
@@ -229,3 +228,12 @@ export function formatDateDisplay(dateString: string): string {
     });
   }
 }
+
+  /**
+ * Safely parse a YYYY-MM-DD string as a local date (no timezone shift)
+ * Use this instead of new Date('YYYY-MM-DD') everywhere
+ */
+  export function parseDateString(dateStr: string): Date {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }

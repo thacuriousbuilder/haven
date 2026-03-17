@@ -25,15 +25,18 @@ import type { FoodDetails, RecentFood } from '@/utils/foodSearch';
 import * as ImagePicker from 'expo-image-picker';
 import { getLocalDateString, formatLocalDate, getMonday, getSunday } from '@/utils/timezone';
 import { sanitizeFoodName } from '@/utils/sanitize'
-import { Colors } from '@/constants/colors';
+import { Colors, Spacing } from '@/constants/colors';
 import { compressImageForUpload } from '@/utils/imageCompression';
 import { Platform, Linking } from 'react-native';
+import { getUnreflectedMeal, UnreflectedMeal } from '@/utils/reflectionTrigger';
+import QuickReflectionModal from '@/components/quickReflectionModal';
 
 const INPUT_ACCESSORY_ID = 'food-description';
 
 interface FoodLogSheetProps {
   onSuccess: () => void;
   initialMethod?: 'camera' | 'photo' | 'manual' | 'barcode' | null;
+  initialMealType?: 'breakfast' | 'lunch' | 'dinner' | 'snack' | null;
   initialImageBase64?: string | null;
   userNote?: string | null;
   barcodeData?: string | null;
@@ -47,6 +50,7 @@ export function FoodLogSheet({
   onSuccess,
   initialMethod = null,
   initialImageBase64 = null,
+  initialMealType,
   userNote = null,
   barcodeData = null,
   logDate,
@@ -60,12 +64,18 @@ export function FoodLogSheet({
   );
   const [foodDescription, setFoodDescription] = useState('');
   const [estimatedCalories, setEstimatedCalories] = useState('');
-  const [mealType, setMealType] = useState<MealType>('breakfast');
+  const [mealType, setMealType] = useState<MealType>(
+    initialMealType ?? 'breakfast'
+  );
   const [saving, setSaving] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(initialImageBase64 || null);
   const [processingImage, setProcessingImage] = useState(false);
   const [pendingNoteReview, setPendingNoteReview] = useState(false);
   const [sheetUserNote, setSheetUserNote] = useState('');
+
+  // unreflected meals state
+  const [unreflectedMeal, setUnreflectedMeal] = useState<UnreflectedMeal | null>(null);
+  const [showReflection, setShowReflection] = useState(false);
 
   // AI estimation state
   const [estimatingNutrition, setEstimatingNutrition] = useState(false);
@@ -134,6 +144,16 @@ export function FoodLogSheet({
 
   useEffect(() => {
     loadRecentFoods();
+
+      // ── Reflection trigger check ──
+  getUnreflectedMeal().then(meal => {
+    console.log('🔍 Reflection check:', meal);
+    if (meal) {
+      setUnreflectedMeal(meal);
+      setShowReflection(true);
+    }
+  });
+
     if (initialMethod === 'manual') {
       setSelectedMethod('manual');
     } else if (initialMethod === 'barcode' && barcodeData) {
@@ -513,6 +533,7 @@ export function FoodLogSheet({
     { value: 'snack', label: 'Snack', icon: 'fast-food' },
   ];
 
+
   // ── Gallery note review screen ──────────────────────────────────────────────
   if (pendingNoteReview && selectedImage) {
     return (
@@ -583,7 +604,19 @@ export function FoodLogSheet({
 
   // ── Method selection screen ─────────────────────────────────────────────────
   if (!selectedMethod) {
+
     return (
+      <>
+        {unreflectedMeal && (
+      <QuickReflectionModal
+        visible={showReflection}
+        meal={unreflectedMeal}
+        onComplete={() => {
+          setShowReflection(false);
+          setUnreflectedMeal(null);
+        }}
+      />
+    )}
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>How would you like to log?</Text>
@@ -670,6 +703,7 @@ export function FoodLogSheet({
           )}
         </ScrollView>
       </View>
+      </>
     );
   }
 
@@ -721,6 +755,16 @@ export function FoodLogSheet({
       </View>
     );
   }
+
+    <QuickReflectionModal
+      visible={showReflection && !!unreflectedMeal}
+      meal={unreflectedMeal!}
+      onComplete={() => {
+        setShowReflection(false);
+        setUnreflectedMeal(null);
+      }}
+    />
+
 
   // ── Manual entry screen ─────────────────────────────────────────────────────
   return (
