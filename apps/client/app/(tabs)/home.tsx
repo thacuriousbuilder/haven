@@ -113,6 +113,8 @@ export default function HomeScreen() {
   const dismissedBudgetBanner = useRef(false);
   const [isEstimatedBaseline, setIsEstimatedBaseline] = useState(false);
   const [weeklySummaries, setWeeklySummaries] = useState<{ summary_date: string; calories_consumed: number }[]>([]);
+  const baselineCompletionInProgress = useRef(false);
+  const baselineResultRef = useRef<any>(null);
   
 
   const {
@@ -469,6 +471,15 @@ const calculateTodayMacros = (): MacroData => {
     );
   };
 
+  const isFirstWeek = (() => {
+    if (!currentPeriod || !profile?.baseline_completion_at) return false;
+    const completionDate = formatLocalDate(new Date(profile.baseline_completion_at));
+    return (
+      completionDate >= currentPeriod.week_start_date &&
+      completionDate <= currentPeriod.week_end_date
+    );
+  })();
+
   // Get next cheat day info (detailed version for card)
   const getNextCheatDayInfo = () => {
     if (cheatDates.length === 0) return null;
@@ -587,8 +598,8 @@ const calculateTodayMacros = (): MacroData => {
         params: {
           baselineAverage: String(baselineAverage),
           reportedActivityLevel: profile?.activity_level || '',
-          actualActivityLevel: profile?.actual_activity_level || '',
-          daysUsed: String(baselineDaysLogged),
+          actualActivityLevel: baselineResultRef.current?.actualActivityLevel || '', 
+          daysUsed: String(baselineResultRef.current?.daysUsed || baselineDaysLogged),
           isEstimated: String(isEstimatedBaseline),
         },
       });
@@ -636,6 +647,12 @@ const handleBaselineEnded = async () => {
 };
 
 const completeBaselineNow = async () => {
+
+  if (baselineCompletionInProgress.current) {
+    console.log('⚠️ Baseline completion already in progress, skipping...');
+    return;
+  }
+  baselineCompletionInProgress.current = true;
   try {
     console.log('🎯 Completing baseline...');
     const { data: { user } } = await supabase.auth.getUser();
@@ -665,7 +682,7 @@ const completeBaselineNow = async () => {
     }
     
     console.log('✅ Baseline completed:', result.data);
-    
+    baselineResultRef.current = result.data;
     // Set data for completion modal
     setBaselineAverage(result?.data?.dailyTarget || 0);
     setIsEstimatedBaseline(false);
@@ -677,6 +694,8 @@ const completeBaselineNow = async () => {
   } catch (error) {
     console.error('❌ Error in completeBaselineNow:', error);
     Alert.alert('Error', 'Something went wrong. Please try again.');
+  }finally {
+    baselineCompletionInProgress.current = false;
   }
 };
 
@@ -1588,6 +1607,7 @@ const fetchMetrics = async () => {
                     totalRemaining={metrics.total_remaining}
                     daysIntoWeek={getDaysIntoWeek()}
                     weekInfo={getWeekInfo()}
+                    isFirstWeek={isFirstWeek} 
                   />
                 </View>
               )}

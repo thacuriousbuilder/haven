@@ -11,6 +11,8 @@ import {
   Image,
   Animated,
   KeyboardAvoidingView,
+  InputAccessoryView,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -23,13 +25,18 @@ import type { FoodDetails, RecentFood } from '@/utils/foodSearch';
 import * as ImagePicker from 'expo-image-picker';
 import { getLocalDateString, formatLocalDate, getMonday, getSunday } from '@/utils/timezone';
 import { sanitizeFoodName } from '@/utils/sanitize'
-import { Colors } from '@/constants/colors';
+import { Colors, Spacing } from '@/constants/colors';
 import { compressImageForUpload } from '@/utils/imageCompression';
 import { Platform, Linking } from 'react-native';
+import { getUnreflectedMeal, UnreflectedMeal } from '@/utils/reflectionTrigger';
+import QuickReflectionModal from '@/components/quickReflectionModal';
+
+const INPUT_ACCESSORY_ID = 'food-description';
 
 interface FoodLogSheetProps {
   onSuccess: () => void;
   initialMethod?: 'camera' | 'photo' | 'manual' | 'barcode' | null;
+  initialMealType?: 'breakfast' | 'lunch' | 'dinner' | 'snack' | null;
   initialImageBase64?: string | null;
   userNote?: string | null;
   barcodeData?: string | null;
@@ -43,6 +50,7 @@ export function FoodLogSheet({
   onSuccess,
   initialMethod = null,
   initialImageBase64 = null,
+  initialMealType,
   userNote = null,
   barcodeData = null,
   logDate,
@@ -56,16 +64,21 @@ export function FoodLogSheet({
   );
   const [foodDescription, setFoodDescription] = useState('');
   const [estimatedCalories, setEstimatedCalories] = useState('');
-  const [mealType, setMealType] = useState<MealType>('breakfast');
+  const [mealType, setMealType] = useState<MealType>(
+    initialMealType ?? 'breakfast'
+  );
   const [saving, setSaving] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(initialImageBase64 || null);
   const [processingImage, setProcessingImage] = useState(false);
   const [pendingNoteReview, setPendingNoteReview] = useState(false);
   const [sheetUserNote, setSheetUserNote] = useState('');
 
+  // unreflected meals state
+  const [unreflectedMeal, setUnreflectedMeal] = useState<UnreflectedMeal | null>(null);
+  const [showReflection, setShowReflection] = useState(false);
+
   // AI estimation state
   const [estimatingNutrition, setEstimatingNutrition] = useState(false);
-  const [showEstimateButton, setShowEstimateButton] = useState(false);
 
   // Editable macro state
   const [editedCalories, setEditedCalories] = useState('');
@@ -85,9 +98,15 @@ export function FoodLogSheet({
   const [showAllRecent, setShowAllRecent] = useState(false);
   const RECENT_DISPLAY_LIMIT = 3;
 
-  // Progress bar animation
+  // Progress bar animations — separate refs so image and estimate never conflict
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const estimateProgressAnim = useRef(new Animated.Value(0)).current;
 
+  // ── Derived state ───────────────────────────────────────────────────────────
+  const hasEnoughDescription = foodDescription.trim().length > 0;
+  const readyToSave = !!selectedFood && !!editedCalories;
+
+  // ── Image progress helpers ──────────────────────────────────────────────────
   const startProgressAnimation = () => {
     progressAnim.setValue(0);
     Animated.timing(progressAnim, {
@@ -105,8 +124,36 @@ export function FoodLogSheet({
     }).start(callback);
   };
 
+  // ── Estimate progress helpers ───────────────────────────────────────────────
+  const startEstimateAnimation = () => {
+    estimateProgressAnim.setValue(0);
+    Animated.timing(estimateProgressAnim, {
+      toValue: 0.85,
+      duration: 6000, // text estimation is faster than image analysis
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const completeEstimateAnimation = (callback: () => void) => {
+    Animated.timing(estimateProgressAnim, {
+      toValue: 1,
+      duration: 250,
+      useNativeDriver: false,
+    }).start(callback);
+  };
+
   useEffect(() => {
     loadRecentFoods();
+
+      // ── Reflection trigger check ──
+  getUnreflectedMeal().then(meal => {
+    console.log('🔍 Reflection check:', meal);
+    if (meal) {
+      setUnreflectedMeal(meal);
+      setShowReflection(true);
+    }
+  });
+
     if (initialMethod === 'manual') {
       setSelectedMethod('manual');
     } else if (initialMethod === 'barcode' && barcodeData) {
@@ -160,11 +207,6 @@ export function FoodLogSheet({
     }
   };
 
-  const checkDescriptionForEstimate = (text: string) => {
-    const words = text.trim().split(/\s+/);
-    setShowEstimateButton(words.length >= 3 && words.filter((w: string) => w.length > 0).length >= 3);
-  };
-
   const handleSelectRecent = (food: RecentFood) => {
     setFoodDescription(food.food_name);
     setEstimatedCalories(food.calories.toString());
@@ -176,6 +218,16 @@ export function FoodLogSheet({
     setAiConfidence('');
     setMealType(food.meal_type as MealType);
     setSelectedMethod('manual');
+  };
+
+  const clearAIResult = () => {
+    setSelectedFood(null);
+    setEditedCalories('');
+    setEditedProtein('');
+    setEditedCarbs('');
+    setEditedFat('');
+    setAiServingDescription('');
+    setAiConfidence('');
   };
 
   const handleSave = async () => {
@@ -433,8 +485,9 @@ export function FoodLogSheet({
   const handleEstimateNutrition = async (descriptionText?: string) => {
     const textToEstimate = descriptionText || foodDescription;
     if (!textToEstimate.trim() || estimatingNutrition) return;
-
+    Keyboard.dismiss()
     setEstimatingNutrition(true);
+    startEstimateAnimation();
 
     try {
       const { data, error } = await supabase.functions.invoke('estimateNutrition', {
@@ -463,16 +516,13 @@ export function FoodLogSheet({
         carbs: estimate.carbs_grams,
         fat: estimate.fat_grams,
       });
-
-      Alert.alert(
-        'Nutrition Estimated',
-        `${estimate.food_name}\n${estimate.calories} calories\n\nPlease review and adjust if needed.`,
-        [{ text: 'Got it', style: 'default' }]
-      );
     } catch (error) {
+      estimateProgressAnim.setValue(0); // reset bar on failure
       Alert.alert('Estimation Failed', 'Could not estimate nutrition. Please enter values manually.');
     } finally {
-      setEstimatingNutrition(false);
+      completeEstimateAnimation(() => {
+        setEstimatingNutrition(false);
+      });
     }
   };
 
@@ -482,6 +532,7 @@ export function FoodLogSheet({
     { value: 'dinner', label: 'Dinner', icon: 'moon' },
     { value: 'snack', label: 'Snack', icon: 'fast-food' },
   ];
+
 
   // ── Gallery note review screen ──────────────────────────────────────────────
   if (pendingNoteReview && selectedImage) {
@@ -553,7 +604,19 @@ export function FoodLogSheet({
 
   // ── Method selection screen ─────────────────────────────────────────────────
   if (!selectedMethod) {
+
     return (
+      <>
+        {unreflectedMeal && (
+      <QuickReflectionModal
+        visible={showReflection}
+        meal={unreflectedMeal}
+        onComplete={() => {
+          setShowReflection(false);
+          setUnreflectedMeal(null);
+        }}
+      />
+    )}
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>How would you like to log?</Text>
@@ -640,6 +703,7 @@ export function FoodLogSheet({
           )}
         </ScrollView>
       </View>
+      </>
     );
   }
 
@@ -692,164 +756,232 @@ export function FoodLogSheet({
     );
   }
 
+    <QuickReflectionModal
+      visible={showReflection && !!unreflectedMeal}
+      meal={unreflectedMeal!}
+      onComplete={() => {
+        setShowReflection(false);
+        setUnreflectedMeal(null);
+      }}
+    />
+
+
   // ── Manual entry screen ─────────────────────────────────────────────────────
   return (
-    <ScrollView
-      style={styles.formContainer}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.formContent}
-      keyboardShouldPersistTaps="handled"
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => { setSelectedMethod(null); setSelectedFood(null); }}
-      >
-        <Ionicons name="arrow-back" size={24} color={Colors.graphite} />
-      </TouchableOpacity>
-
-      {selectedFood && (
-        <View style={styles.selectedFoodBanner}>
-          <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-        </View>
+      {/* iOS: "Done" toolbar above the keyboard for the multiline description input */}
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={INPUT_ACCESSORY_ID}>
+          <View style={styles.keyboardToolbar}>
+            <TouchableOpacity onPress={() => Keyboard.dismiss()}>
+              <Text style={styles.keyboardDoneButton}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
       )}
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Meal type</Text>
-        <View style={styles.mealTypeGrid}>
-          {mealTypes.map((type) => (
-            <TouchableOpacity
-              key={type.value}
-              style={[styles.mealTypeCard, mealType === type.value && styles.mealTypeCardActive]}
-              onPress={() => setMealType(type.value)}
-            >
-              <Ionicons
-                name={type.icon as any}
-                size={24}
-                color={mealType === type.value ? '#FFFFFF' : '#3D5A5C'}
-              />
-              <Text style={[styles.mealTypeText, mealType === type.value && styles.mealTypeTextActive]}>
-                {type.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      <ScrollView
+        style={styles.formContainer}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.formContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode='on-drag'
+      >
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => { setSelectedMethod(null); setSelectedFood(null); }}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors.graphite} />
+        </TouchableOpacity>
+
+        {selectedFood && (
+          <View style={styles.selectedFoodBanner}>
+            <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+          </View>
+        )}
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Meal type</Text>
+          <View style={styles.mealTypeGrid}>
+            {mealTypes.map((type) => (
+              <TouchableOpacity
+                key={type.value}
+                style={[styles.mealTypeCard, mealType === type.value && styles.mealTypeCardActive]}
+                onPress={() => setMealType(type.value)}
+              >
+                <Ionicons
+                  name={type.icon as any}
+                  size={24}
+                  color={mealType === type.value ? '#FFFFFF' : '#3D5A5C'}
+                />
+                <Text style={[styles.mealTypeText, mealType === type.value && styles.mealTypeTextActive]}>
+                  {type.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Food description</Text>
-        <TextInput
-          style={styles.textInput}
-          value={foodDescription}
-          onChangeText={(text: string) => {
-            setFoodDescription(text);
-            checkDescriptionForEstimate(text);
-          }}
-          placeholder="e.g., Chicken salad with ranch dressing"
-          placeholderTextColor="#9CA3AF"
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
-        />
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Food description</Text>
+          {/*
+            nativeID links this input to the InputAccessoryView on iOS,
+            giving a "Done" button to dismiss the keyboard on multiline inputs.
+          */}
+          <TextInput
+            nativeID={INPUT_ACCESSORY_ID}
+            style={styles.textInput}
+            value={foodDescription}
+            onChangeText={(text: string) => {
+              setFoodDescription(text);
+              // Clear AI result if user edits description after estimating
+              if (selectedFood) {
+                clearAIResult();
+              }
+            }}
+            placeholder="e.g., Chicken salad with ranch dressing"
+            placeholderTextColor="#9CA3AF"
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
 
-        {showEstimateButton && !selectedFood && (
+          {selectedFood && (
+            <View style={styles.aiEstimateBadge}>
+              <Ionicons name="sparkles" size={14} color="#10B981" />
+              <Text style={styles.aiEstimateText}>AI estimated — review and adjust if needed</Text>
+            </View>
+          )}
+        </View>
+
+        {/* ── Estimate progress bar — visible only while estimating ── */}
+        {estimatingNutrition && (
+          <View style={styles.estimateProgressContainer}>
+            <View style={styles.progressTrack}>
+              <Animated.View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: estimateProgressAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%'],
+                    }),
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressLabel}>Estimating nutrition...</Text>
+          </View>
+        )}
+
+        {selectedFood && aiServingDescription ? (
+          <Text style={styles.servingDescription}>
+            Serving: {aiServingDescription}
+          </Text>
+        ) : null}
+
+        {selectedFood && (
+          <View style={styles.nutritionCard}>
+            <Text style={styles.nutritionTitle}>Nutrition Info</Text>
+            <Text style={styles.nutritionEditHint}>Tap any value to edit</Text>
+
+            <View style={styles.nutritionCaloriesRow}>
+              <TextInput
+                style={styles.nutritionCaloriesInput}
+                value={editedCalories}
+                onChangeText={setEditedCalories}
+                keyboardType="numeric"
+                returnKeyType="done"
+                onSubmitEditing={() => Keyboard.dismiss()}
+                selectTextOnFocus
+              />
+              <Text style={styles.nutritionCaloriesLabel}>calories</Text>
+            </View>
+
+            <View style={styles.nutritionDivider} />
+
+            <View style={styles.nutritionGrid}>
+              <View style={styles.nutritionItem}>
+                <TextInput
+                  style={styles.nutritionValueInput}
+                  value={editedProtein}
+                  onChangeText={setEditedProtein}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                  selectTextOnFocus
+                />
+                <Text style={styles.nutritionLabel}>Protein</Text>
+              </View>
+              <View style={styles.nutritionItem}>
+                <TextInput
+                  style={styles.nutritionValueInput}
+                  value={editedCarbs}
+                  onChangeText={setEditedCarbs}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                  selectTextOnFocus
+                />
+                <Text style={styles.nutritionLabel}>Carbs</Text>
+              </View>
+              <View style={styles.nutritionItem}>
+                <TextInput
+                  style={styles.nutritionValueInput}
+                  value={editedFat}
+                  onChangeText={setEditedFat}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                  selectTextOnFocus
+                />
+                <Text style={styles.nutritionLabel}>Fat</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ── Smart single CTA ── */}
+        {!readyToSave ? (
           <TouchableOpacity
-            style={[styles.estimateButton, estimatingNutrition && styles.estimateButtonDisabled]}
+            style={[
+              styles.saveButton,
+              (!hasEnoughDescription || estimatingNutrition) && styles.saveButtonDisabled,
+            ]}
             onPress={() => handleEstimateNutrition(foodDescription)}
-            disabled={estimatingNutrition}
+            disabled={!hasEnoughDescription || estimatingNutrition}
           >
             {estimatingNutrition ? (
-              <>
-                <ActivityIndicator size="small" color="#3D5A5C" />
-                <Text style={styles.estimateButtonText}>Estimating...</Text>
-              </>
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <>
-                <Ionicons name="sparkles" size={16} color="#3D5A5C" />
-                <Text style={styles.estimateButtonText}>Estimate Nutrition with AI</Text>
-              </>
+              <Ionicons name="sparkles" size={18} color="#FFFFFF" />
             )}
+            <Text style={styles.saveButtonText}>
+              {estimatingNutrition ? 'Estimating...' : 'Estimate Nutrition'}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            {saving
+              ? <ActivityIndicator size="small" color="#FFFFFF" />
+              : <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+            }
+            <Text style={styles.saveButtonText}>
+              {saving ? 'Saving...' : 'Save Food Log'}
+            </Text>
           </TouchableOpacity>
         )}
 
-        {selectedFood && (
-          <View style={styles.aiEstimateBadge}>
-            <Ionicons name="sparkles" size={14} color="#10B981" />
-            <Text style={styles.aiEstimateText}>AI estimated - please review</Text>
-          </View>
-        )}
-      </View>
-
-      {selectedFood && aiServingDescription ? (
-        <Text style={styles.servingDescription}>
-          Serving: {aiServingDescription}
-        </Text>
-      ) : null}
-
-      {selectedFood && (
-        <View style={styles.nutritionCard}>
-          <Text style={styles.nutritionTitle}>Nutrition Info</Text>
-          <Text style={styles.nutritionEditHint}>Tap any value to edit</Text>
-
-          <View style={styles.nutritionCaloriesRow}>
-            <TextInput
-              style={styles.nutritionCaloriesInput}
-              value={editedCalories}
-              onChangeText={setEditedCalories}
-              keyboardType="numeric"
-              selectTextOnFocus
-            />
-            <Text style={styles.nutritionCaloriesLabel}>calories</Text>
-          </View>
-
-          <View style={styles.nutritionDivider} />
-
-          <View style={styles.nutritionGrid}>
-            <View style={styles.nutritionItem}>
-              <TextInput
-                style={styles.nutritionValueInput}
-                value={editedProtein}
-                onChangeText={setEditedProtein}
-                keyboardType="numeric"
-                selectTextOnFocus
-              />
-              <Text style={styles.nutritionLabel}>Protein</Text>
-            </View>
-            <View style={styles.nutritionItem}>
-              <TextInput
-                style={styles.nutritionValueInput}
-                value={editedCarbs}
-                onChangeText={setEditedCarbs}
-                keyboardType="numeric"
-                selectTextOnFocus
-              />
-              <Text style={styles.nutritionLabel}>Carbs</Text>
-            </View>
-            <View style={styles.nutritionItem}>
-              <TextInput
-                style={styles.nutritionValueInput}
-                value={editedFat}
-                onChangeText={setEditedFat}
-                keyboardType="numeric"
-                selectTextOnFocus
-              />
-              <Text style={styles.nutritionLabel}>Fat</Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      <TouchableOpacity
-        style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-        onPress={handleSave}
-        disabled={saving}
-      >
-        <Text style={styles.saveButtonText}>
-          {saving ? 'Saving...' : 'Save Food Log'}
-        </Text>
-      </TouchableOpacity>
-
-      <View style={styles.bottomPadding} />
-    </ScrollView>
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -1100,7 +1232,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#206E6B',
     borderRadius: 12,
     padding: 18,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     marginTop: 16,
     marginBottom: 20,
   },
@@ -1114,78 +1249,6 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 300,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 24,
-  },
-  searchInput: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#504D47',
-  },
-  searchButton: {
-    backgroundColor: '#206E6B',
-    borderRadius: 12,
-    width: 52,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  resultsContainer: {
-    marginBottom: 24,
-  },
-  resultsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  resultCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  resultInfo: {
-    flex: 1,
-  },
-  resultName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#504D47',
-    marginBottom: 4,
-  },
-  resultBrand: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  resultDescription: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  noResults: {
-    alignItems: 'center',
-    paddingVertical: 48,
-  },
-  noResultsText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginTop: 16,
-  },
-  noResultsSubtext: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 4,
   },
   selectedFoodBanner: {
     flexDirection: 'row',
@@ -1280,6 +1343,47 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 4,
   },
+  // ── Estimate progress bar ───────────────────────────────────────────────────
+  estimateProgressContainer: {
+    marginTop: -8,
+    marginBottom: 20,
+    gap: 10,
+  },
+  // ── Shared progress bar styles (used by both image + estimate flows) ────────
+  progressContainer: {
+    paddingHorizontal: 4,
+    gap: 10,
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 99,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#206E6B',
+    borderRadius: 99,
+  },
+  progressLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  // ── Keyboard toolbar (iOS only) ─────────────────────────────────────────────
+  keyboardToolbar: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    alignItems: 'flex-end',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  keyboardDoneButton: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#206E6B',
+  },
   // ── Image processing screen styles ─────────────────────────────────────────
   imageProcessingContainer: {
     flex: 1,
@@ -1315,49 +1419,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  progressContainer: {
-    paddingHorizontal: 4,
-    gap: 10,
-  },
-  progressTrack: {
-    height: 6,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 99,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#206E6B',
-    borderRadius: 99,
-  },
-  progressLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  // ── Estimate / AI badge styles ──────────────────────────────────────────────
-  estimateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#F5F1E8',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#206E6B',
-    borderStyle: 'dashed',
-  },
-  estimateButtonDisabled: {
-    opacity: 0.6,
-  },
-  estimateButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#206E6B',
-  },
+  // ── AI badge styles ─────────────────────────────────────────────────────────
   aiEstimateBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1374,135 +1436,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#065F46',
   },
-  // ── Search screen styles ────────────────────────────────────────────────────
-  searchHeader: {
-    backgroundColor: Colors.lightCream,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  searchHeaderTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.graphite,
-  },
-  searchContent: {
-    flex: 1,
-    backgroundColor: Colors.lightCream,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchIcon: {
-    marginRight: 12,
-  },
-  searchInputField: {
-    flex: 1,
-    fontSize: 16,
-    color: '#504D47',
-  },
-  searchScrollContent: {
-    paddingBottom: 100,
-  },
-  searchResultsSection: {
-    paddingHorizontal: 20,
-  },
-  searchResultsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 8,
-  },
-  searchResultsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  searchResultCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchResultInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  searchResultName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#504D47',
-    marginBottom: 4,
-  },
-  searchResultBrand: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 2,
-  },
-  searchResultCalories: {
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-  searchResultAddButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(32, 110, 107, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchLoadingContainer: {
-    paddingVertical: 64,
-    alignItems: 'center',
-    gap: 16,
-  },
-  searchLoadingText: {
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  searchEmptyState: {
-    paddingVertical: 80,
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  searchEmptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#504D47',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  searchEmptySubtext: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-
   // ── Gallery note review styles ───────────────────────────────────────────────
   galleryReviewContainer: {
     flex: 1,

@@ -46,9 +46,9 @@ export default function ClientTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="plan"
+        name="weekly"
         options={{
-          title: 'Plan',
+          title: 'Weekly',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={size} color={color} />
           ),

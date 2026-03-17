@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '@/constants/colors';
+import { getActivityLevelLabel } from '@/lib/baselineCompletion';
 
 const TEAL_CARD = 'rgba(255,255,255,0.12)';
 const TEAL_CARD_DARK = 'rgba(255,255,255,0.08)';
@@ -37,16 +38,16 @@ export default function BaselineCompleteScreen() {
     actualActivityLevel &&
     reportedActivityLevel.toLowerCase() !== actualActivityLevel.toLowerCase();
 
-  const getActivityLabel = (level?: string) => {
-    if (!level) return '';
-    const labels: Record<string, string> = {
-      not_very_active: 'Sedentary',
-      lightly_active: 'Lightly Active',
-      moderately_active: 'Moderately Active',
-      very_active: 'Very Active',
-    };
-    return labels[level.toLowerCase()] || level;
-  };
+  // const getActivityLabel = (level?: string) => {
+  //   if (!level) return '';
+  //   const labels: Record<string, string> = {
+  //     not_very_active: 'Sedentary',
+  //     lightly_active: 'Lightly Active',
+  //     moderately_active: 'Moderately Active',
+  //     very_active: 'Very Active',
+  //   };
+  //   return labels[level.toLowerCase()] || level;
+  // };
 
   const handleUnlock = () => {
     router.replace({
@@ -121,7 +122,7 @@ export default function BaselineCompleteScreen() {
                 <View>
                   <Text style={styles.activityMeta}>Reported:</Text>
                   <Text style={styles.activityValue}>
-                    {getActivityLabel(reportedActivityLevel)}
+                    {getActivityLevelLabel(reportedActivityLevel || '')}
                   </Text>
                 </View>
                 <Ionicons
@@ -133,7 +134,7 @@ export default function BaselineCompleteScreen() {
                 <View>
                   <Text style={styles.activityMeta}>Actual:</Text>
                   <Text style={[styles.activityValue, styles.activityOrange]}>
-                    {getActivityLabel(actualActivityLevel)}
+                    {getActivityLevelLabel(actualActivityLevel || '')}
                   </Text>
                 </View>
               </View>
@@ -147,7 +148,7 @@ export default function BaselineCompleteScreen() {
                 <View>
                   <Text style={styles.activityMeta}>Reported:</Text>
                   <Text style={styles.activityValue}>
-                    {getActivityLabel(reportedActivityLevel)}
+                    {getActivityLevelLabel(reportedActivityLevel || '')}
                   </Text>
                 </View>
                 <Ionicons
@@ -159,7 +160,7 @@ export default function BaselineCompleteScreen() {
                 <View>
                   <Text style={styles.activityMeta}>Actual:</Text>
                   <Text style={[styles.activityValue, styles.activityOrange]}>
-                    {getActivityLabel(actualActivityLevel)}
+                    {getActivityLevelLabel(actualActivityLevel || '')}
                   </Text>
                 </View>
               </View>
