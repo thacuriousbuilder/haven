@@ -1,15 +1,17 @@
-# HAVEN - Enjoy Food. Hit Your Goals (Weekly Calorie Tracking App)
+# HAVEN - Enjoy Food. Hit Your Goals (Weekly Calorie Nutrition App)
 
-> A mobile calorie tracking app that replaces daily restrictions with a flexible weekly budget system, helping you maintain a sustainable eating habits.
+> A mobile calorie tracking app that replaces daily restrictions with a flexible weekly budget system, helping you create and maintain sustainable eating habits.
 
 ## 🎯 Overview
 
-HAVEN is a React Native mobile app that takes a  different approach to calorie tracking. Instead of rigid daily limits that lead to guilt and failure, HAVEN uses:
+HAVEN is a React Native mobile app that takes a different approach to calorie tracking. Instead of rigid daily limits that lead to guilt and failure, HAVEN uses:
 
 - **Weekly Calorie Banks** - Flexibility to enjoy life while staying on track
-- **7-Day Baseline Week** - Learn your natural eating patterns first 
+- **7-Day Baseline Week** - Learn your natural eating patterns first
+- **Self-reflection** - Understanding and creating a better relationship with food habits
+- **Auto Budget Adjustment** - Haven understands that life happens and you shouldn't be punish for living life
 - **Pre-Planned treat Days** - Intentional days to indulge without guilt
-- - **Accountability Coaching** - Work with professionals to better your habits and keep you accountable to hit your goals faster
+- **Accountability Coaching** - Work with professionals to better your habits and keep you accountable to hit your goals faster
 
 ## 🏗️ Tech Stack
 
