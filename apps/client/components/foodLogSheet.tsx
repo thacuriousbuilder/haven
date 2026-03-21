@@ -30,6 +30,8 @@ import { compressImageForUpload } from '@/utils/imageCompression';
 import { Platform, Linking } from 'react-native';
 import { getUnreflectedMeal, UnreflectedMeal } from '@/utils/reflectionTrigger';
 import QuickReflectionModal from '@/components/quickReflectionModal';
+import { VoiceInputModal } from '@/components/voiceInputModal'
+import { decode } from 'base64-arraybuffer'
 
 const INPUT_ACCESSORY_ID = 'food-description';
 
@@ -43,8 +45,44 @@ interface FoodLogSheetProps {
   logDate?: string;
 }
 
+interface FavoriteFood {
+  food_name: string
+  calories: number
+  protein_grams: number | null
+  carbs_grams: number | null
+  fat_grams: number | null
+  meal_type: string
+}
+
 type LogMethod = 'manual' | 'image' | 'barcode' | null;
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+const DESCRIPTION_PLACEHOLDERS: Record<string, string[]> = {
+  breakfast: [
+    'e.g. 2 scrambled eggs, toast and bacon',
+    'e.g. large bowl of oatmeal with banana and honey',
+    'e.g. avocado toast with poached eggs, restaurant',
+    'e.g. homemade pancakes with maple syrup',
+  ],
+  lunch: [
+    'e.g. chicken burrito bowl with rice, beans and sour cream',
+    'e.g. Caesar salad with grilled chicken, restaurant',
+    'e.g. 2 slices pepperoni pizza',
+    'e.g. homemade chicken and rice with vegetables',
+  ],
+  dinner: [
+    'e.g. grilled salmon with roasted vegetables, restaurant',
+    'e.g. pasta alfredo with chicken, ordered from restaurant',
+    'e.g. homemade butter chicken with basmati rice and naan',
+    'e.g. large cheeseburger and fries, sit-down restaurant',
+  ],
+  snack: [
+    'e.g. Greek yogurt with granola and berries',
+    'e.g. 4 samosas from an Indian restaurant',
+    'e.g. handful of mixed nuts and an apple',
+    'e.g. protein shake with banana and peanut butter',
+  ],
+}
 
 export function FoodLogSheet({
   onSuccess,
@@ -72,7 +110,15 @@ export function FoodLogSheet({
   const [processingImage, setProcessingImage] = useState(false);
   const [pendingNoteReview, setPendingNoteReview] = useState(false);
   const [sheetUserNote, setSheetUserNote] = useState('');
-
+  const [placeholderIndex, setPlaceholderIndex] = useState(0)
+  const [showVoiceModal, setShowVoiceModal] = useState(false)
+  const [isFavorite, setIsFavorite] = useState(false)
+  const [favoriteFoods, setFavoriteFoods] = useState<FavoriteFood[]>([])
+  const [loadingFavorites, setLoadingFavorites] = useState(false)
+  const [activeTab, setActiveTab] = useState<'recent' | 'favorites'>('recent')
+  const [recentSearchQuery, setRecentSearchQuery] = useState('')
+  const [favoritesSearchQuery, setFavoritesSearchQuery] = useState('')
+  const [savedImageUrl, setSavedImageUrl] = useState<string | null>(null)
   // unreflected meals state
   const [unreflectedMeal, setUnreflectedMeal] = useState<UnreflectedMeal | null>(null);
   const [showReflection, setShowReflection] = useState(false);
@@ -80,6 +126,19 @@ export function FoodLogSheet({
   // AI estimation state
   const [estimatingNutrition, setEstimatingNutrition] = useState(false);
 
+  const baseEstimate = useRef<{
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+  } | null>(null)
+
+  // Loop guard — prevents calorie↔macro circular updates
+  const isScaling = useRef(false)
+
+  // Serving state
+  const [servings, setServings] = useState('1')
+  const [portionLabel, setPortionLabel] = useState('')
   // Editable macro state
   const [editedCalories, setEditedCalories] = useState('');
   const [editedProtein, setEditedProtein] = useState('');
@@ -144,6 +203,7 @@ export function FoodLogSheet({
 
   useEffect(() => {
     loadRecentFoods();
+    loadFavoriteFoods()
 
       // ── Reflection trigger check ──
   getUnreflectedMeal().then(meal => {
@@ -207,18 +267,115 @@ export function FoodLogSheet({
     }
   };
 
-  const handleSelectRecent = (food: RecentFood) => {
-    setFoodDescription(food.food_name);
-    setEstimatedCalories(food.calories.toString());
-    setEditedCalories(food.calories.toString());
-    setEditedProtein(food.protein_grams?.toString() || '');
-    setEditedCarbs(food.carbs_grams?.toString() || '');
-    setEditedFat(food.fat_grams?.toString() || '');
-    setAiServingDescription('');
-    setAiConfidence('');
-    setMealType(food.meal_type as MealType);
-    setSelectedMethod('manual');
-  };
+  const loadFavoriteFoods = async () => {
+    try {
+      setLoadingFavorites(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+  
+      const { data, error } = await supabase
+        .from('food_logs')
+        .select('food_name, calories, protein_grams, carbs_grams, fat_grams, meal_type, created_at')
+        .eq('user_id', user.id)
+        .eq('is_favorite', true)
+        .order('created_at', { ascending: false })
+  
+      if (error || !data) return
+  
+      // Deduplicate by food_name — keep most recent
+      const seen = new Set<string>()
+      const deduped = data.filter(f => {
+        const key = f.food_name.toLowerCase().trim()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+  
+      setFavoriteFoods(deduped)
+    } catch (error) {
+      console.error('Error loading favorites:', error)
+    } finally {
+      setLoadingFavorites(false)
+    }
+  }
+
+  const filteredRecentFoods = recentSearchQuery.trim()
+  ? recentFoods.filter(f =>
+      f.food_name.toLowerCase().includes(recentSearchQuery.toLowerCase())
+    )
+  : recentFoods
+
+const filteredFavoriteFoods = favoritesSearchQuery.trim()
+  ? favoriteFoods.filter(f =>
+      f.food_name.toLowerCase().includes(favoritesSearchQuery.toLowerCase())
+    )
+  : favoriteFoods
+
+  useEffect(() => {
+    setPlaceholderIndex(0) 
+  }, [mealType])
+  
+  useEffect(() => {
+    const placeholders = DESCRIPTION_PLACEHOLDERS[mealType] || DESCRIPTION_PLACEHOLDERS.lunch
+    if (placeholders.length <= 1) return
+  
+    const interval = setInterval(() => {
+      setPlaceholderIndex(prev => (prev + 1) % placeholders.length)
+    }, 3000) // rotate every 3 seconds
+  
+    return () => clearInterval(interval)
+  }, [mealType])
+
+  const handleSelectRecent = async (food: RecentFood) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+  
+      const { error } = await supabase
+        .from('food_logs')
+        .insert({
+          user_id: user.id,
+          food_name: sanitizeFoodName(food.food_name),
+          calories: food.calories,
+          protein_grams: food.protein_grams || null,
+          carbs_grams: food.carbs_grams || null,
+          fat_grams: food.fat_grams || null,
+          log_date: resolvedLogDate,
+          meal_type: food.meal_type,
+          entry_method: 'manual',
+          is_favorite: false,
+        })
+  
+      if (error) throw error
+  
+      // Update daily summary
+      if (food.calories > 0) {
+        const { data: existingSummary } = await supabase
+          .from('daily_summaries')
+          .select('calories_consumed')
+          .eq('user_id', user.id)
+          .eq('summary_date', resolvedLogDate)
+          .single()
+  
+        const newTotal = (existingSummary?.calories_consumed || 0) + food.calories
+  
+        await supabase
+          .from('daily_summaries')
+          .upsert({
+            user_id: user.id,
+            summary_date: resolvedLogDate,
+            calories_consumed: newTotal,
+            calories_burned: 0,
+          }, { onConflict: 'user_id,summary_date' })
+      }
+  
+      Alert.alert('Logged!', `${food.food_name} added to your log.`)
+      onSuccess()
+    } catch (error) {
+      console.error('Error logging recent food:', error)
+      Alert.alert('Error', 'Could not log this food. Please try again.')
+    }
+  }
 
   const clearAIResult = () => {
     setSelectedFood(null);
@@ -228,7 +385,126 @@ export function FoodLogSheet({
     setEditedFat('');
     setAiServingDescription('');
     setAiConfidence('');
+    setServings('1')           
+    setPortionLabel('')         
+    baseEstimate.current = null 
+    setIsFavorite(false)
+    setSavedImageUrl(null)
   };
+
+  const handleCaloriesChange = (val: string) => {
+    setEditedCalories(val)
+    if (!baseEstimate.current) return
+    const newCalories = parseFloat(val)
+    if (isNaN(newCalories) || newCalories <= 0) return
+  
+    const base = baseEstimate.current
+    if (base.calories === 0) return
+  
+    isScaling.current = true
+  
+    // Calculate each macro's calorie contribution ratio from base
+    const pCalRatio = (base.protein * 4) / base.calories
+    const cCalRatio = (base.carbs * 4) / base.calories
+    const fCalRatio = (base.fat * 9) / base.calories
+  
+    // Scale macros to hit new calorie target
+    setEditedProtein(Math.round((pCalRatio * newCalories) / 4).toString())
+    setEditedCarbs(Math.round((cCalRatio * newCalories) / 4).toString())
+    setEditedFat(Math.round((fCalRatio * newCalories) / 9).toString())
+  
+    isScaling.current = false
+  }
+  
+  const handleMacroChange = (
+    field: 'protein' | 'carbs' | 'fat',
+    val: string
+  ) => {
+    // Update the field first
+    if (field === 'protein') setEditedProtein(val)
+    if (field === 'carbs') setEditedCarbs(val)
+    if (field === 'fat') setEditedFat(val)
+  
+    // Skip calorie recalc if we're already in a scaling operation
+    if (isScaling.current) return
+  
+    // Get current values — use incoming val for the changed field
+    const p = parseFloat(field === 'protein' ? val : editedProtein) || 0
+    const c = parseFloat(field === 'carbs' ? val : editedCarbs) || 0
+    const f = parseFloat(field === 'fat' ? val : editedFat) || 0
+  
+    // Recalculate calories from macros
+    const newCalories = Math.round((p * 4) + (c * 4) + (f * 9))
+    setEditedCalories(newCalories.toString())
+  }
+  
+  const handleServingsChange = (val: string) => {
+    setServings(val)
+    if (!baseEstimate.current) return
+  
+    const numServings = parseFloat(val)
+    if (isNaN(numServings) || numServings <= 0) return
+  
+    const base = baseEstimate.current
+  
+    isScaling.current = true
+    setEditedCalories(Math.round(base.calories * numServings).toString())
+    setEditedProtein(Math.round(base.protein * numServings).toString())
+    setEditedCarbs(Math.round(base.carbs * numServings).toString())
+    setEditedFat(Math.round(base.fat * numServings).toString())
+    isScaling.current = false
+  }
+
+  const handleLogFavorite = async (food: FavoriteFood) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+  
+      const { error } = await supabase
+        .from('food_logs')
+        .insert({
+          user_id: user.id,
+          food_name: sanitizeFoodName(food.food_name),
+          calories: food.calories,
+          protein_grams: food.protein_grams,
+          carbs_grams: food.carbs_grams,
+          fat_grams: food.fat_grams,
+          log_date: resolvedLogDate,
+          meal_type: food.meal_type,
+          entry_method: 'manual',
+          is_favorite: true,
+        })
+  
+      if (error) throw error
+  
+      // Update daily summary
+      if (food.calories > 0) {
+        const { data: existingSummary } = await supabase
+          .from('daily_summaries')
+          .select('calories_consumed')
+          .eq('user_id', user.id)
+          .eq('summary_date', resolvedLogDate)
+          .single()
+  
+        const newTotal = (existingSummary?.calories_consumed || 0) + food.calories
+  
+        await supabase
+          .from('daily_summaries')
+          .upsert({
+            user_id: user.id,
+            summary_date: resolvedLogDate,
+            calories_consumed: newTotal,
+            calories_burned: 0,
+          }, { onConflict: 'user_id,summary_date' })
+      }
+  
+      Alert.alert('Logged!', `${food.food_name} added to your log.`)
+      onSuccess()
+    } catch (error) {
+      console.error('Error logging favorite:', error)
+      Alert.alert('Error', 'Could not log this food. Please try again.')
+    }
+  }
 
   const handleSave = async () => {
     if (!foodDescription.trim()) {
@@ -269,6 +545,8 @@ export function FoodLogSheet({
             : 'manual',
           serving_description: aiServingDescription || null,
           ai_confidence: aiConfidence || null,
+          is_favorite: isFavorite,
+          image_url: savedImageUrl || null,
         });
 
       if (error) {
@@ -366,6 +644,7 @@ export function FoodLogSheet({
       setSelectedMethod(null);
       setSelectedFood(null);
       setSaving(false);
+      setSavedImageUrl(null)
 
       Alert.alert('Success', 'Food logged!');
       onSuccess();
@@ -447,9 +726,15 @@ export function FoodLogSheet({
 
       const analysis = data.data;
 
+      const reconciledCalories = Math.round(
+        (analysis.protein_grams * 4) +
+        (analysis.carbs_grams * 4) +
+        (analysis.fat_grams * 9)
+      )
+      
       setFoodDescription(analysis.food_name);
       setEstimatedCalories(analysis.calories.toString());
-      setEditedCalories(analysis.calories.toString());
+      setEditedCalories(reconciledCalories.toString())
       setEditedProtein(analysis.protein_grams?.toString() || '');
       setEditedCarbs(analysis.carbs_grams?.toString() || '');
       setEditedFat(analysis.fat_grams?.toString() || '');
@@ -464,7 +749,20 @@ export function FoodLogSheet({
         carbs: analysis.carbs_grams,
         fat: analysis.fat_grams,
       });
+      setServings('1')
+      setPortionLabel('')
 
+      baseEstimate.current = {
+      calories: reconciledCalories,
+      protein: analysis.protein_grams,
+      carbs: analysis.carbs_grams,
+      fat: analysis.fat_grams,
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user && base64Image) {
+      const imageUrl = await uploadFoodImage(base64Image, user.id)
+      if (imageUrl) setSavedImageUrl(imageUrl)
+    }
       setSelectedMethod('manual');
     } catch (error) {
       Alert.alert(
@@ -481,6 +779,39 @@ export function FoodLogSheet({
       });
     }
   };
+
+  const uploadFoodImage = async (base64Image: string, userId: string): Promise<string | null> => {
+    try {
+      const filename = `${userId}/${Date.now()}.jpg`
+  
+      const { data, error } = await supabase.storage
+        .from('food-images')
+        .upload(filename, decode(base64Image), {
+          contentType: 'image/jpeg',
+          upsert: false,
+        })
+  
+      if (error) {
+        console.error('❌ Image upload error:', error)
+        return null
+      }
+  
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('food-images')
+        .createSignedUrl(data.path, 60 * 60 * 24 * 365)
+  
+      if (signedError || !signedData) {
+        console.error('❌ Signed URL error:', signedError)
+        return null
+      }
+  
+      console.log('✅ Image uploaded:', signedData.signedUrl)
+      return signedData.signedUrl
+    } catch (error) {
+      console.error('❌ Upload failed:', error)
+      return null
+    }
+  }
 
   const handleEstimateNutrition = async (descriptionText?: string) => {
     const textToEstimate = descriptionText || foodDescription;
@@ -499,12 +830,18 @@ export function FoodLogSheet({
 
       const estimate = data.data;
 
+      const reconciledCalories = Math.round(
+        (estimate.protein_grams * 4) +
+        (estimate.carbs_grams * 4) +
+        (estimate.fat_grams * 9)
+      )
+
       setFoodDescription(estimate.food_name);
       setEstimatedCalories(estimate.calories.toString());
-      setEditedCalories(estimate.calories.toString());
-      setEditedProtein(estimate.protein_grams?.toString() || '');
-      setEditedCarbs(estimate.carbs_grams?.toString() || '');
-      setEditedFat(estimate.fat_grams?.toString() || '');
+      setEditedCalories(reconciledCalories.toString())
+      setEditedProtein(estimate.protein_grams?.toString() || '')
+      setEditedCarbs(estimate.carbs_grams?.toString() || '')
+      setEditedFat(estimate.fat_grams?.toString() || '')
       setAiServingDescription('');
       setAiConfidence(estimate.confidence || '');
       setSelectedFood({
@@ -516,6 +853,14 @@ export function FoodLogSheet({
         carbs: estimate.carbs_grams,
         fat: estimate.fat_grams,
       });
+      setServings('1')
+      setPortionLabel('') 
+      baseEstimate.current = {
+        calories: reconciledCalories,
+        protein: estimate.protein_grams,
+        carbs: estimate.carbs_grams,
+        fat: estimate.fat_grams,
+      }
     } catch (error) {
       estimateProgressAnim.setValue(0); // reset bar on failure
       Alert.alert('Estimation Failed', 'Could not estimate nutrition. Please enter values manually.');
@@ -532,6 +877,9 @@ export function FoodLogSheet({
     { value: 'dinner', label: 'Dinner', icon: 'moon' },
     { value: 'snack', label: 'Snack', icon: 'fast-food' },
   ];
+
+  const currentPlaceholder = DESCRIPTION_PLACEHOLDERS[mealType]?.[placeholderIndex] 
+  ?? 'e.g. chicken salad with ranch dressing'
 
 
   // ── Gallery note review screen ──────────────────────────────────────────────
@@ -607,16 +955,6 @@ export function FoodLogSheet({
 
     return (
       <>
-        {unreflectedMeal && (
-      <QuickReflectionModal
-        visible={showReflection}
-        meal={unreflectedMeal}
-        onComplete={() => {
-          setShowReflection(false);
-          setUnreflectedMeal(null);
-        }}
-      />
-    )}
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>How would you like to log?</Text>
@@ -663,44 +1001,193 @@ export function FoodLogSheet({
             </TouchableOpacity>
           </View>
 
-          {recentFoods.length > 0 && (
-            <View style={styles.recentSection}>
-              <Text style={styles.recentSectionTitle}>RECENT FOODS</Text>
-              <View style={styles.recentCard}>
-                {(showAllRecent ? recentFoods : recentFoods.slice(0, RECENT_DISPLAY_LIMIT)).map((food, index) => (
-                  <View key={index}>
-                    <TouchableOpacity style={styles.recentItem} onPress={() => handleSelectRecent(food)}>
-                      <View style={styles.recentInfo}>
-                        <Text style={styles.recentName} numberOfLines={1}>{food.food_name}</Text>
-                        <Text style={styles.recentCalories}>{food.calories} cal</Text>
-                      </View>
-                      <View style={styles.recentAddButton}>
-                        <Ionicons name="add" size={20} color="#206E6B" />
-                      </View>
-                    </TouchableOpacity>
-                    {index < (showAllRecent ? recentFoods.length - 1 : RECENT_DISPLAY_LIMIT - 1) && (
-                      <View style={styles.recentDivider} />
-                    )}
-                  </View>
-                ))}
-              </View>
+              {/* ── Tab toggle ── */}
+        <View style={styles.tabToggleContainer}>
+          <TouchableOpacity
+            style={[styles.tabToggleButton, activeTab === 'recent' && styles.tabToggleButtonActive]}
+            onPress={() => {
+              setActiveTab('recent')
+              setFavoritesSearchQuery('') 
+            }}
+          >
+            <Text style={[styles.tabToggleText, activeTab === 'recent' && styles.tabToggleTextActive]}>
+              Recent
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabToggleButton, activeTab === 'favorites' && styles.tabToggleButtonActive]}
+            onPress={() => {
+              setActiveTab('favorites')
+              setRecentSearchQuery('')
+            }}
+          >
+            <Text style={[styles.tabToggleText, activeTab === 'favorites' && styles.tabToggleTextActive]}>
+              Favorites
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-              {recentFoods.length > RECENT_DISPLAY_LIMIT && (
-                <TouchableOpacity style={styles.showMoreButton} onPress={() => setShowAllRecent(!showAllRecent)}>
-                  <Text style={styles.showMoreText}>
-                    {showAllRecent ? 'Show Less' : `Show More (${recentFoods.length - RECENT_DISPLAY_LIMIT} more)`}
-                  </Text>
-                  <Ionicons name={showAllRecent ? 'chevron-up' : 'chevron-down'} size={16} color="#206E6B" />
-                </TouchableOpacity>
+      {/* ── Recent tab ── */}
+      {activeTab === 'recent' && (
+  <View style={styles.recentSection}>
+    <View style={styles.searchBar}>
+      <Ionicons name="search" size={16} color={Colors.textMuted} />
+      <TextInput
+        style={styles.searchInput}
+        value={recentSearchQuery}
+        onChangeText={setRecentSearchQuery}
+        placeholder="Search recent foods..."
+        placeholderTextColor={Colors.textMuted}
+        returnKeyType="search"
+        clearButtonMode="while-editing"
+      />
+    </View>
+
+    {filteredRecentFoods.length === 0 && !loadingRecent ? (
+      <Text style={styles.emptyTabText}>
+        {recentSearchQuery ? 'No results found' : 'No recent foods yet'}
+      </Text>
+    ) : (
+      <View style={styles.recentCard}>
+        {(showAllRecent
+          ? filteredRecentFoods
+          : filteredRecentFoods.slice(0, RECENT_DISPLAY_LIMIT)
+        ).map((food, index) => (
+          <TouchableOpacity style={styles.recentItem} onPress={() => handleSelectRecent(food)}>
+        <View style={styles.recentInfo}>
+          <Text style={styles.recentName} numberOfLines={1}>{food.food_name}</Text>
+          <View style={styles.recentMacrosRow}>
+            <Text style={styles.recentCalories}>{food.calories} cal</Text>
+            {food.protein_grams != null && (
+              <>
+                <View style={styles.macroDot} />
+                <Ionicons name="barbell-outline" size={11} color={Colors.energyOrange} />
+                <Text style={styles.recentMacroText}>{Math.round(food.protein_grams)}g</Text>
+              </>
+            )}
+            {food.carbs_grams != null && (
+              <>
+                <View style={styles.macroDot} />
+                <Ionicons name="nutrition-outline" size={11} color={Colors.vividTeal} />
+                <Text style={styles.recentMacroText}>{Math.round(food.carbs_grams)}g</Text>
+              </>
+            )}
+            {food.fat_grams != null && (
+              <>
+                <View style={styles.macroDot} />
+                <Ionicons name="water-outline" size={11} color={Colors.steelBlue} />
+                <Text style={styles.recentMacroText}>{Math.round(food.fat_grams)}g</Text>
+              </>
+            )}
+          </View>
+        </View>
+        <View style={styles.recentAddButton}>
+          <Ionicons name="add" size={20} color="#206E6B" />
+        </View>
+      </TouchableOpacity>
+        ))}
+      </View>
+    )}
+
+    {filteredRecentFoods.length > RECENT_DISPLAY_LIMIT && !recentSearchQuery && (
+      <TouchableOpacity style={styles.showMoreButton} onPress={() => setShowAllRecent(!showAllRecent)}>
+        <Text style={styles.showMoreText}>
+          {showAllRecent ? 'Show Less' : `Show More (${filteredRecentFoods.length - RECENT_DISPLAY_LIMIT} more)`}
+        </Text>
+        <Ionicons name={showAllRecent ? 'chevron-up' : 'chevron-down'} size={16} color="#206E6B" />
+      </TouchableOpacity>
+    )}
+
+    {loadingRecent && (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="small" color="#206E6B" />
+      </View>
+    )}
+  </View>
+)}
+
+      {/* ── Favorites tab ── */}
+      {activeTab === 'favorites' && (
+  <View style={styles.recentSection}>
+    {loadingFavorites ? (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="small" color="#206E6B" />
+      </View>
+    ) : favoriteFoods.length === 0 ? (
+      <View style={styles.emptyFavoritesContainer}>
+        <Ionicons name="star-outline" size={32} color={Colors.textMuted} />
+        <Text style={styles.emptyFavoritesTitle}>No favorites yet</Text>
+        <Text style={styles.emptyFavoritesSubtext}>
+          Tap the star when logging a meal to save it here
+        </Text>
+      </View>
+    ) : (
+      <>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={16} color={Colors.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            value={favoritesSearchQuery}
+            onChangeText={setFavoritesSearchQuery}
+            placeholder="Search favorites..."
+            placeholderTextColor={Colors.textMuted}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+        </View>
+
+        {filteredFavoriteFoods.length === 0 ? (
+          <Text style={styles.emptyTabText}>No results found</Text>
+        ) : (
+          <View style={styles.recentCard}>
+            {filteredFavoriteFoods.map((food, index) => (
+              <View key={index}>
+                <TouchableOpacity
+                  style={styles.recentItem}
+                  onPress={() => handleLogFavorite(food)}
+                >
+                     <View style={styles.recentInfo}>
+            <Text style={styles.recentName} numberOfLines={1}>{food.food_name}</Text>
+            <View style={styles.recentMacrosRow}>
+              <Text style={styles.recentCalories}>{food.calories} cal</Text>
+              {food.protein_grams != null && (
+                <>
+                  <View style={styles.macroDot} />
+                  <Ionicons name="barbell-outline" size={11} color={Colors.energyOrange} />
+                  <Text style={styles.recentMacroText}>{Math.round(food.protein_grams)}g</Text>
+                </>
+              )}
+              {food.carbs_grams != null && (
+                <>
+                  <View style={styles.macroDot} />
+                  <Ionicons name="nutrition-outline" size={11} color={Colors.vividTeal} />
+                  <Text style={styles.recentMacroText}>{Math.round(food.carbs_grams)}g</Text>
+                </>
+              )}
+              {food.fat_grams != null && (
+                <>
+                  <View style={styles.macroDot} />
+                  <Ionicons name="water-outline" size={11} color={Colors.steelBlue} />
+                  <Text style={styles.recentMacroText}>{Math.round(food.fat_grams)}g</Text>
+                </>
               )}
             </View>
-          )}
-
-          {loadingRecent && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#206E6B" />
-            </View>
-          )}
+          </View>
+                  <View style={styles.recentAddButton}>
+                    <Ionicons name="add" size={20} color="#206E6B" />
+                  </View>
+                </TouchableOpacity>
+                {index < filteredFavoriteFoods.length - 1 && (
+                  <View style={styles.recentDivider} />
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+      </>
+    )}
+  </View>
+)}
         </ScrollView>
       </View>
       </>
@@ -755,16 +1242,6 @@ export function FoodLogSheet({
       </View>
     );
   }
-
-    <QuickReflectionModal
-      visible={showReflection && !!unreflectedMeal}
-      meal={unreflectedMeal!}
-      onComplete={() => {
-        setShowReflection(false);
-        setUnreflectedMeal(null);
-      }}
-    />
-
 
   // ── Manual entry screen ─────────────────────────────────────────────────────
   return (
@@ -827,27 +1304,31 @@ export function FoodLogSheet({
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Food description</Text>
-          {/*
-            nativeID links this input to the InputAccessoryView on iOS,
-            giving a "Done" button to dismiss the keyboard on multiline inputs.
-          */}
-          <TextInput
-            nativeID={INPUT_ACCESSORY_ID}
-            style={styles.textInput}
-            value={foodDescription}
-            onChangeText={(text: string) => {
-              setFoodDescription(text);
-              // Clear AI result if user edits description after estimating
-              if (selectedFood) {
-                clearAIResult();
-              }
-            }}
-            placeholder="e.g., Chicken salad with ranch dressing"
-            placeholderTextColor="#9CA3AF"
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-          />
+          <View style={styles.textInputWrapper}>
+            <TextInput
+              nativeID={INPUT_ACCESSORY_ID}
+              style={styles.textInputWithMic}
+              value={foodDescription}
+              onChangeText={(text: string) => {
+                setFoodDescription(text);
+                // Clear AI result if user edits description after estimating
+                if (selectedFood) {
+                  clearAIResult();
+                }
+              }}
+              placeholder={currentPlaceholder}
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+            <TouchableOpacity
+              style={styles.micButton}
+              onPress={() => setShowVoiceModal(true)}
+            >
+              <Ionicons name="mic" size={18} color={Colors.vividTeal} />
+            </TouchableOpacity>
+          </View>
 
           {selectedFood && (
             <View style={styles.aiEstimateBadge}>
@@ -883,6 +1364,38 @@ export function FoodLogSheet({
           </Text>
         ) : null}
 
+{selectedFood && (
+  <View style={styles.servingsContainer}>
+    <Text style={styles.label}>Servings</Text>
+    <View style={styles.servingsCard}>
+      <View style={styles.servingsStepper}>
+        <TouchableOpacity
+          style={styles.servingsStepButton}
+          onPress={() => {
+            const current = parseFloat(servings) || 1
+            const next = Math.max(0.5, current - 0.5)
+            handleServingsChange(next.toString())
+          }}
+        >
+          <Ionicons name="remove" size={22} color={Colors.steelBlue} />
+        </TouchableOpacity>
+
+        <Text style={styles.servingsValue}>{servings}</Text>
+
+        <TouchableOpacity
+          style={styles.servingsStepButton}
+          onPress={() => {
+            const current = parseFloat(servings) || 1
+            const next = current + 0.5
+            handleServingsChange(next.toString())
+          }}
+        >
+          <Ionicons name="add" size={22} color={Colors.steelBlue} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+)}
         {selectedFood && (
           <View style={styles.nutritionCard}>
             <Text style={styles.nutritionTitle}>Nutrition Info</Text>
@@ -892,7 +1405,7 @@ export function FoodLogSheet({
               <TextInput
                 style={styles.nutritionCaloriesInput}
                 value={editedCalories}
-                onChangeText={setEditedCalories}
+                onChangeText={handleCaloriesChange}
                 keyboardType="numeric"
                 returnKeyType="done"
                 onSubmitEditing={() => Keyboard.dismiss()}
@@ -908,7 +1421,7 @@ export function FoodLogSheet({
                 <TextInput
                   style={styles.nutritionValueInput}
                   value={editedProtein}
-                  onChangeText={setEditedProtein}
+                  onChangeText={(val) => handleMacroChange('protein', val)} 
                   keyboardType="numeric"
                   returnKeyType="done"
                   onSubmitEditing={() => Keyboard.dismiss()}
@@ -920,7 +1433,7 @@ export function FoodLogSheet({
                 <TextInput
                   style={styles.nutritionValueInput}
                   value={editedCarbs}
-                  onChangeText={setEditedCarbs}
+                  onChangeText={(val) => handleMacroChange('carbs', val)}
                   keyboardType="numeric"
                   returnKeyType="done"
                   onSubmitEditing={() => Keyboard.dismiss()}
@@ -932,7 +1445,7 @@ export function FoodLogSheet({
                 <TextInput
                   style={styles.nutritionValueInput}
                   value={editedFat}
-                  onChangeText={setEditedFat}
+                  onChangeText={(val) => handleMacroChange('fat', val)} 
                   keyboardType="numeric"
                   returnKeyType="done"
                   onSubmitEditing={() => Keyboard.dismiss()}
@@ -943,6 +1456,24 @@ export function FoodLogSheet({
             </View>
           </View>
         )}
+            {selectedFood && (
+            <TouchableOpacity
+              style={styles.favoriteButton}
+              onPress={() => setIsFavorite(prev => !prev)}
+            >
+              <Ionicons
+                name={isFavorite ? 'star' : 'star-outline'}
+                size={20}
+                color={isFavorite ? Colors.energyOrange : Colors.textMuted}
+              />
+              <Text style={[
+                styles.favoriteButtonText,
+                isFavorite && styles.favoriteButtonTextActive
+              ]}>
+                {isFavorite ? 'Added to favorites' : 'Add to favorites'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
         {/* ── Smart single CTA ── */}
         {!readyToSave ? (
@@ -981,6 +1512,22 @@ export function FoodLogSheet({
 
         <View style={styles.bottomPadding} />
       </ScrollView>
+      <QuickReflectionModal
+      visible={showReflection && !!unreflectedMeal}
+      meal={unreflectedMeal!}
+      onComplete={() => {
+        setShowReflection(false);
+        setUnreflectedMeal(null);
+      }}
+    />
+
+      <VoiceInputModal
+    visible={showVoiceModal}
+    onClose={() => setShowVoiceModal(false)}
+    onConfirm={(transcript) => {
+      setFoodDescription(transcript);
+    }}
+/>
     </KeyboardAvoidingView>
   );
 }
@@ -1070,7 +1617,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   recentSection: {
-    marginTop: 32,
+    marginTop: 10,
   },
   recentSectionTitle: {
     fontSize: 12,
@@ -1519,5 +2066,166 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  textInputWrapper: {
+    position: 'relative',
+  },
+  textInputWithMic: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    paddingRight: 52,
+    fontSize: 16,
+    color: '#504D47',
+    minHeight: 100,
+  },
+  micButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.tealOverlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  servingsContainer: {
+    marginBottom: 16,
+  },
+  servingsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 10,
+    gap: 8,
+    alignSelf: 'flex-start',
+    width: '100%',
+    maxWidth: 260,
+  },
+  servingsStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  servingsStepButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  servingsValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.graphite,
+    minWidth: 52,
+    textAlign: 'center',
+  },
+  favoriteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    gap: 8,
+    paddingVertical: 14,
+    marginBottom: 8,
+  },
+  favoriteButtonText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: Colors.textMuted,
+    textDecorationLine:'underline'
+  },
+  favoriteButtonTextActive: {
+    color: '#EF4444',
+  },
+  tabToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 4,
+    marginTop: 10,
+  },
+  tabToggleButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabToggleButtonActive: {
+    backgroundColor: Colors.vividTeal,
+  },
+  tabToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textMuted,
+  },
+  tabToggleTextActive: {
+    color: '#FFFFFF',
+  },
+  emptyTabText: {
+    textAlign: 'center',
+    color: Colors.textMuted,
+    fontSize: 14,
+    paddingVertical: 24,
+  },
+  emptyFavoritesContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 8,
+  },
+  emptyFavoritesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.graphite,
+  },
+  emptyFavoritesSubtext: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  favoriteTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 8,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.graphite,
+    paddingVertical: 0,
+  },
+  recentMacrosRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+    flexWrap: 'wrap',
+  },
+  recentMacroText: {
+    fontSize: 11,
+    color: Colors.steelBlue,
+    fontWeight: '500',
+  },
+  macroDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: Colors.border,
   },
 });

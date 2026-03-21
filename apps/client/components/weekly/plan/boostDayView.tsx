@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity,
-  StyleSheet, ActivityIndicator, ScrollView,
+  StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius, Shadows } from '@/constants/colors';
@@ -24,157 +23,237 @@ type Tier = {
 };
 
 const TIERS: Tier[] = [
-  { label: 'Light boost',    description: 'A little extra room',     amount: 200, icon: 'leaf-outline' },
-  { label: 'Moderate boost', description: 'Dinner out or a treat',   amount: 400, icon: 'restaurant-outline' },
-  { label: 'Big night',      description: 'Celebration or event',    amount: 600, icon: 'star-outline' },
+  { label: 'Light boost',    description: 'A little extra room',   amount: 200, icon: 'leaf-outline' },
+  { label: 'Moderate boost', description: 'Dinner out or a treat', amount: 400, icon: 'restaurant-outline' },
+  { label: 'Big night',      description: 'Celebration or event',  amount: 600, icon: 'star-outline' },
 ];
 
 export default function BoostDayView({ planData, onClose, onSaved }: Props) {
   const { days, userGoal, userGender, weeklyPeriodId } = planData;
-  const [selectedDay, setSelectedDay]   = useState<DayPlan | null>(null);
-  const [selectedTier, setSelectedTier] = useState<Tier | null>(null);
-  const [saving, setSaving]             = useState(false);
-  const [error, setError]               = useState<string | null>(null);
 
-  const comfortFloor    = calculateComfortFloor(userGoal, userGender);
-  const pickableDays    = days.filter((d) => !d.isPast && !d.isTreatDay);
+  const todayPlan = days.find(d => d.isToday) ?? null
+
+  // Detect active boost — any non-treat day with adjustedCalories above baseTarget
+  const hasActiveBoost = days.some(d =>
+    !d.isTreatDay &&
+    d.adjustedCalories != null &&
+    d.adjustedCalories > d.baseTarget
+  )
+
+  const boostedDay = days.find(d =>
+    !d.isTreatDay &&
+    d.adjustedCalories != null &&
+    d.adjustedCalories > d.baseTarget
+  ) ?? null
+
+  const boostAmount = boostedDay
+    ? boostedDay.adjustedCalories! - boostedDay.baseTarget
+    : 0
+
+  const [selectedDay]               = useState<DayPlan | null>(todayPlan)
+  const [selectedTier, setSelectedTier] = useState<Tier | null>(null)
+  const [saving, setSaving]             = useState(false)
+  const [removing, setRemoving]         = useState(false)
+  const [error, setError]               = useState<string | null>(null)
+
+  const comfortFloor = calculateComfortFloor(userGoal, userGender)
+  const pickableDays = days.filter(d => !d.isPast && !d.isTreatDay)
 
   function isTierSafe(tier: Tier, boostDay: DayPlan): boolean {
-    const otherDays       = pickableDays.filter((d) => d.date !== boostDay.date);
-    if (otherDays.length === 0) return false;
-    const reductionPerDay = tier.amount / otherDays.length;
-    return otherDays.every((d) => d.target - reductionPerDay >= comfortFloor);
+    const otherDays       = pickableDays.filter(d => d.date !== boostDay.date)
+    if (otherDays.length === 0) return false
+    const reductionPerDay = tier.amount / otherDays.length
+    return otherDays.every(d => d.target - reductionPerDay >= comfortFloor)
   }
 
   function getNewTargets(tier: Tier, boostDay: DayPlan): Record<string, number> {
-    const otherDays       = pickableDays.filter((d) => d.date !== boostDay.date);
-    const reductionPerDay = tier.amount / otherDays.length;
+    const otherDays       = pickableDays.filter(d => d.date !== boostDay.date)
+    const reductionPerDay = tier.amount / otherDays.length
     const result: Record<string, number> = {
       [boostDay.date]: boostDay.target + tier.amount,
-    };
+    }
     for (const day of otherDays) {
       result[day.date] = Math.max(
         Math.round(day.target - reductionPerDay),
         comfortFloor
-      );
+      )
     }
-    return result;
+    return result
   }
 
   async function handleConfirm() {
-    if (!selectedDay || !selectedTier) return;
-    setSaving(true);
-    setError(null);
+    if (!selectedDay || !selectedTier) return
+    setSaving(true)
+    setError(null)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
 
-      const newTargets = getNewTargets(selectedTier, selectedDay);
+      const newTargets = getNewTargets(selectedTier, selectedDay)
 
       const upserts = Object.entries(newTargets).map(([date, calories]) => ({
         user_id:           user.id,
         weekly_period_id:  weeklyPeriodId,
         target_date:       date,
         adjusted_calories: calories,
-      }));
+      }))
 
       const { error: upsertError } = await supabase
         .from('daily_target_adjustments')
-        .upsert(upserts, { onConflict: 'user_id,target_date' });
+        .upsert(upserts, { onConflict: 'user_id,target_date' })
 
-      if (upsertError) throw upsertError;
+      if (upsertError) throw upsertError
 
-      onSaved();
+      onSaved()
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message)
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
   }
 
+  async function handleRemoveBoost() {
+    Alert.alert(
+      'Reset week targets?',
+      'This will remove your boost and reset all days to even distribution.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            setRemoving(true)
+            setError(null)
+
+            try {
+              const { data: { user } } = await supabase.auth.getUser()
+              if (!user) throw new Error('Not authenticated')
+
+              const { error: deleteError } = await supabase
+                .from('daily_target_adjustments')
+                .delete()
+                .eq('user_id', user.id)
+                .eq('weekly_period_id', weeklyPeriodId)
+
+              if (deleteError) throw deleteError
+
+              onSaved()
+            } catch (err: any) {
+              setError(err.message)
+            } finally {
+              setRemoving(false)
+            }
+          },
+        },
+      ]
+    )
+  }
+
+  // ── Active boost view ───────────────────────────────────────────────────────
+  if (hasActiveBoost && boostedDay) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Ionicons name="sunny-outline" size={16} color={Colors.vividTeal} />
+            <Text style={styles.headerTitle}>Boost active this week</Text>
+          </View>
+          <TouchableOpacity onPress={onClose}>
+            <Ionicons name="close" size={18} color={Colors.steelBlue} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Boost summary */}
+        <View style={styles.boostSummaryCard}>
+          <View style={styles.boostSummaryLeft}>
+            <View style={styles.boostIconWrap}>
+              <Ionicons name="arrow-up-circle" size={20} color={Colors.vividTeal} />
+            </View>
+            <View>
+              <Text style={styles.boostSummaryLabel}>
+                {boostedDay.isToday
+                  ? 'Boosted today'
+                  : `Boosted on ${boostedDay.dayLabel}`}
+              </Text>
+              <Text style={styles.boostSummaryAmount}>
+                +{boostAmount} cal added
+              </Text>
+            </View>
+          </View>
+          <View style={styles.boostBadge}>
+            <Text style={styles.boostBadgeText}>Active</Text>
+          </View>
+        </View>
+
+        {/* Info note */}
+        <View style={styles.redistributeNote}>
+          <Ionicons name="information-circle-outline" size={14} color={Colors.steelBlue} />
+          <Text style={styles.redistributeText}>
+            Your other days have been slightly reduced to keep your weekly budget balanced.
+          </Text>
+        </View>
+
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        {/* Remove boost */}
+        <TouchableOpacity
+          style={[styles.removeBtn, removing && styles.confirmBtnDisabled]}
+          onPress={handleRemoveBoost}
+          disabled={removing}
+          activeOpacity={0.8}
+        >
+          {removing ? (
+            <ActivityIndicator color={Colors.error} size="small" />
+          ) : (
+            <>
+              <Ionicons name="refresh-outline" size={16} color={Colors.error} />
+              <Text style={styles.removeBtnText}>Reset week to even distribution</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
+  // ── New boost view ──────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="calendar-outline" size={16} color={Colors.vividTeal} />
-          <Text style={styles.headerTitle}>Save calories for a day</Text>
+          <Ionicons name="sunny-outline" size={16} color={Colors.vividTeal} />
+          <Text style={styles.headerTitle}>It all balances out over the week.</Text>
         </View>
         <TouchableOpacity onPress={onClose}>
           <Ionicons name="close" size={18} color={Colors.steelBlue} />
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.stepLabel}>
-        {!selectedDay ? 'Which day?' : 'How much extra?'}
-      </Text>
-
-      {/* Step 1 — Pick a day */}
       {!selectedDay ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.dayPicker}
-        >
-          {pickableDays.map((day) => (
-            <TouchableOpacity
-              key={day.date}
-              style={styles.dayChip}
-              onPress={() => setSelectedDay(day)}
-              activeOpacity={0.7}
-            >
-              <View style={[
-                styles.dayChipBadge,
-                day.isToday && styles.dayChipBadgeToday,
-              ]}>
-                <Text style={[
-                  styles.dayChipNumber,
-                  day.isToday && styles.dayChipNumberToday,
-                ]}>
-                  {day.dayNumber}
-                </Text>
-              </View>
-              <Text style={[
-                styles.dayChipLabel,
-                day.isToday && styles.dayChipLabelToday,
-              ]}>
-                {day.isToday ? 'Today' : day.dayLabel}
-              </Text>
-              <Text style={styles.dayChipTarget}>
-                {day.target.toLocaleString()} cal
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <Text style={styles.noTodayText}>
+          No target set for today yet.
+        </Text>
       ) : (
         <>
-          {/* Selected day summary */}
-          <TouchableOpacity
-            style={styles.selectedDayRow}
-            onPress={() => { setSelectedDay(null); setSelectedTier(null); }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.selectedDayBadge}>
-              <Text style={styles.selectedDayNumber}>{selectedDay.dayNumber}</Text>
+          {/* Today's current target */}
+          <View style={styles.todayRow}>
+            <View style={styles.todayBadge}>
+              <Ionicons name="today-outline" size={16} color={Colors.white} />
             </View>
-            <View style={styles.selectedDayInfo}>
-              <Text style={styles.selectedDayLabel}>
-                {selectedDay.isToday ? 'Today' : selectedDay.dayLabel}
-              </Text>
-              <Text style={styles.selectedDayTarget}>
-                {selectedDay.target.toLocaleString()} cal target
+            <View style={styles.todayInfo}>
+              <Text style={styles.todayLabel}>Today's target</Text>
+              <Text style={styles.todayTarget}>
+                {selectedDay.target.toLocaleString()} cal
               </Text>
             </View>
-            <Text style={styles.changeText}>Change</Text>
-          </TouchableOpacity>
+          </View>
 
-          {/* Step 2 — Pick a tier */}
+          {/* Tier selection */}
           <View style={styles.tierList}>
             {TIERS.map((tier) => {
-              const safe     = isTierSafe(tier, selectedDay);
-              const selected = selectedTier?.label === tier.label;
-              const newTarget = selectedDay.target + tier.amount;
+              const safe      = isTierSafe(tier, selectedDay)
+              const selected  = selectedTier?.label === tier.label
+              const newTarget = selectedDay.target + tier.amount
 
               return (
                 <TouchableOpacity
@@ -191,8 +270,8 @@ export default function BoostDayView({ planData, onClose, onSaved }: Props) {
                     name={tier.icon as any}
                     size={18}
                     color={
-                      !safe ? Colors.border :
-                      selected ? Colors.white :
+                      !safe    ? Colors.border :
+                      selected ? Colors.white  :
                       Colors.vividTeal
                     }
                   />
@@ -200,14 +279,14 @@ export default function BoostDayView({ planData, onClose, onSaved }: Props) {
                     <Text style={[
                       styles.tierLabel,
                       selected && styles.tierLabelSelected,
-                      !safe && styles.tierLabelDisabled,
+                      !safe    && styles.tierLabelDisabled,
                     ]}>
                       {tier.label}
                     </Text>
                     <Text style={[
                       styles.tierDescription,
                       selected && styles.tierDescriptionSelected,
-                      !safe && styles.tierDescriptionDisabled,
+                      !safe    && styles.tierDescriptionDisabled,
                     ]}>
                       {safe ? tier.description : 'Not enough buffer remaining'}
                     </Text>
@@ -216,24 +295,24 @@ export default function BoostDayView({ planData, onClose, onSaved }: Props) {
                     <Text style={[
                       styles.tierAmount,
                       selected && styles.tierAmountSelected,
-                      !safe && styles.tierAmountDisabled,
+                      !safe    && styles.tierAmountDisabled,
                     ]}>
                       +{tier.amount}
                     </Text>
                     <Text style={[
                       styles.tierNewTarget,
                       selected && styles.tierNewTargetSelected,
-                      !safe && styles.tierAmountDisabled,
+                      !safe    && styles.tierAmountDisabled,
                     ]}>
                       {newTarget.toLocaleString()} cal
                     </Text>
                   </View>
                 </TouchableOpacity>
-              );
+              )
             })}
           </View>
 
-          {/* What happens to other days */}
+          {/* Redistribute note */}
           {selectedTier && (
             <View style={styles.redistributeNote}>
               <Ionicons name="information-circle-outline" size={14} color={Colors.steelBlue} />
@@ -247,11 +326,8 @@ export default function BoostDayView({ planData, onClose, onSaved }: Props) {
             </View>
           )}
 
-          {error && (
-            <Text style={styles.errorText}>{error}</Text>
-          )}
+          {error && <Text style={styles.errorText}>{error}</Text>}
 
-          {/* Confirm */}
           <TouchableOpacity
             style={[
               styles.confirmBtn,
@@ -265,14 +341,14 @@ export default function BoostDayView({ planData, onClose, onSaved }: Props) {
               <ActivityIndicator color={Colors.white} size="small" />
             ) : (
               <Text style={styles.confirmBtnText}>
-                Confirm Boost
+                Add calories to today
               </Text>
             )}
           </TouchableOpacity>
         </>
       )}
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -292,66 +368,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    flex: 1,
+    marginRight: Spacing.sm,
   },
   headerTitle: {
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.vividTeal,
+    flexShrink: 1,
   },
-  stepLabel: {
-    fontSize: Typography.fontSize.xs,
-    fontWeight: Typography.fontWeight.medium,
-    color: Colors.steelBlue,
-  },
-
-  // Day picker
-  dayPicker: {
-    gap: Spacing.sm,
-    paddingBottom: Spacing.xs,
-  },
-  dayChip: {
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    minWidth: 72,
-    gap: Spacing.xs,
-    ...Shadows.small,
-  },
-  dayChipBadge: {
-    width: 36, height: 36,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.lightCream,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dayChipBadgeToday: {
-    backgroundColor: Colors.vividTeal,
-  },
-  dayChipNumber: {
+  noTodayText: {
     fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.graphite,
-  },
-  dayChipNumberToday: {
-    color: Colors.white,
-  },
-  dayChipLabel: {
-    fontSize: Typography.fontSize.xs,
-    fontWeight: Typography.fontWeight.medium,
-    color: Colors.graphite,
-  },
-  dayChipLabelToday: {
-    color: Colors.vividTeal,
-    fontWeight: Typography.fontWeight.semibold,
-  },
-  dayChipTarget: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.steelBlue,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: Spacing.lg,
   },
 
-  // Selected day
-  selectedDayRow: {
+  // Today row
+  todayRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
@@ -360,33 +394,69 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     ...Shadows.small,
   },
-  selectedDayBadge: {
-    width: 36, height: 36,
+  todayBadge: {
+    width: 36,
+    height: 36,
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.vividTeal,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  selectedDayNumber: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.white,
+  todayInfo:  { flex: 1 },
+  todayLabel: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.steelBlue,
+    marginBottom: 2,
   },
-  selectedDayInfo: { flex: 1 },
-  selectedDayLabel: {
+  todayTarget: {
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.graphite,
   },
-  selectedDayTarget: {
+
+  // Boost summary
+  boostSummaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    ...Shadows.small,
+  },
+  boostSummaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  boostIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.tealOverlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  boostSummaryLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.graphite,
+  },
+  boostSummaryAmount: {
     fontSize: Typography.fontSize.xs,
     color: Colors.steelBlue,
     marginTop: 2,
   },
-  changeText: {
+  boostBadge: {
+    backgroundColor: Colors.tealOverlay,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  boostBadgeText: {
     fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold,
     color: Colors.vividTeal,
-    fontWeight: Typography.fontWeight.medium,
   },
 
   // Tier cards
@@ -406,17 +476,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.vividTeal,
     borderColor: Colors.vividTeal,
   },
-  tierCardDisabled: {
-    opacity: 0.5,
-  },
+  tierCardDisabled: { opacity: 0.5 },
   tierInfo:  { flex: 1 },
   tierLabel: {
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.graphite,
   },
-  tierLabelSelected: { color: Colors.white },
-  tierLabelDisabled: { color: Colors.textMuted },
+  tierLabelSelected:  { color: Colors.white },
+  tierLabelDisabled:  { color: Colors.textMuted },
   tierDescription: {
     fontSize: Typography.fontSize.xs,
     color: Colors.steelBlue,
@@ -475,4 +543,22 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.bold,
     color: Colors.white,
   },
-});
+
+  // Remove boost
+  removeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1.5,
+    borderColor: Colors.error,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
+    backgroundColor: 'rgba(239,68,68,0.06)',
+  },
+  removeBtnText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.error,
+  },
+})

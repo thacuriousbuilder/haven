@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native'; 
 import { Colors, Spacing, BorderRadius } from '@/constants/colors';
 import { getMealIcon, formatNumber } from '@/utils/homeHelpers';
 import type { MealLogItem } from '@/types/home';
+import { Ionicons } from '@expo/vector-icons';
 
 interface MealListItemProps {
   meal: MealLogItem;
@@ -12,7 +12,6 @@ interface MealListItemProps {
 
 export function MealListItem({ meal, onPress }: MealListItemProps) {
   const iconName = getMealIcon(meal.mealType);
-
   const Container = onPress ? TouchableOpacity : View;
 
   return (
@@ -21,9 +20,20 @@ export function MealListItem({ meal, onPress }: MealListItemProps) {
       onPress={onPress}
       activeOpacity={onPress ? 0.6 : 1}
     >
-      {/* Left: Icon */}
+      {/* Left: Image or icon */}
       <View style={styles.iconContainer}>
-        <Ionicons name={iconName as any} size={20} color={Colors.vividTeal} />
+        {meal.image_url ? (
+        <Image
+        source={{ 
+          uri: meal.image_url,
+          cache: 'reload',
+        }}
+        style={styles.mealImage}
+        resizeMode="cover"
+      />
+        ) : (
+          <Ionicons name={iconName as any} size={20} color={Colors.vividTeal} />
+        )}
       </View>
 
       {/* Middle: Meal info */}
@@ -68,6 +78,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.lightCream,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden', // ← needed for image border radius
+  },
+  mealImage: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
   },
   content: {
     flex: 1,
@@ -105,4 +121,4 @@ const styles = StyleSheet.create({
     marginLeft: 2,
     opacity: 0.6,
   },
-});
+})

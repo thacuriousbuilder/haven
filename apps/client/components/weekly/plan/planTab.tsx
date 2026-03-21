@@ -8,6 +8,7 @@ import { Colors, Spacing, Typography, BorderRadius, Shadows } from '@/constants/
 import { usePlanData } from '@/hooks/usePlanData';
 import BudgetView from './budgetView';
 import TreatDaysView from './treatDaysView';
+import { Ionicons } from '@expo/vector-icons';
 
 type PlanToggle = 'budget' | 'treatdays';
 
@@ -22,13 +23,23 @@ export default function PlanTab() {
       </View>
     );
   }
-
-  if (error || !planData) {
+  
+  if (error === 'baseline') {
     return (
       <View style={styles.centered}>
-        <Text style={styles.errorText}>Could not load plan data.</Text>
+        <Ionicons name="time-outline" size={32} color={Colors.steelBlue} />
+        <Text style={styles.emptyTitle}>Your plan is almost ready</Text>
+        <Text style={styles.emptySubtitle}>
+          Complete your baseline week to unlock your weekly budget and plan.
+        </Text>
       </View>
     );
+  }
+
+  // Safety guard: if something went wrong and we have no plan data,
+  // render nothing for now rather than crashing.
+  if (!planData) {
+    return null;
   }
 
   return (
@@ -117,5 +128,19 @@ const styles = StyleSheet.create({
   placeholder: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textMuted,
+  },
+  emptyTitle: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.graphite,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    marginTop: Spacing.xs,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.steelBlue,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
   },
 });

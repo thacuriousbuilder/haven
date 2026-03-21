@@ -120,9 +120,9 @@ export default function ManageCaloriesCard({ planData, refetch }: Props) {
         activeOpacity={0.8}
       >
         <View style={styles.cardLeft}>
-          <Text style={styles.cardTitle}>Save calories for a day</Text>
+          <Text style={styles.cardTitle}>Hungrier than usual today?</Text>
           <Text style={styles.cardSubtitle}>
-            Plan ahead for a dinner out or special occasion
+          Your week can flex — adjust your calories.
           </Text>
         </View>
         <View style={styles.manageBtnWrapper}>

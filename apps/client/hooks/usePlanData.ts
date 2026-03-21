@@ -14,6 +14,8 @@ export type DayPlan = {
   isToday: boolean;
   isPast: boolean;
   isAdjusted: boolean;
+  baseTarget: number;  
+  adjustedCalories: number | null;  
 };
 
 export type PlanData = {
@@ -60,14 +62,19 @@ export function usePlanData() {
       const userGender = profile?.gender ?? 'male';
 
       // 2. Fetch current weekly period
-      const { data: period, error: periodError } = await supabase
-        .from('weekly_periods')
-        .select('id, weekly_budget, week_start_date, week_end_date')
-        .eq('user_id', user.id)
-        .eq('week_start_date', monday)
-        .single();
-
-      if (periodError) throw periodError;
+      const { data: period } = await supabase
+      .from('weekly_periods')
+      .select('id, weekly_budget, week_start_date, week_end_date')
+      .eq('user_id', user.id)
+      .eq('week_start_date', monday)
+      .maybeSingle(); // won't error if no row found
+    
+    if (!period) {
+      // Baseline user — no weekly period yet
+      setError('baseline');
+      setLoading(false);
+      return;
+    }
 
       // 3. Fetch food logs for this week
       const { data: logs, error: logsError } = await supabase
@@ -148,6 +155,8 @@ export function usePlanData() {
           isToday,
           isPast,
           isAdjusted: adjMap.has(dateStr),
+          baseTarget:       baseTarget,   
+          adjustedCalories: adjMap.get(dateStr) ?? null, 
         });
       }
 

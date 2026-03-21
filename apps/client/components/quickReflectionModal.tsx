@@ -20,7 +20,7 @@ const EAT_REASONS = [
 const SATIETY_OPTIONS = ['Yes', 'Somewhat', 'No'];
 
 type Props = {
-  meal: UnreflectedMeal;
+  meal: UnreflectedMeal | null;
   visible: boolean;
   onComplete: () => void;
 };
@@ -39,6 +39,7 @@ export default function QuickReflectionModal({ meal, visible, onComplete }: Prop
   }
 
   async function handleSave() {
+    if (!meal) return;
     setSaving(true);
     await supabase
       .from('food_logs')
@@ -49,6 +50,27 @@ export default function QuickReflectionModal({ meal, visible, onComplete }: Prop
       .eq('id', meal.id);
     setSaving(false);
     onComplete();
+  }
+
+  if (!meal) {
+    return (
+      <Modal
+        visible={visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={onComplete}
+      >
+        <SafeAreaView style={styles.safeArea}>
+          <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: Spacing.lg }]}>
+            <Text style={styles.title}>Quick Reflection</Text>
+            <Text style={styles.subtitle}>No meal found to reflect on.</Text>
+            <TouchableOpacity onPress={onComplete} activeOpacity={0.7} style={styles.skipBtn}>
+              <Text style={styles.skipText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+    );
   }
 
   return (
