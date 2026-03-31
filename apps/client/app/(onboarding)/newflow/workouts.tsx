@@ -1,71 +1,73 @@
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useOnboarding } from '@/contexts/onboardingContext';
 import { ProgressBar } from '@/components/onboarding/progressBar';
 import { OptionCard } from '@/components/onboarding/optionCard';
 import { BackButton } from '@/components/onboarding/backButton';
-import { Gender } from '@/types/onboarding';
+import { WorkoutFrequency } from '@/types/onboarding';
 
-export default function GenderScreen() {
+export default function WorkoutsScreen() {
   const { data, updateData } = useOnboarding();
 
-  const handleSelectGender = (gender: Gender) => {
-    updateData({ gender });
+  const handleSelectWorkout = (frequency: WorkoutFrequency) => {
+    updateData({ workoutFrequency: frequency });
   };
 
   const handleContinue = () => {
-    if (!data.gender) {
-      Alert.alert('Selection Required', 'Please select your gender to continue');
+    if (!data.workoutFrequency) {
+      Alert.alert('Selection Required', 'Please select your workout frequency to continue');
       return;
     }
-    router.push('/(onboarding)/birthDate');
+    router.push('/newflow/activityLevel');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-     <BackButton onPress={() => router.replace('/(auth)/signup')} />
-      <ProgressBar currentStep={1} totalSteps={14} />
+      <BackButton />
+      <ProgressBar currentStep={10} totalSteps={15} />
       
       <View style={styles.content}>
-        <View style={styles.topSection}>
-          <Text style={styles.title}>Choose your Gender</Text>
-          <Text style={styles.description}>
-            This will be use to tailor your plan.
-          </Text>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.title}>How often do you intentionally work out?</Text>
+          <Text style={styles.description}>This will be use to tailor your plan.</Text>
 
           <View style={styles.options}>
             <OptionCard
-              title="Male"
-              description=""
-              selected={data.gender === 'male'}
-              onPress={() => handleSelectGender('male')}
+              title="0-2"
+              description="Workout now and then"
+              selected={data.workoutFrequency === '0-2'}
+              onPress={() => handleSelectWorkout('0-2')}
             />
             <OptionCard
-              title="Female"
-              description=""
-              selected={data.gender === 'female'}
-              onPress={() => handleSelectGender('female')}
+              title="3-5"
+              description="A few workouts per week"
+              selected={data.workoutFrequency === '3-5'}
+              onPress={() => handleSelectWorkout('3-5')}
             />
             <OptionCard
-              title="Other"
-              description=""
-              selected={data.gender === 'other'}
-              onPress={() => handleSelectGender('other')}
+              title="6+"
+              description="Dedicated Athlete"
+              selected={data.workoutFrequency === '6+'}
+              onPress={() => handleSelectWorkout('6+')}
             />
           </View>
-        </View>
+        </ScrollView>
 
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[
               styles.continueButton,
-              !data.gender && styles.continueButtonDisabled
+              !data.workoutFrequency && styles.continueButtonDisabled
             ]}
             onPress={handleContinue}
-            disabled={!data.gender}
+            disabled={!data.workoutFrequency}
             activeOpacity={0.8}
           >
             <Text style={styles.continueButtonText}>Continue</Text>
@@ -85,10 +87,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 32,
-    justifyContent: 'space-between',
   },
-  topSection: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   title: {
     fontSize: 24,
@@ -98,8 +102,8 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#fff',
-    marginBottom: 32,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginBottom: 24,
     lineHeight: 20,
   },
   options: {
@@ -107,6 +111,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     paddingBottom: 24,
+    paddingTop: 16,
   },
   continueButton: {
     backgroundColor: '#206E6B',

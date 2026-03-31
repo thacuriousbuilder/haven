@@ -186,7 +186,7 @@ async function handleAppleSignIn() {
               Don't have an account?{' '}
               <Text 
                 style={styles.footerLink}
-                onPress={() => !loading && router.push('/(auth)/signup')}
+                onPress={() => !loading && router.push('/(onboarding)/newflow/interstitial1')}
               >
                 Sign up
               </Text>

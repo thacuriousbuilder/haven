@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useOnboarding } from '@/contexts/onboardingContext';
 import { validatePassword } from '@/utils/passwordValidation';
 import { sanitizeInput } from '@/utils/sanitize';
+import { useLocalSearchParams } from 'expo-router';
 
 export default function EmailSignup() {
   const { updateData } = useOnboarding();
@@ -30,7 +31,7 @@ export default function EmailSignup() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+  const { returnTo } = useLocalSearchParams<{ returnTo: string }>();
   const passwordStrength = validatePassword(password);
 
   async function handleSignUp() {
@@ -78,7 +79,7 @@ export default function EmailSignup() {
 
     if (data.user || data.session) {
       updateData({ firstName: firstName.trim(), lastName: lastName.trim() });
-      router.replace('/(onboarding)/gender');
+      router.replace((returnTo as any) || '/newflow/interstitial3');
     }
   }
 

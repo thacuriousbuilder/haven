@@ -34,7 +34,6 @@ function mapGoal(goal: Goal): 'lose_weight' | 'gain_weight' | 'maintain_weight' 
   const goalMap: Record<Goal, 'lose_weight' | 'gain_weight' | 'maintain_weight'> = {
     'lose': 'lose_weight',
     'gain': 'gain_weight',
-    'maintain': 'maintain_weight',
   };
   
   return goalMap[goal] || 'maintain_weight';

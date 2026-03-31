@@ -25,14 +25,14 @@ export default function WeeklyGoalScreen() {
   const handleContinue = () => {
     if (selectedGoal) {
       updateData({ weeklyGoalRate: selectedGoal });
-      router.push('/(onboarding)/whyWorks2');
+      router.push('/newflow/transition3');
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={7} totalSteps={14} />
+      <ProgressBar currentStep={9} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 

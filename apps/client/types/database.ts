@@ -30,6 +30,14 @@ export interface UserProfile {
   push_notifications_enabled: boolean;
   meal_reminders_enabled: boolean;
   daily_checkin_time: string; // Time string (HH:MM:SS)
+  plan_path: 'baseline' | 'estimate' | null;
+  breakfast_time: string;
+  lunch_time: string;
+  dinner_time: string;
+  evening_recap_enabled: boolean;
+  evening_recap_time: string;
+  choose_goals: string[];
+  choose_obstacles: string[];
 
 }
 

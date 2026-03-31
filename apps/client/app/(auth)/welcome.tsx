@@ -82,9 +82,9 @@ function AnimatedProgressDot({ index, currentIndex }: { index: number; currentIn
 
 export default function Welcome() {
     // UNCOMMENT TO RESET WELCOME 
-  // useEffect(() => {
-  //   AsyncStorage.removeItem('@haven_welcome_completed');
-  // }, []);
+  useEffect(() => {
+    AsyncStorage.removeItem('@haven_welcome_completed');
+  }, []);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -199,7 +199,7 @@ export default function Welcome() {
 
   const handleGetStarted = async () => {
     await markWelcomeCompleted();
-    router.push('/(auth)/signup');
+    router.push('/(onboarding)/newflow/interstitial1');
   };
 
   const handleSignIn = async () => {
@@ -281,47 +281,36 @@ export default function Welcome() {
   return (
     <SafeAreaView style={styles.tealContainer} edges={['top', 'bottom']}>
       <View style={styles.tealContent}>
-
-        <Animated.View 
-          style={[
-            styles.welcomeHeader,
-            {
-              opacity: headerOpacity,
-              transform: [{ translateY: headerTranslateY }],
-            },
-          ]}
+  
+        <Animated.View
+          style={[styles.welcomeHeader, {
+            opacity: headerOpacity,
+            transform: [{ translateY: headerTranslateY }],
+          }]}
         >
           <Text style={styles.welcomeToText}>Welcome to</Text>
           <Text style={styles.havenText}>HAVEN</Text>
           <Text style={styles.taglineText}>Enjoy Food. Hit Your Goals</Text>
         </Animated.View>
-
-        {/* Main Message - Animated */}
-        <Animated.View 
-          style={[
-            styles.mainMessage,
-            {
-              opacity: messageOpacity,
-              transform: [{ translateY: messageTranslateY }],
-            },
-          ]}
+  
+        <Animated.View
+          style={[styles.mainMessage, {
+            opacity: messageOpacity,
+            transform: [{ translateY: messageTranslateY }],
+          }]}
         >
-          <Text style={styles.treatText}>
-            TREAT{' '}
-            <Text style={styles.cheatStrikethrough}>"Cheat"</Text>{' '}
-            days are{'\n'}part of the plan
-          </Text>
+        <Text style={styles.mainText}>
+          Stop obsessing over{'\u00A0'}
+          <Text style={styles.orangeText}>daily calories.</Text>
+        </Text>
+          <Text style={styles.subText}>Balance your week instead!</Text>
         </Animated.View>
-
-        {/* CTAs - Animated */}
-        <Animated.View 
-          style={[
-            styles.ctaContainer,
-            {
-              opacity: ctaOpacity,
-              transform: [{ translateY: ctaTranslateY }],
-            },
-          ]}
+  
+        <Animated.View
+          style={[styles.ctaContainer, {
+            opacity: ctaOpacity,
+            transform: [{ translateY: ctaTranslateY }],
+          }]}
         >
           <TouchableOpacity
             style={styles.getStartedButton}
@@ -330,13 +319,11 @@ export default function Welcome() {
           >
             <Text style={styles.getStartedButtonText}>Get Started</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity 
-            onPress={handleSignIn}
-            activeOpacity={0.6}
-          >
+  
+          <TouchableOpacity onPress={handleSignIn} activeOpacity={0.6}>
             <Text style={styles.signInText}>
-              Already have an account? <Text style={styles.signInLink}>Sign in</Text>
+              Already have an account?{' '}
+              <Text style={styles.signInLink}>Sign in</Text>
             </Text>
           </TouchableOpacity>
         </Animated.View>
@@ -344,7 +331,6 @@ export default function Welcome() {
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
 
@@ -446,24 +432,28 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   mainMessage: {
-    flex:1,
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 40,
+    gap: 16,
   },
-  treatText: {
-    fontSize: 32,
+  mainText: {
+    fontSize: 28,
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 44,
-    paddingHorizontal: 20,
+    lineHeight: 42,
+    paddingHorizontal: 8,
   },
-  cheatStrikethrough: {
+  orangeText: {
     color: Colors.energyOrange,
-    textDecorationLine: 'line-through',
-    textDecorationStyle: 'solid',
-    textDecorationColor: Colors.energyOrange,
+  },
+  subText: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    fontWeight: '300',
+    textAlign: 'center',
   },
   ctaContainer: {
     gap: 16,

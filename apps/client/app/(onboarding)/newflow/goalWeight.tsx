@@ -71,7 +71,7 @@ export default function GoalWeightScreen() {
     }
 
     updateData({ goalWeight: finalGoalWeight });
-    router.push('/(onboarding)/weeklyGoal');
+    router.push('/newflow/weeklyGoal');
   };
 
   const handleLbsChange = (text: string) => {
@@ -99,7 +99,7 @@ export default function GoalWeightScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={6} totalSteps={14} />
+      <ProgressBar currentStep={8} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 

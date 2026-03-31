@@ -21,13 +21,13 @@ export default function ActivityLevelScreen() {
       Alert.alert('Selection Required', 'Please select your activity level to continue');
       return;
     }
-    router.push('/(onboarding)/trainerCode');
+    router.push('/newflow/planPath');
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={10} totalSteps={14} />
+      <ProgressBar currentStep={11} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 
@@ -35,31 +35,31 @@ export default function ActivityLevelScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.title}>What is your activity level?</Text>
+          <Text style={styles.title}>How active are your days outside of workouts?</Text>
           <Text style={styles.description}>This will be use to tailor your plan.</Text>
 
           <View style={styles.options}>
             <OptionCard
-              title="Not Very Active"
-              description="Mostly desk-based day with little to no intentional movement"
+              title="Mostly sitting"
+              description="Desk job, studying, relaxing most of the day"
               selected={data.activityLevel === 'not_very_active'}
               onPress={() => handleSelectActivity('not_very_active')}
             />
             <OptionCard
-              title="Lightly Active"
-              description="Mix of sitting and light movement, walking meetings, errands, light chores"
+              title="On my feet often"
+              description="Walking, standing, moving around regularly"
               selected={data.activityLevel === 'lightly_active'}
               onPress={() => handleSelectActivity('lightly_active')}
             />
             <OptionCard
-              title="Active"
-              description="Regularly on your feet or doing physical activity most of the day"
+              title="Moving a lot"
+              description="Active job or constantly on the go"
               selected={data.activityLevel === 'active'}
               onPress={() => handleSelectActivity('active')}
             />
             <OptionCard
-              title="Very Active"
-              description="Physically demanding day job or intense daily training"
+              title="Very physically active"
+              description="Manual labor, high daily movement"
               selected={data.activityLevel === 'very_active'}
               onPress={() => handleSelectActivity('very_active')}
             />

@@ -1,4 +1,5 @@
 
+
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
@@ -12,25 +13,28 @@ export default function Index() {
 
     const checkUserAndRoute = async (userId: string) => {
       console.log('checkUserAndRoute called for:', userId);
-      
+
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('onboarding_completed')
         .eq('id', userId)
         .maybeSingle();
-    
+
       console.log('profile:', JSON.stringify(profile));
       console.log('error:', JSON.stringify(error));
-    
+
       if (profile?.onboarding_completed) {
         console.log('routing to home');
         router.replace('/(tabs)/home');
       } else {
-        console.log('routing to gender');
-        router.replace('/(onboarding)/gender');
+        // No profile or onboarding incomplete — go to welcome
+        // Mid-flow signups are handled by the onboarding screens directly
+        console.log('routing to welcome');
+        router.replace('/(auth)/welcome');
       }
     };
 
+    // Only runs on app open — checks existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         checkUserAndRoute(session.user.id);
@@ -43,9 +47,10 @@ export default function Index() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!initialCheckDone) return;
-      if (event === 'SIGNED_IN' && session) {
-        checkUserAndRoute(session.user.id);
-      } else if (event === 'SIGNED_OUT') {
+
+      // SIGNED_IN during mid-flow onboarding is handled by signup.tsx directly
+      // Only handle SIGNED_OUT here
+      if (event === 'SIGNED_OUT') {
         router.replace('/(auth)/welcome');
       }
     });

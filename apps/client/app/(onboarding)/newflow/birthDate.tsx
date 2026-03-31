@@ -80,7 +80,7 @@ export default function BirthdateScreen() {
       birthYear: selectedDate.getFullYear(),
     });
     
-    router.push('/(onboarding)/heightWeight');
+    router.push('/newflow/heightWeight');
   };
 
   const age = calculateAge(selectedDate);
@@ -88,7 +88,7 @@ export default function BirthdateScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={2} totalSteps={14} />
+      <ProgressBar currentStep={6} totalSteps={15} />
       
       <View style={styles.content}>
         <View style={styles.topSection}>

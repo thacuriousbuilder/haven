@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   InputAccessoryView,
   Keyboard,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -885,6 +886,11 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
   // ── Gallery note review screen ──────────────────────────────────────────────
   if (pendingNoteReview && selectedImage) {
     return (
+      <Modal
+      visible={pendingNoteReview && !!selectedImage}
+      animationType="slide"
+      presentationStyle="fullScreen"
+    >
       <KeyboardAvoidingView
         style={styles.galleryReviewContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -906,7 +912,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-
+    
         <View style={styles.galleryBottomOverlay}>
           <TextInput
             style={styles.galleryNoteInput}
@@ -918,7 +924,6 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
             maxLength={150}
           />
           <Text style={styles.galleryCharCount}>{sheetUserNote.length}/150</Text>
-
           <View style={styles.galleryActions}>
             <TouchableOpacity
               style={styles.galleryRetakeButton}
@@ -932,13 +937,12 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
               <Ionicons name="images-outline" size={18} color="#FFFFFF" />
               <Text style={styles.galleryRetakeButtonText}>Reselect</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.galleryAnalyzeButton}
               onPress={() => {
                 setPendingNoteReview(false);
                 setSelectedMethod('image');
-                processImageWithAI(selectedImage, sheetUserNote.trim());
+                processImageWithAI(selectedImage!, sheetUserNote.trim());
               }}
             >
               <Ionicons name="sparkles" size={18} color="#FFFFFF" />
@@ -947,6 +951,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
           </View>
         </View>
       </KeyboardAvoidingView>
+    </Modal>
     );
   }
 
@@ -1989,7 +1994,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   galleryPhotoContainer: {
-    flex: 1,
+   flex:1,
     position: 'relative',
   },
   galleryPhoto: {

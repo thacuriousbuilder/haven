@@ -1,6 +1,7 @@
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ProgressBar } from '@/components/onboarding/progressBar';
@@ -9,57 +10,44 @@ import { ApproachComparisonCard } from '@/components/onboarding/approachComparis
 import { Colors } from '@/constants/colors';
 
 export default function WhyWorks3Screen() {
-  const handleContinue = () => {
-    router.push('/(onboarding)/commitment');
-  };
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
-      <BackButton 
-        backgroundColor="#000"
-        iconColor="#fff"
-      />
-      <ProgressBar 
-        currentStep={12} 
-        totalSteps={14}
+      <BackButton backgroundColor="#000" iconColor="#fff" />
+      <ProgressBar
+        currentStep={12}
+        totalSteps={15}
         backgroundColor="rgba(255, 255, 255, 0.3)"
         fillColor="#fff"
       />
-      
-      <View style={styles.content}>
-        <ScrollView 
+
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Label */}
           <Text style={styles.label}>The HAVEN Approach</Text>
-          
-          {/* Main Title */}
+
           <Text style={styles.title}>
-            Most apps guess. HAVEN listens
+            Most apps guess.{'\n'}HAVEN listens
           </Text>
-          
-          {/* Subheading */}
+
           <Text style={styles.subheading}>
-            Other apps plug your stats into a formula and call it a day. That number could be off by <Text style={styles.subheadingBold}>hundreds of calories</Text>
+            Other apps plug your stats into a formula and call it a day. That number could be off by{' '}
+            <Text style={styles.subheadingBold}>hundreds of calories</Text>
           </Text>
 
-          {/* Comparison Cards */}
           <View style={styles.comparisonContainer}>
-            <ApproachComparisonCard
-              icon="close-circle"
-              iconColor={Colors.energyOrange}
-              title="OTHER APPS"
-              titleColor="rgba(255, 255, 255, 0.5)"
-              calories="2,200"
-              badge="Estimated"
-              badgeColor={Colors.energyOrange}
-              description="Age + Height + Weight"
-              descriptionHighlight="= generic estimate"
-              backgroundColor="rgba(255, 255, 255, 0.12)"
-            />
-
             <ApproachComparisonCard
               icon="checkmark-circle"
               iconColor="#4CAF50"
@@ -72,24 +60,36 @@ export default function WhyWorks3Screen() {
               descriptionHighlight="real eating + movement = your actual maintenance"
               backgroundColor="rgba(0, 0, 0, 0.25)"
             />
+            <ApproachComparisonCard
+              icon="close-circle"
+              iconColor={Colors.energyOrange}
+              title="OTHER APPS"
+              titleColor="rgba(255, 255, 255, 0.5)"
+              calories="2,200"
+              badge="Estimated"
+              badgeColor={Colors.energyOrange}
+              description="Age + Height + Weight"
+              descriptionHighlight="= generic estimate"
+              backgroundColor="rgba(255, 255, 255, 0.12)"
+            />
           </View>
 
-          {/* Bottom Description */}
           <Text style={styles.description}>
-            That 250 calorie difference is everything. It's the reason diets feel impossible. <Text style={styles.descriptionBold}>HAVEN gets it right from the start.</Text>
+            That 250 calorie difference is everything. It's the reason diets feel impossible.{' '}
+            <Text style={styles.descriptionBold}>
+              HAVEN gets it right from the start.
+            </Text>
           </Text>
-        </ScrollView>
 
-        <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={styles.continueButton}
-            onPress={handleContinue}
-            activeOpacity={0.8}
+            style={styles.tapPrompt}
+            activeOpacity={1}
+            onPress={() => router.push('/newflow/commitment')}
           >
-            <Text style={styles.continueButtonText}>Continue</Text>
+            <Text style={styles.tapText}>Tap to continue</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </ScrollView>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -104,12 +104,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 32,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingBottom: 32 },
   label: {
     fontSize: 16,
     fontWeight: '600',
@@ -118,10 +114,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
     color: '#fff',
-    lineHeight: 32,
+    lineHeight: 36,
     marginBottom: 16,
   },
   subheading: {
@@ -135,6 +131,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   comparisonContainer: {
+    gap: 12,
     marginBottom: 8,
   },
   description: {
@@ -142,31 +139,19 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.85)',
     lineHeight: 24,
     marginTop: 16,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   descriptionBold: {
     fontWeight: '700',
     color: '#fff',
   },
-  buttonContainer: {
-    paddingBottom: 24,
-    paddingTop: 16,
-  },
-  continueButton: {
-    backgroundColor: '#fff',
-    paddingVertical: 18,
-    borderRadius: 50,
+  tapPrompt: {
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingTop: 24,
   },
-  continueButtonText: {
-    color: Colors.graphite,
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+  tapText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '400',
   },
 });
