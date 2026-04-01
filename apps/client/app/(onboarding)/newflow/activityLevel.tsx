@@ -21,7 +21,8 @@ export default function ActivityLevelScreen() {
       Alert.alert('Selection Required', 'Please select your activity level to continue');
       return;
     }
-    router.push('/newflow/planPath');
+    updateData({ planPath: 'estimate' });
+    router.push('/newflow/transition4');
   };
 
   return (

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert, Button } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import { supabase } from '@haven/shared-utils';
+import { supabase, utcToLocalDateString } from '@haven/shared-utils';
 import { Ionicons } from '@expo/vector-icons';
 import WeeklyCalendar from '@/components/weeklyCalendar';
 import { 
@@ -55,6 +55,7 @@ interface ProfileData {
   daily_target: number | null;
   baseline_completion_at: string | null;
   updated_at: string | null;
+  created_at: string | null;
 }
 
 interface FoodLog {
@@ -154,8 +155,14 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+     
+      if (profile?.created_at) {
+        const signupDate = utcToLocalDateString(profile.created_at);
+        const todayDate = getLocalDateString();
+        if (signupDate === todayDate) return;
+      }
       checkDailyCheckIn();
-    }, [])
+    }, [profile])
   );
 
 
@@ -841,14 +848,14 @@ const restartBaseline = async () => {
 };
 
 const checkDailyCheckIn = async () => {
+  console.log('🔍 checkDailyCheckIn called from:', new Error().stack?.split('\n')[2]);
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // 1. Load profile to check user status
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('baseline_start_date, baseline_completion_at')
+      .select('baseline_start_date, baseline_completion_at, created_at')
       .eq('id', user.id)
       .single();
 
@@ -858,29 +865,37 @@ const checkDailyCheckIn = async () => {
     }
 
     const todayDate = getLocalDateString();
-    const isBaselineUser = profile.baseline_start_date && !profile.baseline_completion_at;
 
-    // 2. Skip check-in on Day 1 of baseline (only for baseline users)
+    // Don't show check-in on signup day
+    const signupDate = profile.created_at
+      ? utcToLocalDateString(profile.created_at)
+      : null;
+
+    if (signupDate === todayDate) {
+      setShowCheckInReminder(false);
+      return;
+    }
+
+    // Existing baseline day 1 check
+    const isBaselineUser = profile.baseline_start_date && !profile.baseline_completion_at;
     if (isBaselineUser && profile.baseline_start_date === todayDate) {
       setShowCheckInReminder(false);
       return;
     }
 
-    // 3. Check if user has checked in today
+    // Check if user has checked in today
     const { data: checkIn, error: checkInError } = await supabase
       .from('check_ins')
       .select('id')
       .eq('user_id', user.id)
       .eq('check_in_date', todayDate)
-      .eq('skipped', false) 
+      .eq('skipped', false)
       .maybeSingle();
 
     if (checkInError) {
       console.error('Error checking check-in status:', checkInError);
       return;
     }
-
-    // 4. Show reminder if not checked in (works for both baseline and active users)
     setShowCheckInReminder(!checkIn);
 
   } catch (error) {
@@ -1049,7 +1064,7 @@ const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      router.replace('/(auth)/welcome')
+      setLoading(false)
       return
     }
 

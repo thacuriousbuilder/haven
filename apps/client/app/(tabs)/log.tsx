@@ -26,10 +26,8 @@ export default function LogScreen() {
         pathname: '/(tabs)/weekly',
         params: { showEveningRecap: 'true' },
       });
-    } else if (router.canDismiss()) {
-      router.dismissAll();
     } else {
-      router.push('/(tabs)/home');
+      router.replace('/(tabs)/home');
     }
   };
   return (

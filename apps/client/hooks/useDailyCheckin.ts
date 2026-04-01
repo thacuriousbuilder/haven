@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '@haven/shared-utils';
-import { getLocalDateString } from '@haven/shared-utils';
+import { getLocalDateString, utcToLocalDateString } from '@haven/shared-utils';
 
 const CHECK_IN_HOUR = 6;
 
@@ -37,9 +37,31 @@ export function useDailyCheckIn() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // GATE 3: Already checked in today?
       const today = getLocalDateString();
 
+      // GATE 3: Signup day check
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('created_at, baseline_start_date, baseline_completion_at')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.created_at) {
+        const signupDate = utcToLocalDateString(profile.created_at);
+        if (signupDate === today) {
+          console.log('🆕 Signup day — skipping check-in prompt');
+          return;
+        }
+      }
+
+      // GATE 4: Baseline day 1 check
+      const isBaselineUser = profile?.baseline_start_date && !profile?.baseline_completion_at;
+      if (isBaselineUser && profile.baseline_start_date === today) {
+        console.log('📅 Baseline day 1 — skipping check-in prompt');
+        return;
+      }
+
+      // GATE 5: Already checked in today?
       const { data: existingCheckIn } = await supabase
         .from('check_ins')
         .select('id')

@@ -612,11 +612,11 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
 
         const { data: profileBudget } = await supabase
           .from('profiles')
-          .select('weekly_calorie_budget')
+          .select('weekly_budget')
           .eq('id', user.id)
           .single();
 
-        if (summaries && profileBudget?.weekly_calorie_budget) {
+        if (summaries && profileBudget?.weekly_budget) {
           const totalThisWeek = summaries.reduce(
             (sum: number, day: { calories_consumed: number }) => sum + day.calories_consumed, 0
           );
@@ -624,7 +624,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
             body: {
               user_id: user.id,
               calories_consumed: totalThisWeek,
-              weekly_budget: profileBudget.weekly_calorie_budget,
+              weekly_budget: profileBudget.weekly_budget,
             },
           });
         }

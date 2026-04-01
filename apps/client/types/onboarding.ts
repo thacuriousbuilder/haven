@@ -2,7 +2,7 @@
 
 export type AccountType = 'client' | 'trainer';
 export type Gender = 'male' | 'female' | 'other';
-export type Goal = 'lose' | 'gain';
+export type Goal = 'lose' | 'gain' | 'maintain';
 export type ActivityLevel = 'not_very_active' | 'lightly_active' | 'active' | 'very_active';
 export type WorkoutFrequency = '0-2' | '3-5' | '6+';
 export type UnitSystem = 'imperial' | 'metric';
@@ -62,6 +62,8 @@ export interface OnboardingData {
   eveningRecapEnabled: boolean;
   eveningRecapTime: string;
   notificationsEnabled: boolean;
+  timezone: string;
+
 }
 
 export const initialOnboardingData: OnboardingData = {
@@ -97,4 +99,5 @@ export const initialOnboardingData: OnboardingData = {
   eveningRecapEnabled: false,
   eveningRecapTime: '8:00 PM',
   notificationsEnabled: false,
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 };

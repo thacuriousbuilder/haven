@@ -30,6 +30,7 @@ export interface UserProfile {
   push_notifications_enabled: boolean;
   meal_reminders_enabled: boolean;
   daily_checkin_time: string; // Time string (HH:MM:SS)
+  timezone: string;
 
 }
 

@@ -38,6 +38,7 @@ export interface UserProfile {
   evening_recap_time: string;
   choose_goals: string[];
   choose_obstacles: string[];
+  timezone: string;
 
 }
 

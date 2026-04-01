@@ -62,7 +62,8 @@ export default function PaywallBaselineScreen() {
         tdee,
         data.goal || 'lose',
         data.goalWeight,
-        data.currentWeight
+        data.currentWeight,
+        data.weeklyGoalRate 
       );
       const dailyDeficit = tdee - adjustedDaily;
 
@@ -101,6 +102,7 @@ export default function PaywallBaselineScreen() {
           onboarding_completed: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          timezone: data.timezone || 'America/New_York',
         });
 
       if (error) throw error;

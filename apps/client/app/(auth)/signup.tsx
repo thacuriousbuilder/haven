@@ -13,7 +13,7 @@ import { useOnboarding } from '@/contexts/onboardingContext';
 export default function Signup() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
-  const { data } = useOnboarding();
+  const { data, updateData } = useOnboarding();
 
   const getPostSignupRoute = () => {
     if (data.planPath === 'estimate') {
@@ -25,7 +25,17 @@ export default function Signup() {
   async function handleGoogleSignIn() {
     try {
       setGoogleLoading(true);
-      await signInWithGoogle();
+      const authData = await signInWithGoogle();
+      
+     
+      const fullName = authData.user?.user_metadata?.full_name || 
+                       authData.user?.user_metadata?.name || '';
+      const firstName = authData.user?.user_metadata?.given_name || 
+                        fullName.split(' ')[0] || '';
+      const lastName = authData.user?.user_metadata?.family_name || 
+                       fullName.split(' ').slice(1).join(' ') || '';
+  
+      updateData({ firstName, lastName });
       router.replace(getPostSignupRoute());
     } catch (error: any) {
       if (error.code !== 'SIGN_IN_CANCELLED') {
@@ -35,11 +45,19 @@ export default function Signup() {
       setGoogleLoading(false);
     }
   }
+  
 
   async function handleAppleSignIn() {
     try {
       setAppleLoading(true);
-      await signInWithApple();
+      const authData = await signInWithApple();
+
+      const firstName = authData.user?.user_metadata?.given_name || 
+                        authData.user?.user_metadata?.first_name || '';
+      const lastName = authData.user?.user_metadata?.family_name || 
+                       authData.user?.user_metadata?.last_name || '';
+  
+      updateData({ firstName, lastName });
       router.replace(getPostSignupRoute());
     } catch (error: any) {
       if (error.code !== 'ERR_REQUEST_CANCELED') {
@@ -193,3 +211,5 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
 });
+
+

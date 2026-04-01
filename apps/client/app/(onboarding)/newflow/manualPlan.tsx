@@ -18,6 +18,7 @@ import {
   estimateTargetDate,
 } from '@/utils/calorieCalculator';
 import { formatDateComponents } from '@haven/shared-utils';
+import { Goal } from '@/types/onboarding';
 
 export default function ManualPlanScreen() {
   const { data, isRestoring, resetData } = useOnboarding();
@@ -60,16 +61,30 @@ export default function ManualPlanScreen() {
       const birthMonth = data.birthMonth || 1;
       const birthDay = data.birthDay || 1;
       const activityLevel = data.activityLevel || 'lightly_active';
-      const goal = data.goal || 'lose';
+      const goal: Goal = data.chooseGoals.includes('lose_weight')
+      ? 'lose'
+      : data.chooseGoals.includes('gain_weight')
+      ? 'gain'
+      : 'maintain';
       const goalWeight = data.goalWeight || currentWeight;
-
       const birthDate = formatDateComponents(birthYear, birthMonth, birthDay);
       const bmr = calculateBMR(gender, currentWeight, heightFeet, heightInches, birthDate);
       const tdee = calculateTDEE(bmr, activityLevel);
-      const dailyCalories = adjustForGoal(tdee, goal, goalWeight, currentWeight);
+      const dailyCalories = adjustForGoal(
+        tdee,
+        goal,
+        goalWeight,
+        currentWeight,
+        data.weeklyGoalRate
+      );
       const weeklyCalories = calculateWeeklyCalorieBudget(dailyCalories);
       const macros = calculateMacros(weeklyCalories);
-      const targetDate = estimateTargetDate(currentWeight, goalWeight, goal);
+      const targetDate = estimateTargetDate(
+        currentWeight,
+        goalWeight,
+        goal,
+        data.weeklyGoalRate
+      );
       const dailyAverage = Math.round(weeklyCalories / 7);
 
       setPlanData({
@@ -117,7 +132,11 @@ export default function ManualPlanScreen() {
           height_in: data.heightInches || 0,
           weight_lbs: data.currentWeight || 150,
           target_weight_lbs: data.goalWeight || data.currentWeight || 150,
-          goal: data.goal || 'maintain',
+          goal: data.chooseGoals.includes('lose_weight')
+            ? 'lose'
+            : data.chooseGoals.includes('gain_weight')
+            ? 'gain'
+            : 'maintain',
           workouts_per_week: data.workoutFrequency || '0-2',
           activity_level: data.activityLevel || 'lightly_active',
           plan_path: 'estimate',
@@ -129,6 +148,7 @@ export default function ManualPlanScreen() {
           weekly_budget: weeklyCalories,
           onboarding_completed: true,
           updated_at: new Date().toISOString(),
+          timezone: data.timezone || 'America/New_York',
         });
 
       if (profileError) throw profileError;
@@ -150,7 +170,7 @@ export default function ManualPlanScreen() {
   };
 
   const handleContinue = () => {
-    router.replace('/newflow/interstitial4');
+    router.replace('/newflow/interstitial3');
   };
 
   if (isRestoring || loading) {
