@@ -1,20 +1,35 @@
-
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView,
   TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing, Typography, BorderRadius, Shadows } from '@/constants/colors';
 import { usePlanData } from '@/hooks/usePlanData';
 import BudgetView from './budgetView';
 import TreatDaysView from './treatDaysView';
 import { Ionicons } from '@expo/vector-icons';
+import { useOverageCalculation } from '@/hooks/useOverageCalculation';
 
 type PlanToggle = 'budget' | 'treatdays';
 
 export default function PlanTab() {
   const [activeToggle, setActiveToggle] = useState<PlanToggle>('budget');
   const { planData, loading, error, refetch } = usePlanData();
+  const lastFetched = useRef<number>(0);
+  const params = useLocalSearchParams();
+  const { adjustedBudget } = useOverageCalculation();
+
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
+      const forceRefresh = params.refresh === 'true';
+      if (forceRefresh || now - lastFetched.current > 30_000) {
+        refetch();
+        lastFetched.current = now;
+      }
+    }, [params.refresh])
+  );
 
   if (loading) {
     return (
@@ -23,7 +38,7 @@ export default function PlanTab() {
       </View>
     );
   }
-  
+
   if (error === 'baseline') {
     return (
       <View style={styles.centered}>
@@ -36,25 +51,17 @@ export default function PlanTab() {
     );
   }
 
-  // Safety guard: if something went wrong and we have no plan data,
-  // render nothing for now rather than crashing.
-  if (!planData) {
-    return null;
-  }
+  if (!planData) return null;
 
   return (
     <View style={styles.container}>
-      {/* Budget / Treat Days toggle */}
       <View style={styles.toggleContainer}>
         <TouchableOpacity
           style={[styles.toggleBtn, activeToggle === 'budget' && styles.toggleBtnActive]}
           onPress={() => setActiveToggle('budget')}
           activeOpacity={0.7}
         >
-          <Text style={[
-            styles.toggleText,
-            activeToggle === 'budget' && styles.toggleTextActive,
-          ]}>
+          <Text style={[styles.toggleText, activeToggle === 'budget' && styles.toggleTextActive]}>
             Budget
           </Text>
         </TouchableOpacity>
@@ -64,21 +71,16 @@ export default function PlanTab() {
           onPress={() => setActiveToggle('treatdays')}
           activeOpacity={0.7}
         >
-          <Text style={[
-            styles.toggleText,
-            activeToggle === 'treatdays' && styles.toggleTextActive,
-          ]}>
+          <Text style={[styles.toggleText, activeToggle === 'treatdays' && styles.toggleTextActive]}>
             Treat Days
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
       {activeToggle === 'budget' && (
-        <BudgetView planData={planData} refetch={refetch} />
+        <BudgetView planData={planData} refetch={refetch} adjustedBudget={adjustedBudget} />
       )}
-
-    {activeToggle === 'treatdays' && <TreatDaysView />} 
+      {activeToggle === 'treatdays' && <TreatDaysView />}
     </View>
   );
 }
@@ -124,10 +126,6 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: Typography.fontSize.sm,
     color: Colors.error,
-  },
-  placeholder: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textMuted,
   },
   emptyTitle: {
     marginTop: Spacing.md,

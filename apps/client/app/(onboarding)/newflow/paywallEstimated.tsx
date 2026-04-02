@@ -247,7 +247,11 @@ export default function PaywallEstimatedScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.vividTeal },
-  scroll: { paddingHorizontal: 24, paddingTop: 48, paddingBottom: 16 },
+  scroll: { 
+    paddingHorizontal: 24, 
+    paddingTop: 48, 
+    paddingBottom: 120 
+  },
   headline: { fontSize: 32, fontWeight: '800', color: '#fff', marginBottom: 8 },
   subheadline: { fontSize: 16, color: Colors.energyOrange, fontWeight: '600', marginBottom: 24 },
   budgetCard: {
@@ -265,9 +269,15 @@ const styles = StyleSheet.create({
   budgetBadgeText: { fontSize: 13, color: 'rgba(255,255,255,0.6)' },
   pricingLabel: {
     fontSize: 11, fontWeight: '700',
-    color: 'rgba(255,255,255,0.5)', letterSpacing: 1.2, marginBottom: 12,
+    color: 'rgba(255,255,255,0.5)', letterSpacing: 1.2, 
+    marginBottom: 12,
+    marginTop: 8,
   },
-  packagesContainer: { gap: 10, marginBottom: 16 },
+  packagesContainer: { 
+    gap: 10, 
+    marginBottom: 20 
+  },
+
   packageCard: {
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 14, padding: 16,
@@ -297,10 +307,17 @@ const styles = StyleSheet.create({
   noPaymentRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 12, padding: 14, marginBottom: 8,
+    borderRadius: 12, padding: 14, marginBottom: 24,
   },
   noPaymentText: { fontSize: 13, color: 'rgba(255,255,255,0.7)', flex: 1 },
-  ctaContainer: { paddingHorizontal: 24, paddingBottom: 24, gap: 12 },
+  ctaContainer: { 
+    paddingHorizontal: 24, 
+    paddingBottom: 24, 
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    paddingTop: 16,
+  },
   ctaButton: {
     backgroundColor: Colors.energyOrange,
     paddingVertical: 18, borderRadius: 50, alignItems: 'center',

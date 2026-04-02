@@ -1,4 +1,3 @@
-
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
@@ -24,9 +23,15 @@ async function generateNonce(): Promise<[string, string]> {
 
 export async function signInWithGoogle() {
   await GoogleSignin.hasPlayServices();
-  const userInfo = await GoogleSignin.signIn();
 
-  // console.log('Google full response:', JSON.stringify(userInfo.data));
+  // Clear any stale Google session before signing in
+  try {
+    await GoogleSignin.signOut();
+  } catch (e) {
+    // ignore — not signed in is fine
+  }
+
+  const userInfo = await GoogleSignin.signIn();
 
   const idToken = userInfo.data?.idToken;
   if (!idToken) throw new Error('No ID token returned from Google');

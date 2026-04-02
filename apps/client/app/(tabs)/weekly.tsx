@@ -43,6 +43,12 @@ export default function WeeklyScreen() {
     }, [params.showEveningRecap])
   );
 
+  useEffect(() => {
+  if (params.tab === 'plan' || params.tab === 'discovery' || params.tab === 'recap') {
+    setActiveTab(params.tab as WeeklyTab);
+  }
+}, [params.tab]);
+
   const { weeks, loading, error } = useWeeklyRecap();
 
   return (

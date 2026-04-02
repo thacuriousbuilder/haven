@@ -1,11 +1,10 @@
 
 
 import React, { useEffect, useRef } from 'react';
-import { Animated, Text, View, StyleSheet } from 'react-native';
+import { Animated, Text, View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLocalDateString } from '@haven/shared-utils';
-import { Colors } from '@/constants/colors';
+import { Colors, Spacing, Typography, BorderRadius } from '@/constants/colors';
 
 interface BudgetAdjustmentBannerProps {
   cumulativeOverage: number;
@@ -15,8 +14,6 @@ interface BudgetAdjustmentBannerProps {
 }
 
 const BANNER_THRESHOLD = 150;
-const DISPLAY_DURATION = 3000;  // 3 seconds
-const ANIMATE_OUT_DURATION = 400;
 const STORAGE_KEY = 'budget_banner_dismissed_week';
 
 export function BudgetAdjustmentBanner({
@@ -26,48 +23,33 @@ export function BudgetAdjustmentBanner({
   weekStartDate,
 }: BudgetAdjustmentBannerProps) {
   const [visible, setVisible] = React.useState(false);
-  const translateY = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!weekStartDate) return; 
+    if (!weekStartDate) return;
     checkShouldShow();
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
   }, [cumulativeOverage, weekStartDate]);
 
   const checkShouldShow = async () => {
     if (cumulativeOverage <= BANNER_THRESHOLD) return;
 
     const dismissedWeek = await AsyncStorage.getItem(STORAGE_KEY);
-
     if (dismissedWeek === weekStartDate) return;
 
-    translateY.setValue(0);
-    opacity.setValue(1);
     setVisible(true);
-
-    timerRef.current = setTimeout(() => {
-      animateOut();
-    }, DISPLAY_DURATION);
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
   };
 
-// Update animateOut to store weekStartDate instead of today
-  const animateOut = () => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: -20,
-        duration: ANIMATE_OUT_DURATION,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: ANIMATE_OUT_DURATION,
-        useNativeDriver: true,
-      }),
-    ]).start(async () => {
+  const handleDismiss = () => {
+    Animated.timing(opacity, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(async () => {
       setVisible(false);
       await AsyncStorage.setItem(STORAGE_KEY, weekStartDate);
     });
@@ -76,21 +58,21 @@ export function BudgetAdjustmentBanner({
   if (!visible) return null;
 
   return (
-    <Animated.View
-      style={[
-        styles.banner,
-        { transform: [{ translateY }], opacity },
-      ]}
-    >
+    <Animated.View style={[styles.banner, { opacity }]}>
       <View style={styles.bannerContent}>
         <Ionicons name="alert-circle" size={20} color={Colors.energyOrange} />
         <View style={styles.textContainer}>
           <Text style={styles.title}>Budget adjusted for this week</Text>
           <Text style={styles.subtext}>
-            You're {cumulativeOverage} cal over. HAVEN recommends {adjustedBudget.toLocaleString()} cal today instead of your usual {baseBudget.toLocaleString()} cal
+            You went {cumulativeOverage} cal over yesterday. HAVEN recommends{' '}
+            {adjustedBudget.toLocaleString()} cal today instead of your usual{' '}
+            {baseBudget.toLocaleString()} cal.
           </Text>
         </View>
       </View>
+      <TouchableOpacity style={styles.dismissButton} onPress={handleDismiss}>
+        <Text style={styles.dismissText}>Got it</Text>
+      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -98,29 +80,42 @@ export function BudgetAdjustmentBanner({
 const styles = StyleSheet.create({
   banner: {
     backgroundColor: '#FFF7ED',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
     borderLeftWidth: 3,
     borderLeftColor: Colors.energyOrange,
+    gap: Spacing.md,
   },
   bannerContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: Spacing.sm,
   },
   textContainer: {
     flex: 1,
   },
   title: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
     color: '#92400E',
     marginBottom: 2,
   },
   subtext: {
-    fontSize: 13,
+    fontSize: Typography.fontSize.xs,
     color: '#B45309',
     lineHeight: 18,
+  },
+  dismissButton: {
+    alignSelf: 'flex-end',
+    backgroundColor: Colors.energyOrange,
+    borderRadius: BorderRadius.full,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.lg,
+  },
+  dismissText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.white,
   },
 });

@@ -33,6 +33,10 @@ import { analyzeWeekPeriod, WeekInfo } from '@/utils/weekHelpers';
 import { BaselineWeightTrendModal } from '@/components/baselineWeightTrendModal';
 import { DailyCaloriesChart } from '@/components/homeactive/cards/dailyCaloriesChart';
 import { BudgetAdjustmentBanner } from '@/components/homeactive/cards/budgetAdjustmentBanner';
+import { GettingStartedCard } from '@/components/homeactive/cards/gettingStartedCard';
+import { useGettingStarted } from '@/hooks/useGettingStarted';
+import { useModal } from '@/contexts/modalContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ProfileData {
   first_name: string | null;
@@ -117,7 +121,8 @@ export default function HomeScreen() {
   const [weeklySummaries, setWeeklySummaries] = useState<{ summary_date: string; calories_consumed: number }[]>([]);
   const baselineCompletionInProgress = useRef(false);
   const baselineResultRef = useRef<any>(null);
-  
+  const { allDone } = useGettingStarted();
+  const [todayAdjustedTarget, setTodayAdjustedTarget] = useState<number | null>(null);
 
   const {
     baseBudget,
@@ -142,6 +147,7 @@ export default function HomeScreen() {
       fetchCompletedBaselineDays()
     }
   }, [profile])
+  
 
   useFocusEffect(
     React.useCallback(() => {
@@ -1029,6 +1035,20 @@ const fetchMetrics = async () => {
 
     setCurrentPeriod(weeklyPeriod)
 
+    // 👇 Fetch today's adjustment from daily_target_adjustments
+    const today = getLocalDateString();
+    if (weeklyPeriod) {
+      const { data: todayAdj } = await supabase
+        .from('daily_target_adjustments')
+        .select('adjusted_calories')
+        .eq('user_id', user.id)
+        .eq('weekly_period_id', weeklyPeriod.id)
+        .eq('target_date', today)
+        .maybeSingle();
+
+      setTodayAdjustedTarget(todayAdj?.adjusted_calories ?? null);
+    }
+
     // Fetch metrics and logs in parallel
     const [metricsData, logs] = await Promise.all([
       calculateMetricsClientSide(user.id, weekStartDate, profile),
@@ -1336,7 +1356,6 @@ const fetchProfile = async () => {
       </SafeAreaView>
     );
   }
-
   // ============= CLIENT VIEW =============
   
   const isBaselineActive = profile.baseline_start_date && !profile.baseline_complete;
@@ -1347,12 +1366,14 @@ const fetchProfile = async () => {
   const todayCalories = calculateTodayCalories();
   const todayMacros = calculateTodayMacros();
   const selectedCheatCalories = getSelectedDateCheatCalories();
-  const todayGoal = profile?.baseline_complete 
-    ? (selectedCheatCalories !== null
-        ? selectedCheatCalories
-        : (adjustedBudget || Math.round((metrics?.weekly_budget || 14000) / 7))) 
-    : Math.round((metrics?.weekly_budget || 14000) / 7);
-  const todayRemaining = todayGoal - todayCalories;
+  const baseDaily = Math.round((metrics?.weekly_budget || 14000) / 7);
+  const todayGoal = profile?.baseline_complete
+  ? (selectedCheatCalories !== null
+      ? selectedCheatCalories
+      : (todayAdjustedTarget ?? (adjustedBudget || baseDaily)))
+  : baseDaily;
+
+const todayRemaining = todayGoal - todayCalories;
 
   const todayLogs = recentLogs.filter(log => log.log_date === getSelectedDateString());
 
@@ -1608,6 +1629,24 @@ const fetchProfile = async () => {
                   />
                 </View>
               )}
+
+                {!allDone && (
+                <View style={styles.cardSpacing}>
+                  <GettingStartedCard onLogMeal={() => router.push('/log')} />
+                </View>
+              )}
+
+               {/* Next Cheat Day Card (conditional) */}
+               {getNextCheatDayInfo() && (
+                <View style={styles.cardSpacing}>
+                  <NextCheatDayCard
+                    dayName={getNextCheatDayInfo()!.dayName}
+                    dateString={getNextCheatDayInfo()!.dateString}
+                    reservedCalories={metrics?.calories_reserved || 0}
+                    onPress={() => router.push('/manageCheatDay')}
+                  />
+                </View>
+              )}
               {/* Daily Calories Chart */}
               {metrics && currentPeriod && (
                 <View style={styles.cardSpacing}>
@@ -1634,18 +1673,6 @@ const fetchProfile = async () => {
                   dateLabel={getSelectedDateLabel()}
                 />
               </View>
-
-               {/* Next Cheat Day Card (conditional) */}
-               {getNextCheatDayInfo() && (
-                <View style={styles.cardSpacing}>
-                  <NextCheatDayCard
-                    dayName={getNextCheatDayInfo()!.dayName}
-                    dateString={getNextCheatDayInfo()!.dateString}
-                    reservedCalories={metrics?.calories_reserved || 0}
-                    onPress={() => router.push('/(tabs)/plan')}
-                  />
-                </View>
-              )}
 
               {/* Quick Log Card */}
               <View style={styles.cardSpacing}>

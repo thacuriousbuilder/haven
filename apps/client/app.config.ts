@@ -90,6 +90,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-apple-authentication',
     [
       '@react-native-google-signin/google-signin',
+      {
+        iosUrlScheme: IS_DEV
+          ? 'com.googleusercontent.apps.314572247613-s4rveu9of4i48hcuoptla9hn5h8nskil'
+          : 'com.googleusercontent.apps.314572247613-kvageosg17g1p4gho5tqgnnu5noe44er'
+      }
     ],
     [
       "@sentry/react-native/expo",

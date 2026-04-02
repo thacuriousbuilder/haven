@@ -1,4 +1,5 @@
 
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatLocalDate, getMonday, getSunday, parseDateString } from '@/utils/timezone';
@@ -14,8 +15,8 @@ export type DayPlan = {
   isToday: boolean;
   isPast: boolean;
   isAdjusted: boolean;
-  baseTarget: number;  
-  adjustedCalories: number | null;  
+  baseTarget: number;
+  adjustedCalories: number | null;
 };
 
 export type PlanData = {
@@ -31,9 +32,9 @@ export type PlanData = {
 };
 
 export function usePlanData() {
-  const [planData, setPlanData]   = useState<PlanData | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
+  const [planData, setPlanData] = useState<PlanData | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
     fetchPlanData();
@@ -63,18 +64,17 @@ export function usePlanData() {
 
       // 2. Fetch current weekly period
       const { data: period } = await supabase
-      .from('weekly_periods')
-      .select('id, weekly_budget, week_start_date, week_end_date')
-      .eq('user_id', user.id)
-      .eq('week_start_date', monday)
-      .maybeSingle(); // won't error if no row found
-    
-    if (!period) {
-      // Baseline user — no weekly period yet
-      setError('baseline');
-      setLoading(false);
-      return;
-    }
+        .from('weekly_periods')
+        .select('id, weekly_budget, week_start_date, week_end_date')
+        .eq('user_id', user.id)
+        .eq('week_start_date', monday)
+        .maybeSingle();
+
+      if (!period) {
+        setError('baseline');
+        setLoading(false);
+        return;
+      }
 
       // 3. Fetch food logs for this week
       const { data: logs, error: logsError } = await supabase
@@ -145,37 +145,30 @@ export function usePlanData() {
         }
 
         days.push({
-          date:       dateStr,
-          dayLabel:   d.toLocaleDateString('en-US', { weekday: 'short' }),
-          shortDate:  d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          dayNumber:  d.getDate(),
+          date:            dateStr,
+          dayLabel:        d.toLocaleDateString('en-US', { weekday: 'short' }),
+          shortDate:       d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          dayNumber:       d.getDate(),
           target,
-          eaten:      eatenByDay.get(dateStr) ?? 0,
-          isTreatDay: isTreat,
+          eaten:           eatenByDay.get(dateStr) ?? 0,
+          isTreatDay:      isTreat,
           isToday,
           isPast,
-          isAdjusted: adjMap.has(dateStr),
-          baseTarget:       baseTarget,   
-          adjustedCalories: adjMap.get(dateStr) ?? null, 
+          isAdjusted:      adjMap.has(dateStr),
+          baseTarget,
+          adjustedCalories: adjMap.get(dateStr) ?? null,
         });
       }
 
-      // --- Corrected overage calculation
-      // Compare remaining targets vs remaining budget
-      // catches incremental daily overeating not just full weekly blowout
+      // --- Daily based overage (today only)
+      const todayPlan     = days.find(d => d.isToday);
+      const isOverBudget  = todayPlan ? todayPlan.eaten > todayPlan.target : false;
+      const overageAmount = todayPlan ? Math.max(todayPlan.eaten - todayPlan.target, 0) : 0;
+
+      // --- Weekly totals (for hero card display only)
       const totalEaten   = days.reduce((sum, d) => sum + d.eaten, 0);
       const weeklyBudget = period.weekly_budget;
       const remaining    = weeklyBudget - totalEaten;
-
-      const remainingBudget  = remaining;
-      const remainingTargets = days
-        .filter((d) => !d.isPast)
-        .reduce((sum, d) => sum + d.target, 0);
-
-      const isOverBudget  = remainingTargets > remainingBudget;
-      const overageAmount = isOverBudget
-        ? Math.round(remainingTargets - remainingBudget)
-        : 0;
 
       setPlanData({
         weeklyBudget,

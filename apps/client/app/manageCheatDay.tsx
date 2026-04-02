@@ -84,7 +84,7 @@ export default function ManageCheatDaysScreen() {
 
   const handleDelete = (id: string, date: string) => {
     Alert.alert(
-      'Delete treat Day',
+      'Delete Treat Day',
       `Are you sure you want to delete this treat day for ${formatDateShort(date)}?`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -93,12 +93,88 @@ export default function ManageCheatDaysScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) return;
+  
+              const today = getLocalDateString();
+  
+              // 1. Fetch weekly period for this treat day
+              const { data: weeklyPeriod } = await supabase
+                .from('weekly_periods')
+                .select('id, weekly_budget, week_start_date, week_end_date')
+                .eq('user_id', user.id)
+                .lte('week_start_date', date)
+                .gte('week_end_date', date)
+                .maybeSingle();
+  
+              // 2. Delete the treat day
               const { error } = await supabase
                 .from('planned_cheat_days')
                 .delete()
                 .eq('id', id);
-
+  
               if (error) throw error;
+  
+              // 3. Revert future non-treat day targets
+              if (weeklyPeriod) {
+                // Fetch remaining treat days after deletion
+                const { data: remainingTreatDays } = await supabase
+                  .from('planned_cheat_days')
+                  .select('cheat_date, planned_calories')
+                  .eq('user_id', user.id)
+                  .gte('cheat_date', weeklyPeriod.week_start_date)
+                  .lte('cheat_date', weeklyPeriod.week_end_date);
+  
+                const treatDaySet        = new Set((remainingTreatDays ?? []).map(t => t.cheat_date));
+                const totalTreatCalories = (remainingTreatDays ?? []).reduce(
+                  (sum, t) => sum + t.planned_calories, 0
+                );
+  
+                // Build strictly future non-treat days
+                const start                        = new Date(weeklyPeriod.week_start_date);
+                const futureNonTreatDays: string[] = [];
+  
+                for (let i = 0; i < 7; i++) {
+                  const d       = new Date(start);
+                  d.setDate(start.getDate() + i);
+                  const dateStr = d.toISOString().split('T')[0];
+  
+                  if (dateStr > today && !treatDaySet.has(dateStr)) {
+                    futureNonTreatDays.push(dateStr);
+                  }
+                }
+  
+                if (futureNonTreatDays.length > 0) {
+                  const totalNonTreatDays = 7 - treatDaySet.size;
+                  const remainingBudget   = weeklyPeriod.weekly_budget - totalTreatCalories;
+                  const newDailyTarget    = Math.round(remainingBudget / totalNonTreatDays);
+                  const baseTarget        = Math.round(weeklyPeriod.weekly_budget / 7);
+  
+                  // Clear existing adjustments for future non-treat days
+                  await supabase
+                    .from('daily_target_adjustments')
+                    .delete()
+                    .eq('user_id', user.id)
+                    .eq('weekly_period_id', weeklyPeriod.id)
+                    .in('target_date', futureNonTreatDays);
+  
+                  // Only insert if target differs from base
+                  // If equal — days revert to default cleanly, no adjustments needed
+                  if (newDailyTarget !== baseTarget) {
+                    const upserts = futureNonTreatDays.map(d => ({
+                      user_id:           user.id,
+                      weekly_period_id:  weeklyPeriod.id,
+                      target_date:       d,
+                      adjusted_calories: newDailyTarget,
+                    }));
+  
+                    await supabase
+                      .from('daily_target_adjustments')
+                      .upsert(upserts, { onConflict: 'user_id,target_date' });
+                  }
+                }
+              }
+  
               loadCheatDays();
             } catch (error) {
               console.error('Error deleting cheat day:', error);

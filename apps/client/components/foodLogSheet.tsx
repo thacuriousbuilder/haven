@@ -33,6 +33,8 @@ import { getUnreflectedMeal, UnreflectedMeal } from '@/utils/reflectionTrigger';
 import QuickReflectionModal from '@/components/quickReflectionModal';
 import { VoiceInputModal } from '@/components/voiceInputModal'
 import { decode } from 'base64-arraybuffer'
+import { useModal } from '@/contexts/modalContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const INPUT_ACCESSORY_ID = 'food-description';
 
@@ -123,7 +125,7 @@ export function FoodLogSheet({
   // unreflected meals state
   const [unreflectedMeal, setUnreflectedMeal] = useState<UnreflectedMeal | null>(null);
   const [showReflection, setShowReflection] = useState(false);
-
+  const { showModal } = useModal();
   // AI estimation state
   const [estimatingNutrition, setEstimatingNutrition] = useState(false);
 
@@ -349,7 +351,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
   
       if (error) throw error
   
-      // Update daily summary
+      let newTotal = 0
       if (food.calories > 0) {
         const { data: existingSummary } = await supabase
           .from('daily_summaries')
@@ -358,7 +360,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
           .eq('summary_date', resolvedLogDate)
           .single()
   
-        const newTotal = (existingSummary?.calories_consumed || 0) + food.calories
+        newTotal = (existingSummary?.calories_consumed || 0) + food.calories
   
         await supabase
           .from('daily_summaries')
@@ -368,6 +370,49 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
             calories_consumed: newTotal,
             calories_burned: 0,
           }, { onConflict: 'user_id,summary_date' })
+      }
+  
+      // First meal modal
+      try {
+        const { count } = await supabase
+          .from('food_logs')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+        if (count === 1) await showModal({ key: 'first_meal' })
+      } catch (e) {
+        console.error('⚠️ First meal check failed (non-critical):', e)
+      }
+  
+      // Over budget modal
+      try {
+        const today = formatLocalDate(new Date());
+        const monday = formatLocalDate(getMonday(new Date()));
+      
+        const { data: period } = await supabase
+          .from('weekly_periods')
+          .select('weekly_budget')
+          .eq('user_id', user.id)
+          .eq('week_start_date', monday)
+          .maybeSingle();
+      
+        if (period?.weekly_budget) {
+          const dailyTarget = Math.round(period.weekly_budget / 7);
+      
+          const OVER_BUDGET_THRESHOLD = 200;
+
+        if (newTotal > dailyTarget + OVER_BUDGET_THRESHOLD) {
+          await showModal({
+            key: 'over_budget',
+            data: {
+              target: dailyTarget,
+              consumed: newTotal,
+              over: newTotal - dailyTarget,
+            },
+          });
+        }
+        }
+      } catch (e) {
+        console.error('⚠️ Over budget check failed:', e);
       }
   
       Alert.alert('Logged!', `${food.food_name} added to your log.`)
@@ -478,7 +523,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
   
       if (error) throw error
   
-      // Update daily summary
+      let newTotal = 0
       if (food.calories > 0) {
         const { data: existingSummary } = await supabase
           .from('daily_summaries')
@@ -487,7 +532,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
           .eq('summary_date', resolvedLogDate)
           .single()
   
-        const newTotal = (existingSummary?.calories_consumed || 0) + food.calories
+        newTotal = (existingSummary?.calories_consumed || 0) + food.calories
   
         await supabase
           .from('daily_summaries')
@@ -499,6 +544,48 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
           }, { onConflict: 'user_id,summary_date' })
       }
   
+      // First meal modal
+      try {
+        const { count } = await supabase
+          .from('food_logs')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+        if (count === 1) await showModal({ key: 'first_meal' })
+      } catch (e) {
+        console.error('⚠️ First meal check failed (non-critical):', e)
+      }
+  
+      // Over budget modal
+      try {
+        const today = formatLocalDate(new Date());
+        const monday = formatLocalDate(getMonday(new Date()));
+      
+        const { data: period } = await supabase
+          .from('weekly_periods')
+          .select('weekly_budget')
+          .eq('user_id', user.id)
+          .eq('week_start_date', monday)
+          .maybeSingle();
+      
+        if (period?.weekly_budget) {
+          const dailyTarget = Math.round(period.weekly_budget / 7);
+          const OVER_BUDGET_THRESHOLD = 200;
+
+      if (newTotal > dailyTarget + OVER_BUDGET_THRESHOLD) {
+        await showModal({
+          key: 'over_budget',
+          data: {
+            target: dailyTarget,
+            consumed: newTotal,
+            over: newTotal - dailyTarget,
+          },
+        });
+      }
+        }
+      } catch (e) {
+        console.error('⚠️ Over budget check failed:', e);
+      }
+  
       Alert.alert('Logged!', `${food.food_name} added to your log.`)
       onSuccess()
     } catch (error) {
@@ -506,7 +593,9 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
       Alert.alert('Error', 'Could not log this food. Please try again.')
     }
   }
-
+  AsyncStorage.removeItem('over_budget_last_seen_date').then(() => {
+    console.log('✅ Cleared over budget seen date');
+  });
   const handleSave = async () => {
     if (!foodDescription.trim()) {
       Alert.alert('Error', 'Please describe what you ate');
@@ -571,6 +660,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
         console.log('✅ Baseline started on:', resolvedLogDate);
       }
 
+      let newTotal = 0;
       if (calories > 0) {
         const { data: existingSummary } = await supabase
           .from('daily_summaries')
@@ -579,7 +669,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
           .eq('summary_date', resolvedLogDate)
           .single();
 
-        const newTotal = (existingSummary?.calories_consumed || 0) + calories;
+        newTotal = (existingSummary?.calories_consumed || 0) + calories;
 
         await supabase
           .from('daily_summaries')
@@ -632,6 +722,51 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
         console.error('⚠️ Weekly limit check failed (non-critical):', limitError);
       }
 
+      // 1. First meal modal
+      try {
+        const { count } = await supabase
+          .from('food_logs')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+
+        if (count === 1) {
+          await showModal({ key: 'first_meal' });
+        }
+      } catch (e) {
+        console.error('⚠️ First meal check failed (non-critical):', e);
+      }
+
+      // 2. Over budget modal
+      try {
+        const today = formatLocalDate(new Date());
+        const monday = formatLocalDate(getMonday(new Date()));
+      
+        const { data: period } = await supabase
+          .from('weekly_periods')
+          .select('weekly_budget')
+          .eq('user_id', user.id)
+          .eq('week_start_date', monday)
+          .maybeSingle();
+      
+        if (period?.weekly_budget) {
+          const dailyTarget = Math.round(period.weekly_budget / 7);
+
+          const OVER_BUDGET_THRESHOLD = 200;
+          if (newTotal > dailyTarget + OVER_BUDGET_THRESHOLD) {
+            await showModal({
+              key: 'over_budget',
+              data: {
+                target: dailyTarget,
+                consumed: newTotal,
+                over: newTotal - dailyTarget,
+              },
+            });
+          }
+        }
+      } catch (e) {
+        console.error('⚠️ Over budget check failed:', e);
+      }
+
       // Reset form
       setFoodDescription('');
       setEstimatedCalories('');
@@ -645,7 +780,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
       setSelectedMethod(null);
       setSelectedFood(null);
       setSaving(false);
-      setSavedImageUrl(null)
+      setSavedImageUrl(null);
 
       Alert.alert('Success', 'Food logged!');
       onSuccess();
@@ -1195,6 +1330,14 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
 )}
         </ScrollView>
       </View>
+      <QuickReflectionModal
+        visible={showReflection && !!unreflectedMeal}
+        meal={unreflectedMeal}
+        onComplete={() => {
+          setShowReflection(false);
+          setUnreflectedMeal(null);
+        }}
+      />
       </>
     );
   }
@@ -1517,15 +1660,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
 
         <View style={styles.bottomPadding} />
       </ScrollView>
-      <QuickReflectionModal
-      visible={showReflection && !!unreflectedMeal}
-      meal={unreflectedMeal!}
-      onComplete={() => {
-        setShowReflection(false);
-        setUnreflectedMeal(null);
-      }}
-    />
-
+  
       <VoiceInputModal
     visible={showVoiceModal}
     onClose={() => setShowVoiceModal(false)}

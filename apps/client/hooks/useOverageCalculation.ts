@@ -39,12 +39,10 @@ export function useOverageCalculation(): AdjustedBudgetResult {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user || !isMounted) return;
 
-        const today = getLocalDateString();
+        const today           = getLocalDateString();
         const yesterdayString = getYesterdayDateString();
 
-        // ============================================
         // STEP 1: Get user profile
-        // ============================================
         const { data: profile } = await supabase
           .from('profiles')
           .select('goal, gender')
@@ -53,12 +51,10 @@ export function useOverageCalculation(): AdjustedBudgetResult {
 
         if (!profile || !isMounted) return;
 
-        const userGoal = profile.goal || 'maintain';
+        const userGoal   = profile.goal   || 'maintain';
         const userGender = profile.gender || 'male';
 
-        // ============================================
         // STEP 2: Get current weekly period
-        // ============================================
         const { data: weeklyPeriod } = await supabase
           .from('weekly_periods')
           .select('*')
@@ -72,14 +68,10 @@ export function useOverageCalculation(): AdjustedBudgetResult {
           return;
         }
 
-        // ============================================
-        // STEP 3: Same-day guard
-        // ============================================
+        // STEP 3: Same-day guard — only run once per day
         if (weeklyPeriod.last_overage_calculated_date !== today) {
 
-          // ============================================
           // STEP 4: Fetch yesterday's consumption
-          // ============================================
           const { data: yesterdaySummary } = await supabase
             .from('daily_summaries')
             .select('calories_consumed, calories_burned')
@@ -88,6 +80,7 @@ export function useOverageCalculation(): AdjustedBudgetResult {
             .maybeSingle();
 
           if (yesterdaySummary && yesterdaySummary.calories_consumed > 0) {
+
             // Was yesterday a cheat day?
             const { data: yesterdayCheatDay } = await supabase
               .from('planned_cheat_days')
@@ -96,16 +89,26 @@ export function useOverageCalculation(): AdjustedBudgetResult {
               .eq('cheat_date', yesterdayString)
               .maybeSingle();
 
-            const dailyBase = weeklyPeriod.weekly_budget / 7;
+            const dailyBase       = weeklyPeriod.weekly_budget / 7;
             const yesterdayBudget = yesterdayCheatDay?.planned_calories ?? dailyBase;
-            const netConsumed = (yesterdaySummary.calories_consumed || 0)
-                              - (yesterdaySummary.calories_burned || 0);
-            const delta = netConsumed - yesterdayBudget;
+            const netConsumed     = (yesterdaySummary.calories_consumed || 0)
+                                  - (yesterdaySummary.calories_burned  || 0);
+            const delta           = netConsumed - yesterdayBudget;
 
-            // ============================================
-            // STEP 5: Apply 150 cal threshold
-            // ============================================
-            if (Math.abs(delta) > OVERAGE_THRESHOLD) {
+            // STEP 5: Check if user already manually adjusted remaining days
+            const { data: existingAdjustments } = await supabase
+              .from('daily_target_adjustments')
+              .select('target_date')
+              .eq('user_id', user.id)
+              .eq('weekly_period_id', weeklyPeriod.id)
+              .gte('target_date', today);
+
+            const userAlreadyAdjusted = existingAdjustments && existingAdjustments.length > 0;
+
+            if (userAlreadyAdjusted) {
+              console.log('✅ User already manually adjusted — skipping auto-distribution');
+            } else if (Math.abs(delta) > OVERAGE_THRESHOLD) {
+              // STEP 6: Auto-distribute overage
               console.log(`🔄 Delta ${Math.round(delta)} cal exceeds threshold, recalculating...`);
 
               const overageResult = await calculateAndDistributeOverage(
@@ -116,24 +119,45 @@ export function useOverageCalculation(): AdjustedBudgetResult {
 
               if (!overageResult.success) {
                 console.error('❌ Failed to calculate overage:', overageResult.error);
+              } else {
+                // STEP 6b: Write today's adjusted budget to daily_target_adjustments
+                // so home screen and plan tab both read from same source
+                const adjustedBudget = await getTodaysAdjustedBudget(
+                  user.id,
+                  today,
+                  userGoal,
+                  userGender
+                );
+
+                if (adjustedBudget.adjustedBudget !== adjustedBudget.baseBudget) {
+                  await supabase
+                    .from('daily_target_adjustments')
+                    .upsert({
+                      user_id:           user.id,
+                      weekly_period_id:  weeklyPeriod.id,
+                      target_date:       today,
+                      adjusted_calories: adjustedBudget.adjustedBudget,
+                    }, { onConflict: 'user_id,target_date' });
+
+                  console.log(`✅ Written today's adjusted target: ${adjustedBudget.adjustedBudget} cal`);
+                }
               }
             } else {
               console.log(`✅ Delta ${Math.round(delta)} cal within threshold, no adjustment needed`);
             }
           }
 
-          // Mark today as calculated regardless of threshold outcome
+          // Mark today as calculated regardless of outcome
           await supabase
             .from('weekly_periods')
             .update({ last_overage_calculated_date: today })
             .eq('id', weeklyPeriod.id);
+
         } else {
           console.log('✅ Overage already calculated today, skipping');
         }
 
-        // ============================================
-        // STEP 6: Get today's adjusted budget
-        // ============================================
+        // STEP 7: Get today's adjusted budget for home screen display
         const adjustedBudget = await getTodaysAdjustedBudget(
           user.id,
           today,
@@ -142,7 +166,6 @@ export function useOverageCalculation(): AdjustedBudgetResult {
         );
 
         if (!isMounted) return;
-
         setResult({ ...adjustedBudget, isLoading: false });
 
       } catch (error) {
@@ -153,9 +176,7 @@ export function useOverageCalculation(): AdjustedBudgetResult {
 
     calculateOverageAndBudget();
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   return result;

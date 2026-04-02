@@ -18,6 +18,7 @@ import { BackButton } from '@/components/onboarding/backButton';
 import { Colors } from '@/constants/colors';
 import { getLocalDateString } from '@haven/shared-utils';
 import { calculateComfortFloor } from '@/utils/cheatDayHelpers';
+import { useModal } from '@/contexts/modalContext';
 
 export default function PlanCheatDayScreen() {
   const router = useRouter();
@@ -37,6 +38,7 @@ export default function PlanCheatDayScreen() {
   const [comfortFloor, setComfortFloor] = useState<number>(1400);
   const [alreadyPlannedDates, setAlreadyPlannedDates] = useState<string[]>([]);
   const [treatDayCountForSelectedWeek, setTreatDayCountForSelectedWeek] = useState(0);
+  const { showModal } = useModal();
 
   // Fetch already planned dates for the visible 7-day range
   React.useEffect(() => {
@@ -237,14 +239,14 @@ export default function PlanCheatDayScreen() {
       Alert.alert('Error', 'Please select a date');
       return;
     }
-
+  
     if (!plannedCalories || parseInt(plannedCalories) <= 0) {
       Alert.alert('Error', 'Please enter planned calories');
       return;
     }
-
+  
     const caloriesToSave = parseInt(plannedCalories);
-
+  
     // Safety floor check
     const weeklyBudgetTotal = baselineAverage * 7;
     const impact = Math.round((weeklyBudgetTotal - caloriesToSave) / 6);
@@ -255,39 +257,40 @@ export default function PlanCheatDayScreen() {
       );
       return;
     }
-
+  
     try {
       setLoading(true);
-
+  
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
-
+  
       const cheatDate = selectedDate.toISOString().split('T')[0];
-
-      // Weekly budget check against weekly_periods
+      const today     = getLocalDateString();
+  
+      // 1. Fetch weekly period
       const { data: weeklyPeriod } = await supabase
         .from('weekly_periods')
-        .select('weekly_budget, week_start_date, week_end_date')
+        .select('id, weekly_budget, week_start_date, week_end_date')
         .eq('user_id', user.id)
         .lte('week_start_date', cheatDate)
         .gte('week_end_date', cheatDate)
         .maybeSingle();
-
+  
       if (weeklyPeriod) {
+        // 2. Weekly budget check
         const { data: existingReserved } = await supabase
           .from('planned_cheat_days')
           .select('planned_calories, cheat_date')
           .eq('user_id', user.id)
           .gte('cheat_date', weeklyPeriod.week_start_date)
           .lte('cheat_date', weeklyPeriod.week_end_date);
-
-        // Exclude current date in case it's an edit
+  
         const otherReserved = existingReserved
           ?.filter(d => d.cheat_date !== cheatDate)
           ?.reduce((sum, d) => sum + (d.planned_calories || 0), 0) || 0;
-
+  
         const newTotal = otherReserved + caloriesToSave;
-
+  
         if (newTotal > weeklyPeriod.weekly_budget) {
           const available = weeklyPeriod.weekly_budget - otherReserved;
           Alert.alert(
@@ -298,23 +301,100 @@ export default function PlanCheatDayScreen() {
           return;
         }
       }
-
+  
+      // 3. Save treat day
       const { error } = await supabase
         .from('planned_cheat_days')
         .upsert({
-          user_id: user.id,
-          cheat_date: cheatDate,
-          planned_calories: caloriesToSave,
-          notes: notes || null,
-        }, {
-          onConflict: 'user_id,cheat_date'
-        });
-
+          user_id:           user.id,
+          cheat_date:        cheatDate,
+          planned_calories:  caloriesToSave,
+          notes:             notes || null,
+        }, { onConflict: 'user_id,cheat_date' });
+  
       if (error) throw error;
-
-      Alert.alert('Success', 'Treat day planned!', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+  
+      // 4. Redistribute future non-treat days
+      if (weeklyPeriod) {
+        try {
+          // Fetch all treat days for this week including just saved
+          const { data: allTreatDays } = await supabase
+            .from('planned_cheat_days')
+            .select('cheat_date, planned_calories')
+            .eq('user_id', user.id)
+            .gte('cheat_date', weeklyPeriod.week_start_date)
+            .lte('cheat_date', weeklyPeriod.week_end_date);
+  
+          const treatDaySet        = new Set((allTreatDays ?? []).map(t => t.cheat_date));
+          const totalTreatCalories = (allTreatDays ?? []).reduce(
+            (sum, t) => sum + t.planned_calories, 0
+          );
+  
+          // Build strictly future non-treat days
+          const start              = new Date(weeklyPeriod.week_start_date);
+          const futureNonTreatDays: string[] = [];
+  
+          for (let i = 0; i < 7; i++) {
+            const d       = new Date(start);
+            d.setDate(start.getDate() + i);
+            const dateStr = d.toISOString().split('T')[0];
+  
+            const isStrictlyFuture = dateStr > today;
+            const isTreat          = treatDaySet.has(dateStr);
+  
+            if (isStrictlyFuture && !isTreat) {
+              futureNonTreatDays.push(dateStr);
+            }
+          }
+  
+          if (futureNonTreatDays.length > 0) {
+            const totalNonTreatDays = 7 - treatDaySet.size;
+            const remainingBudget   = weeklyPeriod.weekly_budget - totalTreatCalories;
+            const newDailyTarget    = Math.round(remainingBudget / totalNonTreatDays);
+            const baseTarget        = Math.round(weeklyPeriod.weekly_budget / 7);
+  
+            // Clear existing adjustments for future non-treat days
+            await supabase
+              .from('daily_target_adjustments')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('weekly_period_id', weeklyPeriod.id)
+              .in('target_date', futureNonTreatDays);
+  
+            // Insert fresh adjustments only if target differs from base
+            if (newDailyTarget !== baseTarget) {
+              const upserts = futureNonTreatDays.map(date => ({
+                user_id:           user.id,
+                weekly_period_id:  weeklyPeriod.id,
+                target_date:       date,
+                adjusted_calories: newDailyTarget,
+              }));
+  
+              await supabase
+                .from('daily_target_adjustments')
+                .upsert(upserts, { onConflict: 'user_id,target_date' });
+            }
+          }
+        } catch (e) {
+          console.error('⚠️ Treat day redistribution failed (non-critical):', e);
+        }
+      }
+  
+      // 5. First treat day modal vs subsequent alert
+      const { count } = await supabase
+        .from('planned_cheat_days')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+  
+      if (count === 1) {
+        await showModal({ key: 'treat_day_planned' });
+        router.back();
+      } else {
+        Alert.alert('Success', 'Treat day planned!', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      }
+  
     } catch (error) {
       console.error('Error saving cheat day:', error);
       Alert.alert('Error', 'Failed to save treat day');
