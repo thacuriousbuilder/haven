@@ -351,7 +351,9 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
   
       if (error) throw error
   
-      let newTotal = 0
+      let previousTotal = 0;
+      let newTotal = 0;
+  
       if (food.calories > 0) {
         const { data: existingSummary } = await supabase
           .from('daily_summaries')
@@ -360,7 +362,8 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
           .eq('summary_date', resolvedLogDate)
           .single()
   
-        newTotal = (existingSummary?.calories_consumed || 0) + food.calories
+        previousTotal = existingSummary?.calories_consumed || 0;
+        newTotal = previousTotal + food.calories;
   
         await supabase
           .from('daily_summaries')
@@ -384,36 +387,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
       }
   
       // Over budget modal
-      try {
-        const today = formatLocalDate(new Date());
-        const monday = formatLocalDate(getMonday(new Date()));
-      
-        const { data: period } = await supabase
-          .from('weekly_periods')
-          .select('weekly_budget')
-          .eq('user_id', user.id)
-          .eq('week_start_date', monday)
-          .maybeSingle();
-      
-        if (period?.weekly_budget) {
-          const dailyTarget = Math.round(period.weekly_budget / 7);
-      
-          const OVER_BUDGET_THRESHOLD = 200;
-
-        if (newTotal > dailyTarget + OVER_BUDGET_THRESHOLD) {
-          await showModal({
-            key: 'over_budget',
-            data: {
-              target: dailyTarget,
-              consumed: newTotal,
-              over: newTotal - dailyTarget,
-            },
-          });
-        }
-        }
-      } catch (e) {
-        console.error('⚠️ Over budget check failed:', e);
-      }
+      await checkOverBudget(previousTotal, newTotal);
   
       Alert.alert('Logged!', `${food.food_name} added to your log.`)
       onSuccess()
@@ -523,7 +497,9 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
   
       if (error) throw error
   
-      let newTotal = 0
+      let previousTotal = 0;
+      let newTotal = 0;
+  
       if (food.calories > 0) {
         const { data: existingSummary } = await supabase
           .from('daily_summaries')
@@ -532,7 +508,8 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
           .eq('summary_date', resolvedLogDate)
           .single()
   
-        newTotal = (existingSummary?.calories_consumed || 0) + food.calories
+        previousTotal = existingSummary?.calories_consumed || 0;
+        newTotal = previousTotal + food.calories;
   
         await supabase
           .from('daily_summaries')
@@ -556,22 +533,42 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
       }
   
       // Over budget modal
-      try {
-        const today = formatLocalDate(new Date());
-        const monday = formatLocalDate(getMonday(new Date()));
-      
-        const { data: period } = await supabase
-          .from('weekly_periods')
-          .select('weekly_budget')
-          .eq('user_id', user.id)
-          .eq('week_start_date', monday)
-          .maybeSingle();
-      
-        if (period?.weekly_budget) {
-          const dailyTarget = Math.round(period.weekly_budget / 7);
-          const OVER_BUDGET_THRESHOLD = 200;
+      await checkOverBudget(previousTotal, newTotal);
+  
+      Alert.alert('Logged!', `${food.food_name} added to your log.`)
+      onSuccess()
+    } catch (error) {
+      console.error('Error logging favorite:', error)
+      Alert.alert('Error', 'Could not log this food. Please try again.')
+    }
+  }
 
-      if (newTotal > dailyTarget + OVER_BUDGET_THRESHOLD) {
+  // AsyncStorage.removeItem('over_budget_last_seen_date').then(() => {
+  //   console.log('✅ Cleared over budget seen date');
+  // });
+
+  const checkOverBudget = async (previousTotal: number, newTotal: number) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+  
+      const monday = formatLocalDate(getMonday(new Date()));
+  
+      const { data: period } = await supabase
+        .from('weekly_periods')
+        .select('weekly_budget')
+        .eq('user_id', user.id)
+        .eq('week_start_date', monday)
+        .maybeSingle();
+  
+      if (!period?.weekly_budget) return;
+  
+      const dailyTarget = Math.round(period.weekly_budget / 7);
+      const OVER_BUDGET_THRESHOLD = Math.round(dailyTarget * 0.20);
+      const triggerPoint = dailyTarget + OVER_BUDGET_THRESHOLD;
+  
+      // Only fire at the exact moment the threshold is crossed
+      if (previousTotal <= triggerPoint && newTotal > triggerPoint) {
         await showModal({
           key: 'over_budget',
           data: {
@@ -581,21 +578,11 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
           },
         });
       }
-        }
-      } catch (e) {
-        console.error('⚠️ Over budget check failed:', e);
-      }
-  
-      Alert.alert('Logged!', `${food.food_name} added to your log.`)
-      onSuccess()
-    } catch (error) {
-      console.error('Error logging favorite:', error)
-      Alert.alert('Error', 'Could not log this food. Please try again.')
+    } catch (e) {
+      console.error('⚠️ Over budget check failed:', e);
     }
-  }
-  AsyncStorage.removeItem('over_budget_last_seen_date').then(() => {
-    console.log('✅ Cleared over budget seen date');
-  });
+  };
+
   const handleSave = async () => {
     if (!foodDescription.trim()) {
       Alert.alert('Error', 'Please describe what you ate');
@@ -660,7 +647,9 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
         console.log('✅ Baseline started on:', resolvedLogDate);
       }
 
+      let previousTotal = 0;
       let newTotal = 0;
+
       if (calories > 0) {
         const { data: existingSummary } = await supabase
           .from('daily_summaries')
@@ -669,7 +658,8 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
           .eq('summary_date', resolvedLogDate)
           .single();
 
-        newTotal = (existingSummary?.calories_consumed || 0) + calories;
+        previousTotal = existingSummary?.calories_consumed || 0;
+        newTotal = previousTotal + calories;
 
         await supabase
           .from('daily_summaries')
@@ -722,7 +712,7 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
         console.error('⚠️ Weekly limit check failed (non-critical):', limitError);
       }
 
-      // 1. First meal modal
+      // First meal modal
       try {
         const { count } = await supabase
           .from('food_logs')
@@ -736,36 +726,8 @@ const filteredFavoriteFoods = favoritesSearchQuery.trim()
         console.error('⚠️ First meal check failed (non-critical):', e);
       }
 
-      // 2. Over budget modal
-      try {
-        const today = formatLocalDate(new Date());
-        const monday = formatLocalDate(getMonday(new Date()));
-      
-        const { data: period } = await supabase
-          .from('weekly_periods')
-          .select('weekly_budget')
-          .eq('user_id', user.id)
-          .eq('week_start_date', monday)
-          .maybeSingle();
-      
-        if (period?.weekly_budget) {
-          const dailyTarget = Math.round(period.weekly_budget / 7);
-
-          const OVER_BUDGET_THRESHOLD = 200;
-          if (newTotal > dailyTarget + OVER_BUDGET_THRESHOLD) {
-            await showModal({
-              key: 'over_budget',
-              data: {
-                target: dailyTarget,
-                consumed: newTotal,
-                over: newTotal - dailyTarget,
-              },
-            });
-          }
-        }
-      } catch (e) {
-        console.error('⚠️ Over budget check failed:', e);
-      }
+      // Over budget modal
+      await checkOverBudget(previousTotal, newTotal);
 
       // Reset form
       setFoodDescription('');

@@ -10,11 +10,20 @@ import { FoodLogItem } from '../recap/dayDetailView';
 import { useFoodReflection } from '@/hooks/useFoodReflection';
 
 const EAT_REASONS = [
-  'Hungry', 'Social', 'It was time', 'Bored',
-  'Stressed', 'Cravings', 'Tired', 'Loved the taste',
-  'Why not?', 'Other',
+  'Physically hungry',
+  'Low energy',
+  'Post-workout',
+  'Stressed',
+  'Bored',
+  'Emotional',
+  'Deserved it',
+  'It was just there',
+  'Habit',
+  'Social',
+  'Craving',
+  'Loved the look/smell',
+  'Favourite food',
 ];
-
 const SATIETY_OPTIONS = ['Yes', 'Somewhat', 'No'];
 
 type Props = {

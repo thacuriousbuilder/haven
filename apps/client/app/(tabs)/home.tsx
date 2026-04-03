@@ -1558,14 +1558,18 @@ const todayRemaining = todayGoal - todayCalories;
               )}
 
              {/* Budget Adjustment Banner */}
-             {isSelectedDateToday() && !isSelectedDateCheatDay() && (
-                <BudgetAdjustmentBanner
-                  cumulativeOverage={cumulativeOverage}
-                  adjustedBudget={adjustedBudget}
-                  baseBudget={baseBudget}
-                  weekStartDate={currentPeriod?.week_start_date || ''}
-                />
-              )}
+             {isSelectedDateToday() && 
+                !isSelectedDateCheatDay() && 
+                !overageLoading &&
+                baseBudget > 0 &&
+                !!currentPeriod?.week_start_date && (
+                  <BudgetAdjustmentBanner
+                    cumulativeOverage={cumulativeOverage}
+                    adjustedBudget={adjustedBudget}
+                    baseBudget={baseBudget}
+                    weekStartDate={currentPeriod.week_start_date}
+                  />
+                )}
             {/*  Cheat Day Banner */}
             {isSelectedDateCheatDay() && selectedCheatCalories && (
                   <View style={styles.cheatDayBanner}>

@@ -60,10 +60,8 @@ export default function EditProfileScreen() {
 
       if (error) throw error;
 
-      // Split full name into first and last
-      const nameParts = (profile.full_name || '').trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
+      const firstName = profile.first_name || '';
+      const lastName = profile.last_name || '';
 
       setData({
         firstName,
@@ -110,16 +108,16 @@ export default function EditProfileScreen() {
       const fullName = `${data.firstName.trim()} ${data.lastName.trim()}`.trim();
 
       const { error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: fullName,
-          gender: data.gender,
-          height_ft: data.heightFt,
-          height_in: data.heightIn,
-          height_cm: data.heightCm,
-        })
-        .eq('id', user.id);
-
+      .from('profiles')
+      .update({
+        first_name: data.firstName.trim(),
+        last_name: data.lastName.trim(),
+        gender: data.gender,
+        height_ft: data.heightFt,
+        height_in: data.heightIn,
+        height_cm: data.heightCm,
+      })
+      .eq('id', user.id);
       if (error) throw error;
 
       Alert.alert('Success', 'Your profile has been updated!', [

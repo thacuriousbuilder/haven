@@ -1,5 +1,3 @@
-
-
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { router } from 'expo-router';
@@ -7,6 +5,13 @@ import { supabase } from '@haven/shared-utils';
 import { getLocalDateString, utcToLocalDateString } from '@haven/shared-utils';
 
 const CHECK_IN_HOUR = 6;
+
+// Module-level flag — shared across all instances, no ref needed
+let isModalOpen = false;
+
+export function resetCheckInModal() {
+  isModalOpen = false;
+}
 
 export function useDailyCheckIn() {
   const appState = useRef(AppState.currentState);
@@ -26,20 +31,23 @@ export function useDailyCheckIn() {
 
   const checkAndPrompt = async () => {
     try {
-      // GATE 1: Time check
+      // GATE 0: Modal already open?
+      if (isModalOpen) {
+        console.log('🔒 Check-in modal already open, skipping');
+        return;
+      }
+
       const currentHour = new Date().getHours();
       if (currentHour < CHECK_IN_HOUR) {
         console.log('⏰ Too early for check-in prompt');
         return;
       }
 
-      // GATE 2: Auth check
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const today = getLocalDateString();
 
-      // GATE 3: Signup day check
       const { data: profile } = await supabase
         .from('profiles')
         .select('created_at, baseline_start_date, baseline_completion_at')
@@ -54,14 +62,12 @@ export function useDailyCheckIn() {
         }
       }
 
-      // GATE 4: Baseline day 1 check
       const isBaselineUser = profile?.baseline_start_date && !profile?.baseline_completion_at;
       if (isBaselineUser && profile.baseline_start_date === today) {
         console.log('📅 Baseline day 1 — skipping check-in prompt');
         return;
       }
 
-      // GATE 5: Already checked in today?
       const { data: existingCheckIn } = await supabase
         .from('check_ins')
         .select('id')
@@ -74,8 +80,8 @@ export function useDailyCheckIn() {
         return;
       }
 
-      // All gates passed — show the modal
       console.log('🔔 Prompting daily check-in');
+      isModalOpen = true;
       router.push('/dailyCheckin');
 
     } catch (error) {

@@ -8,6 +8,7 @@ export type GettingStartedItem =
   | 'log_first_meal'
   | 'adjust_budget'
   | 'plan_treat_day'
+  | 'food_journal'
   | 'read_why_weekly';
 
 interface GettingStartedState {
@@ -20,6 +21,7 @@ const DEFAULT_STATE: GettingStartedState = {
     log_first_meal: false,
     adjust_budget: false,
     plan_treat_day: false,
+    food_journal: false,
     read_why_weekly: false,
   },
   dismissed: false,
@@ -60,7 +62,7 @@ export function useGettingStarted() {
   const dismiss = () => save({ ...state, dismissed: true });
 
   const completedCount = Object.values(state.completed).filter(Boolean).length;
-  const totalCount = 4;
+  const totalCount = 5;
   const allDone = completedCount === totalCount;
   const visible = loaded && !state.dismissed;
 

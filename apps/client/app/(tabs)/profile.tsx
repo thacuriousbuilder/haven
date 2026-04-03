@@ -23,6 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 
 
+
 interface UserProfile {
   id: string;
   first_name: string | null;
@@ -341,7 +342,7 @@ export default function ClientProfileScreen() {
           userType="client"
           targetWeight={targetWeight}
         />
-
+    
         {/* My Coach Section */}
         {coach && (
           <MyCoachCard

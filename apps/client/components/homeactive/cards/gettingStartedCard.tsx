@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, BorderRadius, Shadows } from '@/constants/colors';
 import { useGettingStarted, GettingStartedItem } from '@/hooks/useGettingStarted';
+import { getLocalDateString } from '@/utils/timezone';
 
 interface Props {
   onLogMeal: () => void;
@@ -33,6 +34,12 @@ const ITEMS: {
     title: 'Plan a treat day',
     subtitle: 'Pick your day to enjoy more',
     icon: 'calendar-outline',
+  },
+  {
+    id: 'food_journal',
+    title: 'Review your food journal',
+    subtitle: 'Understand your eating patterns',
+    icon: 'journal-outline',
   },
   {
     id: 'read_why_weekly',
@@ -64,6 +71,12 @@ export function GettingStartedCard({ onLogMeal }: Props) {
       case 'plan_treat_day':
         router.push('/planCheatDay');
         break;
+      case 'food_journal':
+          router.push({
+            pathname: '/(tabs)/weekly',
+            params: { tab: 'recap', date: getLocalDateString() },
+          });
+          break;
       case 'read_why_weekly':
         router.push({
           pathname: '/(tabs)/weekly',
