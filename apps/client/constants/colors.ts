@@ -32,10 +32,9 @@ export const Colors = {
     error: '#EF4444',           // Over budget, errors
     
     // Opacity variants (for overlays, shadows)
-    blackOverlay: 'rgba(0, 0, 0, 0.1)',
-    tealOverlay: 'rgba(32, 110, 107, 0.1)',
-    orangeOverlay: 'rgba(239, 120, 40, 0.1)',
-    purpleOverlay: 'rgba(139, 92, 246, 0.1)',
+    blackOverlay: 'rgba(0,0,0,0.1)',
+    tealOverlay: '#E8F2F1', 
+    orangeOverlay: '#FDE8D4',
   };
   
   /**

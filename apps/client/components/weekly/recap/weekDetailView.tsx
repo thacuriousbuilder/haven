@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView,
   TouchableOpacity, StyleSheet, ActivityIndicator,
@@ -13,10 +12,33 @@ type Props = {
   week: WeekSummary;
   onBack: () => void;
   onSelectDay: (day: DaySummary) => void;
+  initialDate?: string;
 };
 
-export default function WeekDetailView({ week, onBack, onSelectDay }: Props) {
+export default function WeekDetailView({ week, onBack, onSelectDay, initialDate }: Props) {
   const { days, loading, error } = useDayDetail(week.startISO);
+
+  // Auto-select today once — parent clears initialDate on back nav so this
+  // never re-fires when user returns to the week list
+  const hasAutoSelected = useRef(false);
+
+  useEffect(() => {
+    if (!initialDate || loading || !days.length) return;
+    if (hasAutoSelected.current) return;
+    const match = days.find(d => d.fullDate === initialDate);
+    if (match) {
+      hasAutoSelected.current = true;
+      onSelectDay(match);
+    }
+  }, [initialDate, days, loading]);
+
+  if (initialDate && !hasAutoSelected.current) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={Colors.vividTeal} />
+      </View>
+    );
+  }
 
   if (loading) {
     return (
@@ -85,20 +107,15 @@ export default function WeekDetailView({ week, onBack, onSelectDay }: Props) {
               onPress={() => onSelectDay(day)}
               activeOpacity={0.7}
             >
-              {/* Day badge */}
               <View style={styles.dayBadge}>
                 <Text style={styles.dayBadgeText}>{day.dayLabel}</Text>
               </View>
-
-              {/* Middle */}
               <View style={styles.dayMiddle}>
                 <Text style={styles.dayDate}>{day.date}</Text>
                 <Text style={styles.mealsLogged}>
                   {day.mealsLogged} meals logged
                 </Text>
               </View>
-
-              {/* Calories + chevron */}
               <Text style={styles.dayCal}>
                 {day.totalCal.toLocaleString()}
               </Text>
@@ -113,17 +130,17 @@ export default function WeekDetailView({ week, onBack, onSelectDay }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.lightCream },
-  content:   { 
+  content: {
     padding: Spacing.lg,
-     gap: Spacing.md,
-     paddingBottom: 100,
- },
-  centered:  { 
-    flex: 1, 
+    gap: Spacing.md,
+    paddingBottom: 100,
+  },
+  centered: {
+    flex: 1,
     justifyContent: 'center',
-     alignItems: 'center', 
-     backgroundColor: Colors.lightCream
- },
+    alignItems: 'center',
+    backgroundColor: Colors.lightCream,
+  },
   backRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -167,7 +184,7 @@ const styles = StyleSheet.create({
     color: Colors.graphite,
     marginTop: Spacing.xs,
   },
-  dayList:  { gap: Spacing.sm },
+  dayList: { gap: Spacing.sm },
   dayCard: {
     flexDirection: 'row',
     alignItems: 'center',

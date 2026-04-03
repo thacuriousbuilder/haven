@@ -9,6 +9,8 @@ import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import { Platform } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ModalProvider } from '@/contexts/modalContext';
+import { ModalRenderer } from '@/components/modals/modalRenderer';
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
@@ -97,6 +99,8 @@ export default Sentry.wrap(function RootLayout() {
 
   return (
     <OnboardingProvider>
+      <ModalProvider>
+        <ModalRenderer />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
@@ -128,6 +132,7 @@ export default Sentry.wrap(function RootLayout() {
     }}
   />
   </Stack>
+  </ModalProvider>
     </OnboardingProvider>
   );
 });

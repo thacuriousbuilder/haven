@@ -95,7 +95,7 @@ export default function HeightWeightScreen() {
       currentWeight: finalWeight,
     });
     
-    router.push('/(onboarding)/whyWorks1');
+    router.push('/newflow/goalWeight');
   };
 
   const handleFeetChange = (text: string) => {
@@ -144,7 +144,7 @@ export default function HeightWeightScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <BackButton />
-      <ProgressBar currentStep={3} totalSteps={14} />
+      <ProgressBar currentStep={7} totalSteps={15} />
       
       <View style={styles.content}>
         <ScrollView 
@@ -188,6 +188,7 @@ export default function HeightWeightScreen() {
                       value={heightFeet}
                       onChangeText={handleFeetChange}
                       keyboardType="number-pad"
+                      returnKeyType='done'
                       maxLength={1}
                       placeholderTextColor="#9CA3AF"
                       autoComplete='off'
@@ -204,6 +205,7 @@ export default function HeightWeightScreen() {
                       value={heightInches}
                       onChangeText={handleInchesChange}
                       keyboardType="number-pad"
+                      returnKeyType='done'
                       maxLength={2}
                       placeholderTextColor="#9CA3AF"
                       autoComplete='off'
@@ -224,6 +226,7 @@ export default function HeightWeightScreen() {
                     value={currentWeight}
                     onChangeText={handleWeightChange}
                     keyboardType="number-pad"
+                    returnKeyType='done'
                     maxLength={3}
                     placeholderTextColor="#9CA3AF"
                     autoComplete='off'
@@ -246,6 +249,7 @@ export default function HeightWeightScreen() {
                     value={heightCm}
                     onChangeText={handleCmChange}
                     keyboardType="number-pad"
+                    returnKeyType='done'
                     maxLength={3}
                     placeholderTextColor="#9CA3AF"
                     autoComplete='off'
@@ -265,6 +269,7 @@ export default function HeightWeightScreen() {
                     value={weightKg}
                     onChangeText={handleKgChange}
                     keyboardType="number-pad"
+                    returnKeyType='done'
                     maxLength={3}
                     placeholderTextColor="#9CA3AF"
                     autoComplete='off'

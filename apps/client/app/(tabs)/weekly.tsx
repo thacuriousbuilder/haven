@@ -1,8 +1,6 @@
-
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity,
-  StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,10 +11,9 @@ import DayDetailView from '@/components/weekly/recap/dayDetailView';
 import { useWeeklyRecap } from '@/hooks/useWeeklyRecap';
 import { WeekSummary, DaySummary } from '@/types/recap';
 import PlanTab from '@/components/weekly/plan/planTab';
-import DiscoveryTab from '@/components/weekly//discovery/discoveryTab';
+import DiscoveryTab from '@/components/weekly/discovery/discoveryTab';
 import EveningRecapSheet from '@/components/weekly/recap/eveningRecapSheet';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
 
 type WeeklyTab = 'recap' | 'plan' | 'discovery';
 
@@ -31,9 +28,16 @@ export default function WeeklyScreen() {
   const [selectedWeek, setSelectedWeek] = useState<WeekSummary | null>(null);
   const [selectedDay, setSelectedDay]   = useState<DaySummary | null>(null);
   const [showEveningRecap, setShowEveningRecap] = useState(false);
-  const [recapKey, setRecapKey] = useState(0);
-  const params = useLocalSearchParams();
+  const [recapKey, setRecapKey]         = useState(0);
+  const [initialDate, setInitialDate]   = useState<string | undefined>(undefined);
 
+  // Fires exactly once per mount — prevents re-render flicker as weeks loads
+  const hasHandledDateParam = useRef(false);
+
+  const params = useLocalSearchParams();
+  const { weeks, loading, error } = useWeeklyRecap();
+
+  // Evening recap deep link
   useFocusEffect(
     useCallback(() => {
       if (params.showEveningRecap === 'true') {
@@ -43,11 +47,37 @@ export default function WeeklyScreen() {
     }, [params.showEveningRecap])
   );
 
-  const { weeks, loading, error } = useWeeklyRecap();
+  // Tab param
+  useEffect(() => {
+    if (params.tab === 'plan' || params.tab === 'discovery' || params.tab === 'recap') {
+      setActiveTab(params.tab as WeeklyTab);
+    }
+  }, [params.tab]);
+
+  // Date deep link — fires once, auto-selects matching week + stores initialDate
+  useEffect(() => {
+    if (!params.date || !weeks.length) return;
+    if (hasHandledDateParam.current) return;
+
+    const targetDate = params.date as string;
+
+    const match = weeks.find(w => {
+      const end = new Date(w.startISO);
+      end.setDate(end.getDate() + 6);
+      const endISO = end.toISOString().split('T')[0];
+      return targetDate >= w.startISO && targetDate <= endISO;
+    });
+
+    if (match) {
+      hasHandledDateParam.current = true;
+      setActiveTab('recap');
+      setSelectedWeek(match);
+      setInitialDate(targetDate);
+    }
+  }, [params.date, weeks]);
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Page title */}
       <Text style={styles.pageTitle}>Weekly</Text>
       <Text style={styles.pageSubtitle}>Your week at a glance</Text>
 
@@ -84,13 +114,17 @@ export default function WeeklyScreen() {
           <DayDetailView
             day={selectedDay}
             weekDateRange={`${selectedWeek!.startDate} - ${selectedWeek!.endDate}`}
-            onBack={() => setSelectedDay(null)}
+            onBack={() => {
+              setSelectedDay(null);
+              setInitialDate(undefined); // ← clear so WeekDetailView doesn't re-trigger
+            }}
           />
         ) : selectedWeek ? (
           <WeekDetailView
             week={selectedWeek}
             onBack={() => setSelectedWeek(null)}
             onSelectDay={(day) => setSelectedDay(day)}
+            initialDate={initialDate}
           />
         ) : (
           <RecapTab
@@ -103,7 +137,6 @@ export default function WeeklyScreen() {
       )}
 
       {activeTab === 'plan' && <PlanTab />}
-
       {activeTab === 'discovery' && <DiscoveryTab />}
 
       <EveningRecapSheet
@@ -111,18 +144,18 @@ export default function WeeklyScreen() {
         visible={showEveningRecap}
         onClose={() => setShowEveningRecap(false)}
         onAddMeal={(meal) => {
-        setShowEveningRecap(false);
-        setTimeout(() => {
-          router.push({
-            pathname: '/log',
-            params: {
-              mealType: meal,
-              returnTo: 'weekly',
-            },
-          });
-        }, 500);
-  }}
-/>
+          setShowEveningRecap(false);
+          setTimeout(() => {
+            router.push({
+              pathname: '/log',
+              params: {
+                mealType: meal,
+                returnTo: 'weekly',
+              },
+            });
+          }, 500);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -179,14 +212,5 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: Colors.border,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholder: {
-    color: Colors.textMuted,
-    fontSize: Typography.fontSize.sm,
   },
 });

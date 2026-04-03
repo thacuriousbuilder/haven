@@ -36,7 +36,7 @@ export function useDayDetail(startISO: string) {
         .eq('user_id', user.id)
         .gte('log_date', startISO)
         .lte('log_date', endISO)
-        .order('log_date', { ascending: true });
+        .order('log_date', { ascending: false });
 
       if (queryError) throw queryError;
 

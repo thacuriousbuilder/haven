@@ -151,6 +151,7 @@ export default function LogWeightScreen() {
                 style={styles.weightInput}
                 value={weight}
                 onChangeText={setWeight}
+                returnKeyType='done'
                 placeholder="0.0"
                 placeholderTextColor="#D1D5DB"
                 keyboardType="decimal-pad"
@@ -171,6 +172,7 @@ export default function LogWeightScreen() {
               style={styles.notesInput}
               value={notes}
               onChangeText={setNotes}
+              returnKeyType='done'
               placeholder="How are you feeling today?"
               placeholderTextColor="#D1D5DB"
               multiline

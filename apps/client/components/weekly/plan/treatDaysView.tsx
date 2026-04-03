@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
@@ -14,12 +13,15 @@ import { getLocalDateString } from '@haven/shared-utils';
 
 export default function TreatDaysView() {
   const router = useRouter();
-  const [cheatDays, setCheatDays]             = useState<PlannedCheatDay[]>([]);
-  const [loading, setLoading]                 = useState(true);
-  const [refreshing, setRefreshing]           = useState(false);
-  const [totalReserved, setTotalReserved]     = useState(0);
-  const [weeklyBudget, setWeeklyBudget]       = useState(0);
-  const [isInBaseline, setIsInBaseline]       = useState(false);
+  const [cheatDays, setCheatDays]               = useState<PlannedCheatDay[]>([]);
+  const [loading, setLoading]                   = useState(true);
+  const [refreshing, setRefreshing]             = useState(false);
+  const [totalReserved, setTotalReserved]       = useState(0);
+  const [weeklyBudget, setWeeklyBudget]         = useState(0);
+  const [weeklyPeriodId, setWeeklyPeriodId]     = useState<string | null>(null);
+  const [weekStartDate, setWeekStartDate]       = useState<string | null>(null);
+  const [weekEndDate, setWeekEndDate]           = useState<string | null>(null);
+  const [isInBaseline, setIsInBaseline]         = useState(false);
   const [baselineProgress, setBaselineProgress] = useState({
     daysLogged: 0,
     daysNeeded: 7,
@@ -87,13 +89,18 @@ export default function TreatDaysView() {
 
       const { data: weeklyPeriod } = await supabase
         .from('weekly_periods')
-        .select('weekly_budget')
+        .select('id, weekly_budget, week_start_date, week_end_date')
         .eq('user_id', user.id)
         .lte('week_start_date', today)
         .gte('week_end_date', today)
         .maybeSingle();
 
-      if (weeklyPeriod) setWeeklyBudget(weeklyPeriod.weekly_budget);
+      if (weeklyPeriod) {
+        setWeeklyBudget(weeklyPeriod.weekly_budget);
+        setWeeklyPeriodId(weeklyPeriod.id);
+        setWeekStartDate(weeklyPeriod.week_start_date);
+        setWeekEndDate(weeklyPeriod.week_end_date);
+      }
     } catch (error) {
       console.error('Error loading treat days:', error);
     } finally {
@@ -102,7 +109,7 @@ export default function TreatDaysView() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(day: PlannedCheatDay) {
     Alert.alert(
       'Delete Treat Day',
       'Are you sure you want to delete this planned treat day?',
@@ -113,11 +120,76 @@ export default function TreatDaysView() {
           style: 'destructive',
           onPress: async () => {
             try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) return;
+
+              const today = getLocalDateString();
+
+              // 1. Delete the treat day
               const { error } = await supabase
                 .from('planned_cheat_days')
                 .delete()
-                .eq('id', id);
+                .eq('id', day.id);
+
               if (error) throw error;
+
+              // 2. Revert future non-treat day targets
+              if (weeklyPeriodId && weekStartDate && weekEndDate) {
+                const { data: remainingTreatDays } = await supabase
+                  .from('planned_cheat_days')
+                  .select('cheat_date, planned_calories')
+                  .eq('user_id', user.id)
+                  .gte('cheat_date', weekStartDate)
+                  .lte('cheat_date', weekEndDate);
+
+                const treatDaySet        = new Set((remainingTreatDays ?? []).map(t => t.cheat_date));
+                const totalTreatCalories = (remainingTreatDays ?? []).reduce(
+                  (sum, t) => sum + t.planned_calories, 0
+                );
+
+                // Build strictly future non-treat days
+                const start                        = new Date(weekStartDate);
+                const futureNonTreatDays: string[] = [];
+
+                for (let i = 0; i < 7; i++) {
+                  const d       = new Date(start);
+                  d.setDate(start.getDate() + i);
+                  const dateStr = d.toISOString().split('T')[0];
+                  if (dateStr > today && !treatDaySet.has(dateStr)) {
+                    futureNonTreatDays.push(dateStr);
+                  }
+                }
+
+                if (futureNonTreatDays.length > 0) {
+                  const totalNonTreatDays = 7 - treatDaySet.size;
+                  const remainingBudget   = weeklyBudget - totalTreatCalories;
+                  const newDailyTarget    = Math.round(remainingBudget / totalNonTreatDays);
+                  const baseTarget        = Math.round(weeklyBudget / 7);
+
+                  // Clear existing adjustments for future non-treat days
+                  await supabase
+                    .from('daily_target_adjustments')
+                    .delete()
+                    .eq('user_id', user.id)
+                    .eq('weekly_period_id', weeklyPeriodId)
+                    .in('target_date', futureNonTreatDays);
+
+                  // Only insert if target differs from base
+                  if (newDailyTarget !== baseTarget) {
+                    const upserts = futureNonTreatDays.map(d => ({
+                      user_id:           user.id,
+                      weekly_period_id:  weeklyPeriodId,
+                      target_date:       d,
+                      adjusted_calories: newDailyTarget,
+                    }));
+
+                    await supabase
+                      .from('daily_target_adjustments')
+                      .upsert(upserts, { onConflict: 'user_id,target_date' });
+                  }
+                }
+              }
+
               loadData();
             } catch {
               Alert.alert('Error', 'Failed to delete treat day.');
@@ -151,6 +223,17 @@ export default function TreatDaysView() {
     router.push('/planCheatDay');
   }
 
+  function handleManage() {
+    if (isInBaseline) {
+      Alert.alert(
+        'Complete Baseline First',
+        'Finish tracking your baseline week to unlock treat day planning.'
+      );
+      return;
+    }
+    router.push('/manageCheatDay');
+  }
+
   function formatDate(dateString: string) {
     const date   = new Date(dateString + 'T00:00:00');
     const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -177,7 +260,10 @@ export default function TreatDaysView() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); loadData(); }}
+        />
       }
     >
       {/* Baseline banner */}
@@ -269,7 +355,7 @@ export default function TreatDaysView() {
                     <Ionicons name="pencil" size={20} color={Colors.steelBlue} />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => handleDelete(day.id)}
+                    onPress={() => handleDelete(day)}
                     style={styles.actionBtn}
                     activeOpacity={0.6}
                   >
@@ -290,6 +376,15 @@ export default function TreatDaysView() {
       >
         <Ionicons name="add" size={24} color={Colors.white} />
         <Text style={styles.primaryBtnText}>Plan Treat Day</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.primaryBtn, isInBaseline && styles.primaryBtnDisabled]}
+        onPress={handleManage}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="list" size={24} color={Colors.white} />
+        <Text style={styles.primaryBtnText}>Manage Treat Days</Text>
       </TouchableOpacity>
 
       {/* Tips card */}
@@ -316,7 +411,6 @@ const styles = StyleSheet.create({
   content:    { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 100 },
   centered:   { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  // Baseline banner
   baselineBanner: {
     backgroundColor: Colors.orangeOverlay,
     borderRadius: BorderRadius.lg,
@@ -351,8 +445,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.energyOrange,
     borderRadius: 3,
   },
-
-  // Over budget
   overBudgetBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -370,8 +462,6 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.medium,
     lineHeight: Typography.fontSize.sm * 1.5,
   },
-
-  // Stat cards
   statRow: { flexDirection: 'row', gap: Spacing.md },
   statCard: {
     flex: 1,
@@ -409,8 +499,6 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     marginTop: Spacing.xs,
   },
-
-  // Empty state
   emptyCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
@@ -430,8 +518,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     color: Colors.steelBlue,
   },
-
-  // Treat day cards
   list: { gap: Spacing.md },
   treatCard: {
     backgroundColor: Colors.orangeOverlay,
@@ -469,8 +555,6 @@ const styles = StyleSheet.create({
   },
   treatActions: { flexDirection: 'row', gap: Spacing.sm },
   actionBtn:    { padding: Spacing.sm },
-
-  // Primary button
   primaryBtn: {
     backgroundColor: Colors.vividTeal,
     borderRadius: BorderRadius.md,
@@ -490,8 +574,6 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     marginLeft: Spacing.sm,
   },
-
-  // Tips
   tipsCard: {
     backgroundColor: Colors.orangeOverlay,
     borderRadius: BorderRadius.lg,

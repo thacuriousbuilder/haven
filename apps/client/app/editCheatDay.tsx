@@ -223,33 +223,95 @@ export default function EditCheatDayScreen() {
       'Delete Cheat Day',
       'Are you sure you want to delete this treat day?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
               setLoading(true);
-              
+  
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) throw new Error('Not authenticated');
+  
+              const today     = getLocalDateString();
+              const cheatDate = params.date as string;
+  
+              // 1. Fetch weekly period for this treat day
+              const { data: weeklyPeriod } = await supabase
+                .from('weekly_periods')
+                .select('id, weekly_budget, week_start_date, week_end_date')
+                .eq('user_id', user.id)
+                .lte('week_start_date', cheatDate)
+                .gte('week_end_date', cheatDate)
+                .maybeSingle();
+  
+              // 2. Delete the treat day
               const { error } = await supabase
                 .from('planned_cheat_days')
                 .delete()
                 .eq('id', params.id as string);
-
+  
               if (error) throw error;
-
+  
+              // 3. Revert future non-treat day targets
+              if (weeklyPeriod) {
+                const { data: remainingTreatDays } = await supabase
+                  .from('planned_cheat_days')
+                  .select('cheat_date, planned_calories')
+                  .eq('user_id', user.id)
+                  .gte('cheat_date', weeklyPeriod.week_start_date)
+                  .lte('cheat_date', weeklyPeriod.week_end_date);
+  
+                const treatDaySet        = new Set((remainingTreatDays ?? []).map(t => t.cheat_date));
+                const totalTreatCalories = (remainingTreatDays ?? []).reduce(
+                  (sum, t) => sum + t.planned_calories, 0
+                );
+  
+                const start                        = new Date(weeklyPeriod.week_start_date);
+                const futureNonTreatDays: string[] = [];
+  
+                for (let i = 0; i < 7; i++) {
+                  const d       = new Date(start);
+                  d.setDate(start.getDate() + i);
+                  const dateStr = d.toISOString().split('T')[0];
+                  if (dateStr > today && !treatDaySet.has(dateStr)) {
+                    futureNonTreatDays.push(dateStr);
+                  }
+                }
+  
+                if (futureNonTreatDays.length > 0) {
+                  const totalNonTreatDays = 7 - treatDaySet.size;
+                  const remainingBudget   = weeklyPeriod.weekly_budget - totalTreatCalories;
+                  const newDailyTarget    = Math.round(remainingBudget / totalNonTreatDays);
+                  const baseTarget        = Math.round(weeklyPeriod.weekly_budget / 7);
+  
+                  await supabase
+                    .from('daily_target_adjustments')
+                    .delete()
+                    .eq('user_id', user.id)
+                    .eq('weekly_period_id', weeklyPeriod.id)
+                    .in('target_date', futureNonTreatDays);
+  
+                  if (newDailyTarget !== baseTarget) {
+                    const upserts = futureNonTreatDays.map(d => ({
+                      user_id:           user.id,
+                      weekly_period_id:  weeklyPeriod.id,
+                      target_date:       d,
+                      adjusted_calories: newDailyTarget,
+                    }));
+  
+                    await supabase
+                      .from('daily_target_adjustments')
+                      .upsert(upserts, { onConflict: 'user_id,target_date' });
+                  }
+                }
+              }
+  
               Alert.alert(
                 'Deleted',
                 'Treat day deleted successfully',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => router.back(),
-                  },
-                ]
+                [{ text: 'OK', onPress: () => router.back() }]
               );
             } catch (error) {
               console.error('Error deleting cheat day:', error);

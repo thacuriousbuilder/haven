@@ -1,19 +1,35 @@
-
-import React, { useState } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView,
   TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing, Typography, BorderRadius, Shadows } from '@/constants/colors';
 import { usePlanData } from '@/hooks/usePlanData';
 import BudgetView from './budgetView';
 import TreatDaysView from './treatDaysView';
+import { Ionicons } from '@expo/vector-icons';
+import { useOverageCalculation } from '@/hooks/useOverageCalculation';
 
 type PlanToggle = 'budget' | 'treatdays';
 
 export default function PlanTab() {
   const [activeToggle, setActiveToggle] = useState<PlanToggle>('budget');
   const { planData, loading, error, refetch } = usePlanData();
+  const lastFetched = useRef<number>(0);
+  const params = useLocalSearchParams();
+  const { adjustedBudget } = useOverageCalculation();
+
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
+      const forceRefresh = params.refresh === 'true';
+      if (forceRefresh || now - lastFetched.current > 30_000) {
+        refetch();
+        lastFetched.current = now;
+      }
+    }, [params.refresh])
+  );
 
   if (loading) {
     return (
@@ -23,27 +39,29 @@ export default function PlanTab() {
     );
   }
 
-  if (error || !planData) {
+  if (error === 'baseline') {
     return (
       <View style={styles.centered}>
-        <Text style={styles.errorText}>Could not load plan data.</Text>
+        <Ionicons name="time-outline" size={32} color={Colors.steelBlue} />
+        <Text style={styles.emptyTitle}>Your plan is almost ready</Text>
+        <Text style={styles.emptySubtitle}>
+          Complete your baseline week to unlock your weekly budget and plan.
+        </Text>
       </View>
     );
   }
 
+  if (!planData) return null;
+
   return (
     <View style={styles.container}>
-      {/* Budget / Treat Days toggle */}
       <View style={styles.toggleContainer}>
         <TouchableOpacity
           style={[styles.toggleBtn, activeToggle === 'budget' && styles.toggleBtnActive]}
           onPress={() => setActiveToggle('budget')}
           activeOpacity={0.7}
         >
-          <Text style={[
-            styles.toggleText,
-            activeToggle === 'budget' && styles.toggleTextActive,
-          ]}>
+          <Text style={[styles.toggleText, activeToggle === 'budget' && styles.toggleTextActive]}>
             Budget
           </Text>
         </TouchableOpacity>
@@ -53,21 +71,16 @@ export default function PlanTab() {
           onPress={() => setActiveToggle('treatdays')}
           activeOpacity={0.7}
         >
-          <Text style={[
-            styles.toggleText,
-            activeToggle === 'treatdays' && styles.toggleTextActive,
-          ]}>
+          <Text style={[styles.toggleText, activeToggle === 'treatdays' && styles.toggleTextActive]}>
             Treat Days
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
       {activeToggle === 'budget' && (
-        <BudgetView planData={planData} refetch={refetch} />
+        <BudgetView planData={planData} refetch={refetch} adjustedBudget={adjustedBudget} />
       )}
-
-    {activeToggle === 'treatdays' && <TreatDaysView />} 
+      {activeToggle === 'treatdays' && <TreatDaysView />}
     </View>
   );
 }
@@ -114,8 +127,18 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.error,
   },
-  placeholder: {
+  emptyTitle: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.graphite,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    marginTop: Spacing.xs,
     fontSize: Typography.fontSize.sm,
-    color: Colors.textMuted,
+    color: Colors.steelBlue,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
   },
 });

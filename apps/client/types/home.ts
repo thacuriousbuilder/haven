@@ -68,6 +68,7 @@ export interface MacroData {
     mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack'; // maps to food_logs.meal_type
     loggedAt: string;                  // maps to food_logs.created_at (ISO)
     macros?: MacroData;                // from protein_grams, carbs_grams, fat_grams
+    image_url?: string | null
   }
   
   /**

@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import {
   View, Text, ScrollView,
@@ -11,12 +12,12 @@ import ManageCaloriesCard from './manageCaloriesCard';
 type Props = {
   planData: PlanData;
   refetch: () => void;
+  adjustedBudget: number;
 };
 
-export default function BudgetView({ planData, refetch }: Props) {
-    const { weeklyBudget, totalEaten, remaining, isOverBudget, overageAmount, days, weeklyPeriodId } = planData;
-   
-  // Progress bar — cap at 100% visually
+export default function BudgetView({ planData, refetch, adjustedBudget }: Props) {
+  const { weeklyBudget, totalEaten, remaining, isOverBudget, overageAmount, days } = planData;
+
   const progressPct = Math.min(totalEaten / weeklyBudget, 1);
 
   return (
@@ -39,7 +40,6 @@ export default function BudgetView({ planData, refetch }: Props) {
           <Text style={styles.heroUnit}>cal</Text>
         </View>
 
-        {/* Progress bar */}
         <View style={styles.progressTrack}>
           <View style={[
             styles.progressFill,
@@ -58,70 +58,86 @@ export default function BudgetView({ planData, refetch }: Props) {
         </View>
       </View>
 
-      {/* Manage Calories card — placeholder for now */}
+      {/* Manage Calories card */}
       <ManageCaloriesCard planData={planData} refetch={refetch} />
 
       {/* Daily Targets label */}
       <Text style={styles.sectionTitle}>Daily Targets</Text>
 
-      {/* Daily Targets list — placeholder for now */}
-      {planData.days.map((day) => (
-        <View
-          key={day.date}
-          style={[styles.dayRow, day.isToday && styles.dayRowToday]}
-        >
-          {/* Badge */}
-          <View style={[
-            styles.dayBadge,
-            day.isToday && styles.dayBadgeToday,
-            day.isTreatDay && styles.dayBadgeTreat,
-          ]}>
-           <Text style={[
+      {planData.days.map((day) => {
+        const isAdjustedToday = day.isToday && adjustedBudget > 0 && adjustedBudget !== day.target;
+        const displayTarget   = day.isToday && adjustedBudget > 0 ? adjustedBudget : day.target;
+
+        return (
+          <View
+            key={day.date}
+            style={[styles.dayRow, day.isToday && styles.dayRowToday]}
+          >
+            {/* Badge */}
+            <View style={[
+              styles.dayBadge,
+              day.isToday && styles.dayBadgeToday,
+              day.isTreatDay && styles.dayBadgeTreat,
+            ]}>
+              <Text style={[
                 styles.dayBadgeText,
                 day.isToday && styles.dayBadgeTextToday,
-                ]}>
-                {day.dayNumber}
-                </Text>
-          </View>
-
-          {/* Label */}
-          <View style={styles.dayMiddle}>
-            <Text style={[
-              styles.dayName,
-              day.isToday && styles.dayNameToday,
-            ]}>
-              {day.isToday ? 'Today' : day.dayLabel}
-            </Text>
-            {day.isTreatDay && (
-              <Text style={styles.treatLabel}>Treat day</Text>
-            )}
-          </View>
-
-          {/* Right: target + eaten */}
-          <View style={styles.dayRight}>
-            <Text style={styles.dayTarget}>
-              {day.target.toLocaleString()}
-            </Text>
-            {(day.isPast || day.isToday) && day.eaten > 0 && (
-              <Text style={[
-                styles.dayEaten,
-                day.eaten > day.target && styles.dayEatenOver,
               ]}>
-                {day.eaten.toLocaleString()} eaten
+                {day.dayNumber}
               </Text>
-            )}
+            </View>
+
+            {/* Label */}
+            <View style={styles.dayMiddle}>
+              <Text style={[
+                styles.dayName,
+                day.isToday && styles.dayNameToday,
+              ]}>
+                {day.isToday ? 'Today' : day.dayLabel}
+              </Text>
+              {day.isTreatDay && (
+                <Text style={styles.treatLabel}>Treat day</Text>
+              )}
+            </View>
+
+            {/* Right: target + eaten */}
+            <View style={styles.dayRight}>
+              {(day.isAdjusted || isAdjustedToday) && (
+                <Text style={styles.dayTargetOriginal}>
+                  {day.baseTarget.toLocaleString()}
+                </Text>
+              )}
+              <Text style={[
+                styles.dayTarget,
+                (day.isAdjusted || isAdjustedToday) && styles.dayTargetAdjusted,
+              ]}>
+                {displayTarget.toLocaleString()}
+              </Text>
+              {(day.isAdjusted || isAdjustedToday) && (
+                <Text style={styles.adjustedLabel}>
+                  {day.isToday ? 'recommended' : 'adjusted'}
+                </Text>
+              )}
+              {(day.isPast || day.isToday) && day.eaten > 0 && (
+                <Text style={[
+                  styles.dayEaten,
+                  day.eaten > displayTarget && styles.dayEatenOver,
+                ]}>
+                  {day.eaten.toLocaleString()} eaten
+                </Text>
+              )}
+            </View>
           </View>
-        </View>
-      ))}
+        );
+      })}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content:   { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 100, },
+  content:   { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 100 },
 
-  // Hero
   heroCard: {
     backgroundColor: Colors.vividTeal,
     borderRadius: BorderRadius.lg,
@@ -183,30 +199,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: 'rgba(255,255,255,0.75)',
   },
-
-  // Manage card
-  manageCard: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    ...Shadows.small,
-  },
-  manageCardLeft: { flex: 1 },
-  manageTitle: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.semibold,
-    color: Colors.graphite,
-  },
-  manageSubtitle: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.steelBlue,
-    marginTop: 2,
-  },
-
-  // Daily targets
   sectionTitle: {
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.semibold,
@@ -263,10 +255,24 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   dayRight: { alignItems: 'flex-end' },
+  dayTargetOriginal: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textMuted,
+    textDecorationLine: 'line-through',
+  },
   dayTarget: {
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.graphite,
+  },
+  dayTargetAdjusted: {
+    color: Colors.energyOrange,
+  },
+  adjustedLabel: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.energyOrange,
+    fontStyle: 'italic',
+    marginTop: 1,
   },
   dayEaten: {
     fontSize: Typography.fontSize.xs,

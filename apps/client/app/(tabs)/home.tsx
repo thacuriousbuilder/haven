@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Alert, Button } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import { supabase } from '@haven/shared-utils';
+import { supabase, utcToLocalDateString } from '@haven/shared-utils';
 import { Ionicons } from '@expo/vector-icons';
 import WeeklyCalendar from '@/components/weeklyCalendar';
 import { 
@@ -33,6 +33,10 @@ import { analyzeWeekPeriod, WeekInfo } from '@/utils/weekHelpers';
 import { BaselineWeightTrendModal } from '@/components/baselineWeightTrendModal';
 import { DailyCaloriesChart } from '@/components/homeactive/cards/dailyCaloriesChart';
 import { BudgetAdjustmentBanner } from '@/components/homeactive/cards/budgetAdjustmentBanner';
+import { GettingStartedCard } from '@/components/homeactive/cards/gettingStartedCard';
+import { useGettingStarted } from '@/hooks/useGettingStarted';
+import { useModal } from '@/contexts/modalContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ProfileData {
   first_name: string | null;
@@ -55,6 +59,7 @@ interface ProfileData {
   daily_target: number | null;
   baseline_completion_at: string | null;
   updated_at: string | null;
+  created_at: string | null;
 }
 
 interface FoodLog {
@@ -67,6 +72,7 @@ interface FoodLog {
   protein_grams?: number | null;
   carbs_grams?: number | null;
   fat_grams?: number | null;
+  image_url?: string | null;
 }
 
 interface MetricsData {
@@ -115,7 +121,8 @@ export default function HomeScreen() {
   const [weeklySummaries, setWeeklySummaries] = useState<{ summary_date: string; calories_consumed: number }[]>([]);
   const baselineCompletionInProgress = useRef(false);
   const baselineResultRef = useRef<any>(null);
-  
+  const { allDone } = useGettingStarted();
+  const [todayAdjustedTarget, setTodayAdjustedTarget] = useState<number | null>(null);
 
   const {
     baseBudget,
@@ -135,29 +142,33 @@ export default function HomeScreen() {
  
   useEffect(() => {
     if (profile) {
-        fetchRecentLogs();
-        checkBaselineStatus();
-        fetchCompletedBaselineDays()
-        fetchBaselineStats()
-      }
-  }, [profile]);
+      fetchMetrics()            
+      checkBaselineStatus()
+      fetchCompletedBaselineDays()
+    }
+  }, [profile])
+  
 
   useFocusEffect(
     React.useCallback(() => {
       if (profile && profile.user_type !== 'trainer') {
-        // Refresh data whenever screen comes into focus
-        fetchRecentLogs();
-        checkBaselineStatus();
-        fetchCompletedBaselineDays();
-        fetchMetrics(); 
+        fetchMetrics()            
+        checkBaselineStatus()
+        fetchCompletedBaselineDays()
       }
     }, [profile])
-  );
+  )
 
   useFocusEffect(
     useCallback(() => {
+     
+      if (profile?.created_at) {
+        const signupDate = utcToLocalDateString(profile.created_at);
+        const todayDate = getLocalDateString();
+        if (signupDate === todayDate) return;
+      }
       checkDailyCheckIn();
-    }, [])
+    }, [profile])
   );
 
 
@@ -177,19 +188,22 @@ export default function HomeScreen() {
 
   // Transform FoodLog to MealLogItem format
   const transformMealsData = (logs: FoodLog[]): MealLogItem[] => {
-    return logs.map(log => ({
+    return logs.map(log => {
+      return {
       id: log.id,
       name: log.food_name,
       time: formatTime(log.created_at),
       calories: log.calories || 0,
       mealType: log.meal_type as 'breakfast' | 'lunch' | 'dinner' | 'snack',
       loggedAt: log.created_at,
+      image_url: log.image_url || null,
       macros: log.protein_grams || log.carbs_grams || log.fat_grams ? {
         protein: log.protein_grams || 0,
         carbs: log.carbs_grams || 0,
         fat: log.fat_grams || 0,
       } : undefined,
-    }));
+    }
+    });
   };
 
   // Derives weekly summaries directly from recentLogs (always reflects true state)
@@ -223,9 +237,6 @@ const buildWeeklySummariesFromLogs = (
     profile: any
   ): Promise<MetricsData & { summaries: { summary_date: string; calories_consumed: number }[] }> => {
     try {
-      console.log('📊 Calculating metrics client-side for week:', weekStartDate);
-      
-      
       const startDate = new Date(weekStartDate + 'T00:00:00');
       const endDate = getSunday(startDate);
       const sundayStr = formatLocalDate(endDate);
@@ -248,7 +259,7 @@ const buildWeeklySummariesFromLogs = (
         sum + (day.calories_consumed || 0), 0
       ) || 0;
   
-      console.log('  - Total consumed:', total_consumed);
+      
   
       // Get upcoming cheat days (after today)
       const { data: cheatDays, error: cheatError } = await supabase
@@ -267,13 +278,12 @@ const buildWeeklySummariesFromLogs = (
         sum + (cd.planned_calories || 0), 0
       ) || 0;
   
-      console.log('  - Calories reserved:', calories_reserved);
+    
   
       const weekly_budget = profile.weekly_budget || 0;
       const total_remaining = weekly_budget - total_consumed;
   
-      console.log('  - Weekly budget:', weekly_budget);
-      console.log('  - Remaining:', total_remaining);
+ 
   
       // Simple projection (can enhance later with trend analysis)
       const projected_end = total_consumed;
@@ -844,14 +854,14 @@ const restartBaseline = async () => {
 };
 
 const checkDailyCheckIn = async () => {
+  console.log('🔍 checkDailyCheckIn called from:', new Error().stack?.split('\n')[2]);
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // 1. Load profile to check user status
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('baseline_start_date, baseline_completion_at')
+      .select('baseline_start_date, baseline_completion_at, created_at')
       .eq('id', user.id)
       .single();
 
@@ -861,29 +871,37 @@ const checkDailyCheckIn = async () => {
     }
 
     const todayDate = getLocalDateString();
-    const isBaselineUser = profile.baseline_start_date && !profile.baseline_completion_at;
 
-    // 2. Skip check-in on Day 1 of baseline (only for baseline users)
+    // Don't show check-in on signup day
+    const signupDate = profile.created_at
+      ? utcToLocalDateString(profile.created_at)
+      : null;
+
+    if (signupDate === todayDate) {
+      setShowCheckInReminder(false);
+      return;
+    }
+
+    // Existing baseline day 1 check
+    const isBaselineUser = profile.baseline_start_date && !profile.baseline_completion_at;
     if (isBaselineUser && profile.baseline_start_date === todayDate) {
       setShowCheckInReminder(false);
       return;
     }
 
-    // 3. Check if user has checked in today
+    // Check if user has checked in today
     const { data: checkIn, error: checkInError } = await supabase
       .from('check_ins')
       .select('id')
       .eq('user_id', user.id)
       .eq('check_in_date', todayDate)
-      .eq('skipped', false) 
+      .eq('skipped', false)
       .maybeSingle();
 
     if (checkInError) {
       console.error('Error checking check-in status:', checkInError);
       return;
     }
-
-    // 4. Show reminder if not checked in (works for both baseline and active users)
     setShowCheckInReminder(!checkIn);
 
   } catch (error) {
@@ -919,274 +937,267 @@ const fetchBurnedCalories = async (userId: string, startDate: string, endDate: s
 };
 
 
-const fetchBaselineStats = async () => {
+const fetchBaselineStats = async (passedLogs?: FoodLog[]) => {
   if (!profile?.baseline_start_date) {
     setBaselineStats({
       totalCalories: 0,
       avgCalories: 0,
       macros: { protein: 0, carbs: 0, fat: 0 },
-      totalBurned: 0,  // ← NEW
-    });
-    return;
+      totalBurned: 0,
+    })
+    return
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
 
-  // Calculate end date (Day 7)
-  const startDate = new Date(profile.baseline_start_date + 'T00:00:00');
-  const endDate = new Date(startDate);
-  endDate.setDate(startDate.getDate() + 6);
-  const year = endDate.getFullYear();
-  const month = String(endDate.getMonth() + 1).padStart(2, '0');
-  const day = String(endDate.getDate()).padStart(2, '0');
-  const endDateStr = `${year}-${month}-${day}`;
+  const startDate = new Date(profile.baseline_start_date + 'T00:00:00')
+  const endDate = new Date(startDate)
+  endDate.setDate(startDate.getDate() + 6)
+  const endDateStr = formatLocalDate(endDate)
 
-  // Get all food logs for baseline period (includes macros!)
-  const { data: foodLogs, error } = await supabase
+  // Use passed logs if available, filtered to baseline range
+  // Otherwise fall back to a targeted DB fetch
+  let foodLogs: FoodLog[]
+
+  if (passedLogs) {
+    foodLogs = passedLogs.filter(l =>
+      l.log_date >= profile.baseline_start_date! &&
+      l.log_date <= endDateStr
+    )
+  } else {
+    const { data, error } = await supabase
     .from('food_logs')
-    .select('calories, protein_grams, carbs_grams, fat_grams, log_date')
+    .select('id, food_name, calories, meal_type, log_date, created_at, protein_grams, carbs_grams, fat_grams, image_url')
     .eq('user_id', user.id)
     .gte('log_date', profile.baseline_start_date)
-    .lte('log_date', endDateStr);
+    .lte('log_date', endDateStr)
 
-  if (error) {
-    console.error('Error fetching baseline stats:', error);
-    return;
+    if (error) {
+      console.error('Error fetching baseline stats:', error)
+      return
+    }
+
+    foodLogs = data || []
   }
 
-  if (!foodLogs || foodLogs.length === 0) {
+  if (foodLogs.length === 0) {
     setBaselineStats({
       totalCalories: 0,
       avgCalories: 0,
       macros: { protein: 0, carbs: 0, fat: 0 },
-      totalBurned: 0,  // ← NEW
-    });
-    return;
+      totalBurned: 0,
+    })
+    return
   }
 
-  // Calculate totals from food_logs
-  const totalCalories = foodLogs.reduce((sum, log) => sum + (log.calories || 0), 0);
-  const totalProtein = foodLogs.reduce((sum, log) => sum + (log.protein_grams || 0), 0);
-  const totalCarbs = foodLogs.reduce((sum, log) => sum + (log.carbs_grams || 0), 0);
-  const totalFat = foodLogs.reduce((sum, log) => sum + (log.fat_grams || 0), 0);
+  const totalCalories = foodLogs.reduce((sum, log) => sum + (log.calories || 0), 0)
+  const totalProtein = foodLogs.reduce((sum, log) => sum + (log.protein_grams || 0), 0)
+  const totalCarbs = foodLogs.reduce((sum, log) => sum + (log.carbs_grams || 0), 0)
+  const totalFat = foodLogs.reduce((sum, log) => sum + (log.fat_grams || 0), 0)
 
-  // Count unique days for average calculation
-  const uniqueDays = new Set(foodLogs.map(log => log.log_date)).size;
-  const avgCalories = uniqueDays > 0 ? Math.round(totalCalories / uniqueDays) : 0;
+  const uniqueDays = new Set(foodLogs.map(log => log.log_date)).size
+  const avgCalories = uniqueDays > 0 ? Math.round(totalCalories / uniqueDays) : 0
 
-  // NEW: Fetch burned calories
-  const totalBurned = await fetchBurnedCalories(
-    user.id,
-    profile.baseline_start_date,
-    endDateStr
-  );
+  const startDateStr = profile.baseline_start_date
+  const totalBurned = await fetchBurnedCalories(user.id, startDateStr, endDateStr)
 
   setBaselineStats({
     totalCalories,
     avgCalories,
-    macros: {
-      protein: totalProtein,
-      carbs: totalCarbs,
-      fat: totalFat,
-    },
-    totalBurned, 
-  });
-};
+    macros: { protein: totalProtein, carbs: totalCarbs, fat: totalFat },
+    totalBurned,
+  })
+}
+
 
 const fetchMetrics = async () => {
-  if (!profile || profile.user_type === 'trainer') return;
+  if (!profile || profile.user_type === 'trainer') return
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
 
   try {
-    // For baseline users - fetch baseline stats
     if (!profile.baseline_complete) {
-      await fetchBaselineStats();
-      return;
+      const logs = await fetchRecentLogs()
+      await fetchBaselineStats(logs)
+      return
     }
 
-    // For active users - fetch weekly metrics and cheat days
-    const { weekStart: weekStartDate, weekEnd: sundayDateStr } = getCurrentWeekDates();
+    const { weekStart: weekStartDate, weekEnd: sundayDateStr } = getCurrentWeekDates()
 
-    // Fetch weekly period
     const { data: weeklyPeriod } = await supabase
       .from('weekly_periods')
       .select('*')
       .eq('user_id', user.id)
       .eq('week_start_date', weekStartDate)
-      .single();
-    
-    setCurrentPeriod(weeklyPeriod);
+      .single()
 
-    // Calculate metrics
-    const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, profile);
-    setMetrics(metricsData);
-    const { data: freshLogs } = await supabase
-    .from('food_logs')
-    .select('id, food_name, calories, meal_type, log_date, created_at, protein_grams, carbs_grams, fat_grams')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(100);
-  
-  const logsForChart = freshLogs || [];
-  setRecentLogs(logsForChart);
-  setWeeklySummaries(buildWeeklySummariesFromLogs(logsForChart, weekStartDate, sundayDateStr));
+    setCurrentPeriod(weeklyPeriod)
 
-    // Fetch cheat days
+    // 👇 Fetch today's adjustment from daily_target_adjustments
+    const today = getLocalDateString();
+    if (weeklyPeriod) {
+      const { data: todayAdj } = await supabase
+        .from('daily_target_adjustments')
+        .select('adjusted_calories')
+        .eq('user_id', user.id)
+        .eq('weekly_period_id', weeklyPeriod.id)
+        .eq('target_date', today)
+        .maybeSingle();
+
+      setTodayAdjustedTarget(todayAdj?.adjusted_calories ?? null);
+    }
+
+    // Fetch metrics and logs in parallel
+    const [metricsData, logs] = await Promise.all([
+      calculateMetricsClientSide(user.id, weekStartDate, profile),
+      fetchRecentLogs(),
+    ])
+
+    setMetrics(metricsData)
+    setWeeklySummaries(buildWeeklySummariesFromLogs(logs, weekStartDate, sundayDateStr))
+
     const { data: cheatDays } = await supabase
       .from('planned_cheat_days')
       .select('cheat_date, planned_calories')
       .eq('user_id', user.id)
       .gte('cheat_date', weekStartDate)
-      .lte('cheat_date', sundayDateStr);
+      .lte('cheat_date', sundayDateStr)
 
     if (cheatDays) {
-      setCheatDates(cheatDays.map(cd => cd.cheat_date));
-      const caloriesMap = new Map<string, number>();
+      setCheatDates(cheatDays.map(cd => cd.cheat_date))
+      const caloriesMap = new Map<string, number>()
       cheatDays.forEach(cd => {
-        caloriesMap.set(cd.cheat_date, cd.planned_calories || 0);
-      });
-      setCheatDaysData(caloriesMap);
+        caloriesMap.set(cd.cheat_date, cd.planned_calories || 0)
+      })
+      setCheatDaysData(caloriesMap)
     }
   } catch (error) {
-    console.error('Error fetching metrics:', error);
+    console.error('Error fetching metrics:', error)
   }
-};
+}
 
-  const fetchProfile = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        router.replace('/(auth)/welcome');
-        return;
-      }
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+const fetchProfile = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
 
-      if (error) {
-        console.error('Error fetching profile:', error);
-        
-        if (error.code === 'PGRST116') {
-          console.log('Profile not found, creating...');
-          const { data: newProfile, error: createError } = await supabase
-            .from('profiles')
-            .insert({
-              id: user.id,
-            })
-            .select()
-            .single();
-          
-          if (createError) {
-            console.error('Error creating profile:', createError);
-            setLoading(false);
-            return;
-          }
-          
-          setProfile(newProfile);
-          setLoading(false);
-          return;
-        }
-        
-        setLoading(false);
-        return;
-      }
-
-      setProfile(data);
-      
-      // Only calculate baseline progress for clients
-      if (data.user_type !== 'trainer' && data.baseline_start_date && !data.baseline_complete) {
-        const { count } = await supabase
-          .from('daily_summaries')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .gte('summary_date', data.baseline_start_date)
-          .gt('calories_consumed', 0);
-      
-        setDaysLogged(count || 0);
-      
-        // Calculate days using local dates
-        const startDate = new Date(data.baseline_start_date + 'T00:00:00');
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const diffTime = today.getTime() - startDate.getTime();
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        setCurrentDay(Math.max(1, Math.min(diffDays, 7)));
-      }
-
-  
-   // Load metrics if client and baseline complete
-   if (data.user_type !== 'trainer' && data.baseline_complete) {
-    try {
-     
-      const { weekStart: weekStartDate } = getCurrentWeekDates();
-  
-      const { data: weeklyPeriod } = await supabase
-        .from('weekly_periods')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('week_start_date', weekStartDate)
-        .single();
-      
-      setCurrentPeriod(weeklyPeriod);
-      // Calculate metrics client-side
-      const metricsData = await calculateMetricsClientSide(user.id, weekStartDate, data);
-      setMetrics(metricsData);
-      // Fetch logs fresh (don't rely on recentLogs state here)
-      const { data: freshLogs } = await supabase
-      .from('food_logs')
-      .select('id, food_name, calories, meal_type, log_date, created_at, protein_grams, carbs_grams, fat_grams')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-      const logsForChart = freshLogs || [];
-      setRecentLogs(logsForChart); // keep state in sync too
-
-      const { weekEnd: sundayStr } = getCurrentWeekDates();
-      setWeeklySummaries(buildWeeklySummariesFromLogs(logsForChart, weekStartDate, sundayStr));
-      
-      const { data: cheatDays } = await supabase
-        .from('planned_cheat_days')
-        .select('cheat_date, planned_calories')
-        .eq('user_id', user.id)
-        .gte('cheat_date', weekStartDate)
-        .lte('cheat_date', sundayStr);
-  
-      if (cheatDays) {
-        setCheatDates(cheatDays.map(cd => cd.cheat_date));
-        const caloriesMap = new Map<string, number>();
-        cheatDays.forEach(cd => {
-          caloriesMap.set(cd.cheat_date, cd.planned_calories || 0);
-        });
-        setCheatDaysData(caloriesMap);
-      }
-    } catch (metricsError) {
-      console.error('Metrics error:', metricsError);
-      setMetrics({
-        weekly_budget: data.weekly_budget || 0,
-        total_consumed: 0,
-        total_remaining: data.weekly_budget || 0,
-        calories_reserved: 0,
-        projected_end: 0,
-        on_track: true,
-      });
+    if (!user) {
+      setLoading(false)
+      return
     }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    if (error) {
+      console.error('Error fetching profile:', error)
+
+      if (error.code === 'PGRST116') {
+        console.log('Profile not found, creating...')
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({ id: user.id })
+          .select()
+          .single()
+
+        if (createError) {
+          console.error('Error creating profile:', createError)
+          setLoading(false)
+          return
+        }
+
+        setProfile(newProfile)
+        setLoading(false)
+        return
+      }
+
+      setLoading(false)
+      return
+    }
+
+    setProfile(data)
+
+    if (data.user_type !== 'trainer' && data.baseline_start_date && !data.baseline_complete) {
+      const { count } = await supabase
+        .from('daily_summaries')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('summary_date', data.baseline_start_date)
+        .gt('calories_consumed', 0)
+
+      setDaysLogged(count || 0)
+
+      const startDate = new Date(data.baseline_start_date + 'T00:00:00')
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const diffTime = today.getTime() - startDate.getTime()
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+      setCurrentDay(Math.max(1, Math.min(diffDays, 7)))
+    }
+
+    if (data.user_type !== 'trainer' && data.baseline_complete) {
+      try {
+        const { weekStart: weekStartDate, weekEnd: sundayStr } = getCurrentWeekDates()
+
+        const { data: weeklyPeriod } = await supabase
+          .from('weekly_periods')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('week_start_date', weekStartDate)
+          .single()
+
+        setCurrentPeriod(weeklyPeriod)
+
+        // Fetch metrics and logs in parallel — single food_logs fetch
+        const [metricsData, logs] = await Promise.all([
+          calculateMetricsClientSide(user.id, weekStartDate, data),
+          fetchRecentLogs(),
+        ])
+
+        setMetrics(metricsData)
+        setWeeklySummaries(buildWeeklySummariesFromLogs(logs, weekStartDate, sundayStr))
+
+        const { data: cheatDays } = await supabase
+          .from('planned_cheat_days')
+          .select('cheat_date, planned_calories')
+          .eq('user_id', user.id)
+          .gte('cheat_date', weekStartDate)
+          .lte('cheat_date', sundayStr)
+
+        if (cheatDays) {
+          setCheatDates(cheatDays.map(cd => cd.cheat_date))
+          const caloriesMap = new Map<string, number>()
+          cheatDays.forEach(cd => {
+            caloriesMap.set(cd.cheat_date, cd.planned_calories || 0)
+          })
+          setCheatDaysData(caloriesMap)
+        }
+      } catch (metricsError) {
+        console.error('Metrics error:', metricsError)
+        setMetrics({
+          weekly_budget: data.weekly_budget || 0,
+          total_consumed: 0,
+          total_remaining: data.weekly_budget || 0,
+          calories_reserved: 0,
+          projected_end: 0,
+          on_track: true,
+        })
+      }
+    }
+
+    setLoading(false)
+    setRefreshing(false)
+  } catch (error) {
+    console.error('Error in fetchProfile:', error)
+    setLoading(false)
+    setRefreshing(false)
   }
-            setLoading(false);
-            setRefreshing(false);
-          } catch (error) {
-            console.error('Error in fetchProfile:', error);
-            setLoading(false);
-            setRefreshing(false);
-          }
-        };
+}
 
   
   // // Helper function to calculate weekly progress
@@ -1198,29 +1209,31 @@ const fetchMetrics = async () => {
   //   return Math.round((daysIntoWeek / 7) * 100);
   // };
 
-  const fetchRecentLogs = async () => {
+  const fetchRecentLogs = async (): Promise<FoodLog[]> => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) return;
-
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return []
+  
       const { data, error } = await supabase
         .from('food_logs')
-        .select('id, food_name, calories, meal_type, log_date, created_at, protein_grams, carbs_grams, fat_grams')
+        .select('id, food_name, calories, meal_type, log_date, created_at, protein_grams, carbs_grams, fat_grams, image_url')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(100);
-
+        .limit(100)
+  
       if (error) {
-        console.error('Error fetching recent logs:', error);
-        return;
+        console.error('Error fetching recent logs:', error)
+        return []
       }
-
-      setRecentLogs(data || []);
+  
+      const logs = data || []
+      setRecentLogs(logs)
+      return logs
     } catch (error) {
-      console.error('Error in fetchRecentLogs:', error);
+      console.error('Error in fetchRecentLogs:', error)
+      return []
     }
-  };
+  }
   
   const fetchUnreadCount = useCallback(async () => {
     const {
@@ -1302,10 +1315,9 @@ const fetchMetrics = async () => {
   };
 
   const onRefresh = () => {
-    setRefreshing(true);
-    fetchProfile();
-    fetchRecentLogs();
-  };
+    setRefreshing(true)
+    fetchProfile()
+  }
 
   const handleMealPress = (meal: MealLogItem) => {
     router.push(`/food/${meal.id}`);
@@ -1344,7 +1356,6 @@ const fetchMetrics = async () => {
       </SafeAreaView>
     );
   }
-
   // ============= CLIENT VIEW =============
   
   const isBaselineActive = profile.baseline_start_date && !profile.baseline_complete;
@@ -1355,12 +1366,14 @@ const fetchMetrics = async () => {
   const todayCalories = calculateTodayCalories();
   const todayMacros = calculateTodayMacros();
   const selectedCheatCalories = getSelectedDateCheatCalories();
-  const todayGoal = profile?.baseline_complete 
-    ? (selectedCheatCalories !== null
-        ? selectedCheatCalories
-        : (adjustedBudget || Math.round((metrics?.weekly_budget || 14000) / 7))) 
-    : Math.round((metrics?.weekly_budget || 14000) / 7);
-  const todayRemaining = todayGoal - todayCalories;
+  const baseDaily = Math.round((metrics?.weekly_budget || 14000) / 7);
+  const todayGoal = profile?.baseline_complete
+  ? (selectedCheatCalories !== null
+      ? selectedCheatCalories
+      : (todayAdjustedTarget ?? (adjustedBudget || baseDaily)))
+  : baseDaily;
+
+const todayRemaining = todayGoal - todayCalories;
 
   const todayLogs = recentLogs.filter(log => log.log_date === getSelectedDateString());
 
@@ -1491,12 +1504,17 @@ const fetchMetrics = async () => {
               )}
 
               <View style={styles.cardSpacing}>
-                <TodayMealsCard
-                  meals={transformMealsData(todayLogs)}
-                  onAddMeal={handleLogFood}
-                  onMealPress={handleMealPress}
-                  dateLabel={getSelectedDateLabel()}
-                />
+              <TodayMealsCard
+                meals={transformMealsData(todayLogs)}
+                onAddMeal={!isSelectedDateFuture() ? () => {
+                  router.push({
+                    pathname: '/log',
+                    params: { targetDate: getSelectedDateString() }
+                  })
+                } : undefined}
+                onMealPress={handleMealPress}
+                dateLabel={getSelectedDateLabel()}
+              />
               </View>
 
               <View style={styles.cardSpacing}>
@@ -1540,14 +1558,18 @@ const fetchMetrics = async () => {
               )}
 
              {/* Budget Adjustment Banner */}
-             {isSelectedDateToday() && !isSelectedDateCheatDay() && (
-                <BudgetAdjustmentBanner
-                  cumulativeOverage={cumulativeOverage}
-                  adjustedBudget={adjustedBudget}
-                  baseBudget={baseBudget}
-                  weekStartDate={currentPeriod?.week_start_date || ''}
-                />
-              )}
+             {isSelectedDateToday() && 
+                !isSelectedDateCheatDay() && 
+                !overageLoading &&
+                baseBudget > 0 &&
+                !!currentPeriod?.week_start_date && (
+                  <BudgetAdjustmentBanner
+                    cumulativeOverage={cumulativeOverage}
+                    adjustedBudget={adjustedBudget}
+                    baseBudget={baseBudget}
+                    weekStartDate={currentPeriod.week_start_date}
+                  />
+                )}
             {/*  Cheat Day Banner */}
             {isSelectedDateCheatDay() && selectedCheatCalories && (
                   <View style={styles.cheatDayBanner}>
@@ -1611,6 +1633,24 @@ const fetchMetrics = async () => {
                   />
                 </View>
               )}
+
+                {!allDone && (
+                <View style={styles.cardSpacing}>
+                  <GettingStartedCard onLogMeal={() => router.push('/log')} />
+                </View>
+              )}
+
+               {/* Next Cheat Day Card (conditional) */}
+               {getNextCheatDayInfo() && (
+                <View style={styles.cardSpacing}>
+                  <NextCheatDayCard
+                    dayName={getNextCheatDayInfo()!.dayName}
+                    dateString={getNextCheatDayInfo()!.dateString}
+                    reservedCalories={metrics?.calories_reserved || 0}
+                    onPress={() => router.push('/manageCheatDay')}
+                  />
+                </View>
+              )}
               {/* Daily Calories Chart */}
               {metrics && currentPeriod && (
                 <View style={styles.cardSpacing}>
@@ -1627,23 +1667,16 @@ const fetchMetrics = async () => {
               <View style={styles.cardSpacing}>
                 <TodayMealsCard
                   meals={transformMealsData(todayLogs)}
-                  onAddMeal={handleLogFood}
+                  onAddMeal={!isSelectedDateFuture() ? () => {
+                    router.push({
+                      pathname: '/log',
+                      params: { targetDate: getSelectedDateString() }
+                    })
+                  } : undefined}
                   onMealPress={handleMealPress}
                   dateLabel={getSelectedDateLabel()}
                 />
               </View>
-
-               {/* Next Cheat Day Card (conditional) */}
-               {getNextCheatDayInfo() && (
-                <View style={styles.cardSpacing}>
-                  <NextCheatDayCard
-                    dayName={getNextCheatDayInfo()!.dayName}
-                    dateString={getNextCheatDayInfo()!.dateString}
-                    reservedCalories={metrics?.calories_reserved || 0}
-                    onPress={() => router.push('/(tabs)/plan')}
-                  />
-                </View>
-              )}
 
               {/* Quick Log Card */}
               <View style={styles.cardSpacing}>

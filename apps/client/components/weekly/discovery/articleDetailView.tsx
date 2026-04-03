@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius, Shadows } from '@/constants/colors';
 import { Article } from '@/hooks/useDiscoveryArticles';
 import ArticleWebView from '../discovery/articleWebView';
+import { useModal } from '@/contexts/modalContext';
 
 type Props = {
   article: Article;
@@ -16,6 +17,7 @@ type Props = {
 
 export default function ArticleDetailView({ article, onBack }: Props) {
   const [showWebView, setShowWebView] = useState(false);
+  const { showModal } = useModal();
 
   if (showWebView) {
     return (
@@ -25,6 +27,12 @@ export default function ArticleDetailView({ article, onBack }: Props) {
       />
     );
   }
+
+  const handleContinueReading = async () => {
+    await showModal({ key: 'knowledge_unlocked' });
+    setShowWebView(true);
+  };
+
 
   return (
     <View style={styles.container}>
@@ -67,7 +75,7 @@ export default function ArticleDetailView({ article, onBack }: Props) {
           {/* Continue reading */}
           <TouchableOpacity
             style={styles.continueBtn}
-            onPress={() => setShowWebView(true)}
+            onPress={handleContinueReading}
             activeOpacity={0.8}
           >
             <Text style={styles.continueBtnText}>Continue reading</Text>

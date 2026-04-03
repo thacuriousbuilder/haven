@@ -47,6 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         'HAVEN uses your camera to identify food and log meals, and to update your profile photo.',
       NSPhotoLibraryUsageDescription:
         'HAVEN accesses your photo library so you can log meals from existing photos.',
+      NSMicrophoneUsageDescription: "HAVEN uses your microphone to log food by voice.",
      CFBundleURLTypes: [
           {
             CFBundleURLSchemes: [
@@ -67,7 +68,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: './assets/adaptive-icon1.png',
       backgroundColor: '#206E6B',
     },
-    permissions: ['android.permission.POST_NOTIFICATIONS'],
+    permissions: [
+      'android.permission.POST_NOTIFICATIONS',
+       'RECORD_AUDIO',
+    ],
   },
   notification: {
     icon: './assets/icon1.png',
@@ -86,6 +90,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-apple-authentication',
     [
       '@react-native-google-signin/google-signin',
+      {
+        iosUrlScheme: IS_DEV
+          ? 'com.googleusercontent.apps.314572247613-s4rveu9of4i48hcuoptla9hn5h8nskil'
+          : 'com.googleusercontent.apps.314572247613-kvageosg17g1p4gho5tqgnnu5noe44er'
+      }
     ],
     [
       "@sentry/react-native/expo",

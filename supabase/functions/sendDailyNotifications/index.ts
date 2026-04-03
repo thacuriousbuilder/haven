@@ -1,4 +1,5 @@
-// TODO: Use proper timezone library when onboarding stores user timezone
+
+
 // @ts-ignore
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
@@ -9,23 +10,29 @@ import {
   BUDGET_MESSAGES,
   ACTIVE_MORNING,
 } from '../_shared/notificationCopy.ts'
+import { getESTTime, isMonday, isWednesday } from '../_shared/timezone.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// ─────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────
+const MAX_DAILY_NOTIFICATIONS = 4
+
+const SLOT_REMINDER_MAP: Record<TimeSlot, string[]> = {
+  morning: ['meal_breakfast'],
+  midday:  ['meal_lunch'],
+  evening: ['meal_dinner', 'recap'],
+}
 
 interface UserRow {
   id: string
   baseline_complete: boolean
   push_notifications_enabled: boolean
-  meal_reminders_enabled: boolean
+  meal_times_enabled: boolean
+  evening_recap_enabled: boolean
   expo_push_token: string | null
-  weekly_calorie_bank: number
+  weekly_budget: number
   baseline_avg_daily_calories: number
 }
 
@@ -34,54 +41,22 @@ interface NotificationHistoryRow {
   message: string
 }
 
-// ─────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────
-
-function getTodayEST(): Date {
-  const now = new Date()
-  // UTC-5 for EST (no DST adjustment for MVP)
-  const estOffset = -5 * 60
-  const estNow = new Date(now.getTime() + estOffset * 60 * 1000)
-  return estNow
-}
-
-function isMonday(): boolean {
-  return getTodayEST().getUTCDay() === 1
-}
-
-function isWednesday(): boolean {
-  return getTodayEST().getUTCDay() === 3
-}
-
-function pickMessage(
-  pool: string[],
-  lastMessage: string | null
-): string {
-  // Filter out the last sent message for recency check
+function pickMessage(pool: string[], lastMessage: string | null): string {
   const filtered = pool.filter((m) => m !== lastMessage)
   const candidates = filtered.length > 0 ? filtered : pool
-  const idx = Math.floor(Math.random() * candidates.length)
-  return candidates[idx]
+  return candidates[Math.floor(Math.random() * candidates.length)]
 }
 
 function getBudgetState(
   weeklyBudget: number,
   caloriesConsumed: number,
-  dayOfWeek: number // 1=Mon, 3=Wed
 ): BudgetState {
-  // Expected consumption by Wednesday = (3/7) of weekly budget
   const expectedByNow = (weeklyBudget / 7) * 3
-  const tolerance = weeklyBudget * 0.05 // 5% tolerance band
-
+  const tolerance = weeklyBudget * 0.05
   if (caloriesConsumed > expectedByNow + tolerance) return 'over'
   if (caloriesConsumed < expectedByNow - tolerance) return 'under'
   return 'on_track'
 }
-
-// ─────────────────────────────────────────
-// MAIN
-// ─────────────────────────────────────────
 
 // @ts-ignore
 Deno.serve(async (req: Request) => {
@@ -99,7 +74,6 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Service role client — needed to read all users
     const supabase = createClient(
       // @ts-ignore
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -107,23 +81,34 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // ── Fetch all eligible users ──
- 
-        const { data: users, error: usersError } = await supabase
-        .from('profiles')
-        .select(`
+    // Use shared timezone utility
+    const { dateString: today } = getESTTime()
+    const todayStart = `${today}T00:00:00.000Z`
+    const monday = isMonday(today)
+    const wednesday = isWednesday(today)
+    const isBudgetSlot = wednesday && time_slot === 'midday'
+
+    console.log(`📅 EST date: ${today} | slot: ${time_slot} | monday: ${monday} | wednesday: ${wednesday}`)
+
+    // Fetch users WITHOUT reminders enabled
+    // Those users handled by sendUserReminders
+    const { data: users, error: usersError } = await supabase
+      .from('profiles')
+      .select(`
         id,
         baseline_complete,
         push_notifications_enabled,
-        meal_reminders_enabled,
+        meal_times_enabled,
+        evening_recap_enabled,
         expo_push_token,
-        weekly_calorie_bank,
+        weekly_budget,
         baseline_avg_daily_calories
-        `)
-        .eq('push_notifications_enabled', true)
-        .eq('meal_reminders_enabled', true)
-        .eq('user_type', 'client')
-        .not('expo_push_token', 'is', null)
+      `)
+      .eq('push_notifications_enabled', true)
+      .eq('user_type', 'client')
+      .not('expo_push_token', 'is', null)
+      .or('meal_times_enabled.eq.false,meal_times_enabled.is.null')
+      .or('evening_recap_enabled.eq.false,evening_recap_enabled.is.null')
 
     if (usersError) throw usersError
     if (!users || users.length === 0) {
@@ -133,44 +118,85 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const wednesday = isWednesday()
-    const monday = isMonday()
-    const isBudgetSlot = wednesday && time_slot === 'midday'
+    const userIds = users.map(u => u.id)
+
+    // Batch fetch today's notification history
+    const { data: sentToday } = await supabase
+      .from('notification_history')
+      .select('user_id, time_slot, variety, message')
+      .in('user_id', userIds)
+      .gte('sent_at', todayStart)
+
+    // Build per-user history lookup
+    const sentByUser = new Map<string, {
+      slots: Set<string>
+      count: number
+      lastMsg: string | null
+      lastVariety: string | null
+    }>()
+
+    for (const row of sentToday ?? []) {
+      if (!sentByUser.has(row.user_id)) {
+        sentByUser.set(row.user_id, {
+          slots: new Set(),
+          count: 0,
+          lastMsg: null,
+          lastVariety: null,
+        })
+      }
+      const entry = sentByUser.get(row.user_id)!
+      entry.slots.add(row.time_slot)
+      entry.count++
+      entry.lastMsg = row.message
+      entry.lastVariety = row.variety
+    }
 
     const notifications: { to: string; title: string; body: string }[] = []
-    const historyRows: { user_id: string; time_slot: string; variety: string; message: string }[] = []
+    const historyRows: {
+      user_id: string; time_slot: string; variety: string; message: string
+    }[] = []
 
     for (const user of users as UserRow[]) {
       if (!user.expo_push_token) continue
 
+      const userHistory = sentByUser.get(user.id) ?? {
+        slots: new Set<string>(),
+        count: 0,
+        lastMsg: null,
+        lastVariety: null,
+      }
+
+      // GATE 1: Daily max
+      if (userHistory.count >= MAX_DAILY_NOTIFICATIONS) {
+        console.log(`⛔ ${user.id} — daily max reached`)
+        continue
+      }
+
+      // GATE 2: Skip if reminder already sent for this slot
+      const conflictingSlots = SLOT_REMINDER_MAP[time_slot]
+      if (conflictingSlots.some(s => userHistory.slots.has(s))) {
+        console.log(`⏭️ ${user.id} — reminder already covers ${time_slot}`)
+        continue
+      }
+
+      // GATE 3: Skip if motivational already sent for this slot
+      if (userHistory.slots.has(time_slot)) {
+        console.log(`⏭️ ${user.id} — motivational already sent for ${time_slot}`)
+        continue
+      }
+
       let variety = ''
       let message = ''
 
-      // ── Fetch last notification for this user + slot ──
-      const { data: lastHistory } = await supabase
-        .from('notification_history')
-        .select('variety, message')
-        .eq('user_id', user.id)
-        .eq('time_slot', isBudgetSlot ? 'budget' : time_slot)
-        .order('sent_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      const lastMsg = (lastHistory as NotificationHistoryRow | null)?.message ?? null
-      const lastVariety = (lastHistory as NotificationHistoryRow | null)?.variety ?? null
-
-      // ── BASELINE users ──
       if (!user.baseline_complete) {
         variety = 'baseline'
-        const pool = getBaselinePool(time_slot)
-        message = pickMessage(pool, lastMsg)
+        message = pickMessage(getBaselinePool(time_slot), userHistory.lastMsg)
 
-      // ── WEDNESDAY MIDDAY — budget progress ──
       } else if (isBudgetSlot) {
-        // Fetch calories consumed this week so far
-        const weekStart = getTodayEST()
-        weekStart.setUTCDate(weekStart.getUTCDate() - 2) // Wed - 2 = Mon
-        const weekStartStr = weekStart.toISOString().split('T')[0]
+        // Get Monday date string (today - 2 days)
+        const weekStartDate = new Date(today + 'T00:00:00Z')
+        weekStartDate.setUTCDate(weekStartDate.getUTCDate() - 2)
+        const weekStartStr = weekStartDate.toISOString().split('T')[0]
 
         const { data: summaries } = await supabase
           .from('daily_summaries')
@@ -179,76 +205,46 @@ Deno.serve(async (req: Request) => {
           .gte('summary_date', weekStartStr)
 
         const totalConsumed = (summaries ?? []).reduce(
-          (sum: number, s: { calories_consumed: number }) => sum + s.calories_consumed,
-          0
+          (sum: number, s: { calories_consumed: number }) => sum + s.calories_consumed, 0
         )
 
-        const budgetState = getBudgetState(
-          user.weekly_calorie_bank,
-          totalConsumed,
-          3
-        )
-
+        const budgetState = getBudgetState(user.weekly_budget ?? 14000, totalConsumed)
         variety = `budget_${budgetState}`
-        const pool = BUDGET_MESSAGES[budgetState]
-        message = pickMessage(pool, lastMsg)
+        message = pickMessage(BUDGET_MESSAGES[budgetState], userHistory.lastMsg)
 
-      // ── MONDAY MORNING — always weekly mindset ──
       } else if (monday && time_slot === 'morning') {
-        const weeklyMindset = ACTIVE_MORNING.find((v) => v.variety === 'weekly_mindset')!
+        const weeklyMindset = ACTIVE_MORNING.find(v => v.variety === 'weekly_mindset')!
         variety = 'weekly_mindset'
-        message = pickMessage(weeklyMindset.messages, lastMsg)
+        message = pickMessage(weeklyMindset.messages, userHistory.lastMsg)
 
-      // ── ACTIVE users — round robin variety ──
       } else {
         const pool = getActivePool(time_slot)
-
-        // Pick next variety (round-robin: avoid last used variety)
-        const filtered = pool.filter((v) => v.variety !== lastVariety)
+        const filtered = pool.filter(v => v.variety !== userHistory.lastVariety)
         const candidates = filtered.length > 0 ? filtered : pool
         const picked = candidates[Math.floor(Math.random() * candidates.length)]
-
         variety = picked.variety
-        message = pickMessage(picked.messages, lastMsg)
+        message = pickMessage(picked.messages, userHistory.lastMsg)
       }
 
-      notifications.push({
-        to: user.expo_push_token,
-        title: 'HAVEN',
-        body: message,
-      })
-
-      historyRows.push({
-        user_id: user.id,
-        time_slot: isBudgetSlot ? 'budget' : time_slot,
-        variety,
-        message,
-      })
+      notifications.push({ to: user.expo_push_token, title: 'HAVEN', body: message })
+      historyRows.push({ user_id: user.id, time_slot, variety, message })
+      console.log(`📤 ${time_slot} motivational → ${user.id}`)
     }
 
-    // ── Send via Expo Push API ──
-    const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+    if (notifications.length > 0) {
+      const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(notifications),
       })
-      
-      const expoBody = await expoResponse.json()
-      console.log('Expo response:', JSON.stringify(expoBody))
-      
-      if (!expoResponse.ok) {
-        throw new Error(`Expo push failed: ${expoResponse.status} — ${JSON.stringify(expoBody)}`)
-      }
+      if (!expoResponse.ok) throw new Error(`Expo push failed: ${expoResponse.status}`)
+      console.log('✅ Sent:', notifications.length)
+    }
 
-    // ── Log to notification_history ──
     if (historyRows.length > 0) {
-      const { error: historyError } = await supabase
+      await supabase
         .from('notification_history')
-        .insert(historyRows)
-
-      if (historyError) {
-        console.error('History insert error:', historyError)
-      }
+        .upsert(historyRows, { ignoreDuplicates: true })
     }
 
     return new Response(

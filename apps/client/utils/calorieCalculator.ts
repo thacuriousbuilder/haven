@@ -18,7 +18,7 @@ function mapGender(gender: Gender): 'male' | 'female' {
  */
 function mapActivityLevel(activityLevel: ActivityLevel): keyof typeof ACTIVITY_MULTIPLIERS {
   const activityMap: Record<ActivityLevel, keyof typeof ACTIVITY_MULTIPLIERS> = {
-    'not_very_active': 'lightly_active',
+    'not_very_active': 'sedentary',
     'lightly_active': 'lightly_active',
     'active': 'moderately_active',  // 
     'very_active': 'very_active',
@@ -34,7 +34,7 @@ function mapGoal(goal: Goal): 'lose_weight' | 'gain_weight' | 'maintain_weight' 
   const goalMap: Record<Goal, 'lose_weight' | 'gain_weight' | 'maintain_weight'> = {
     'lose': 'lose_weight',
     'gain': 'gain_weight',
-    'maintain': 'maintain_weight',
+    'maintain': 'maintain_weight'
   };
   
   return goalMap[goal] || 'maintain_weight';
@@ -108,31 +108,39 @@ export function adjustForGoal(
   tdee: number,
   goal: Goal,
   targetWeightLbs?: number | null,
-  currentWeightLbs?: number | null
+  currentWeightLbs?: number | null,
+  weeklyGoalRate?: number | null  
 ): number {
   const mappedGoal = mapGoal(goal);
-  
+
   if (mappedGoal === 'lose_weight') {
-    const weightToLose = currentWeightLbs && targetWeightLbs 
-      ? currentWeightLbs - targetWeightLbs 
-      : 0;
-    
-    // Scale deficit based on amount to lose
-    let deficit = 500; // Default: 1 lb/week
-    
-    if (weightToLose >= 50) {
-      deficit = 750;  // 1.5 lbs/week for 50+ lbs to lose
-    } else if (weightToLose >= 25) {
-      deficit = 625;  // 1.25 lbs/week for 25-50 lbs to lose
-    } else if (weightToLose >= 15) {
-      deficit = 500;  // 1 lb/week for 15-25 lbs to lose
-    } else {
-      deficit = 375;  // 0.75 lb/week for last 15 lbs
+    // If user selected a weekly rate, use that directly
+    // 1 lb/week = 500 cal/day deficit
+    if (weeklyGoalRate) {
+      const deficit = weeklyGoalRate * 500;
+      return Math.round(tdee - deficit);
     }
-    
+
+    // Fallback: auto-calculate based on weight difference
+    const weightToLose = currentWeightLbs && targetWeightLbs
+      ? currentWeightLbs - targetWeightLbs
+      : 0;
+
+    let deficit = 500;
+    if (weightToLose >= 50) deficit = 750;
+    else if (weightToLose >= 25) deficit = 625;
+    else if (weightToLose >= 15) deficit = 500;
+    else deficit = 375;
+
     return Math.round(tdee - deficit);
+
   } else if (mappedGoal === 'gain_weight') {
+    if (weeklyGoalRate) {
+      const surplus = weeklyGoalRate * 500;
+      return Math.round(tdee + surplus);
+    }
     return Math.round(tdee + 500);
+
   } else {
     return tdee;
   }
@@ -174,23 +182,25 @@ export function calculateMacros(weeklyCalories: number): {
 export function estimateTargetDate(
   currentWeight: number,
   targetWeight: number,
-  goal: Goal
+  goal: Goal,
+  weeklyGoalRate?: number | null
 ): string {
   const mappedGoal = mapGoal(goal);
-  
+
   if (mappedGoal === 'maintain_weight') {
     return 'N/A - Maintaining current weight';
   }
-  
+
   const weightDifference = Math.abs(targetWeight - currentWeight);
-  const weeksToGoal = Math.ceil(weightDifference); // 1 lb per week
-  
+  const rate = weeklyGoalRate || 1; // default 1 lb/week
+  const weeksToGoal = Math.ceil(weightDifference / rate);
+
   const targetDate = new Date();
   targetDate.setDate(targetDate.getDate() + (weeksToGoal * 7));
-  
-  return targetDate.toLocaleDateString('en-US', { 
-    month: 'long', 
+
+  return targetDate.toLocaleDateString('en-US', {
+    month: 'long',
     day: 'numeric',
-    year: 'numeric'
+    year: 'numeric',
   });
 }

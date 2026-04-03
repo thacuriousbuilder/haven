@@ -237,3 +237,12 @@ export function formatDateDisplay(dateString: string): string {
     const [year, month, day] = dateStr.split('-').map(Number);
     return new Date(year, month - 1, day);
   }
+
+  /**
+ * Get the device's IANA timezone string
+ * e.g. "America/New_York", "America/Los_Angeles", "Europe/London"
+ * Use this for: storing user timezone during onboarding
+ */
+export function getDeviceTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}

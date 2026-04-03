@@ -1,11 +1,9 @@
 
-
 import React, { useEffect, useRef } from 'react';
-import { Animated, Text, View, StyleSheet } from 'react-native';
+import { Animated, Text, View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLocalDateString } from '@haven/shared-utils';
-import { Colors } from '@/constants/colors';
+import { Colors, Spacing, Typography, BorderRadius } from '@/constants/colors';
 
 interface BudgetAdjustmentBannerProps {
   cumulativeOverage: number;
@@ -14,10 +12,43 @@ interface BudgetAdjustmentBannerProps {
   weekStartDate: string;
 }
 
-const BANNER_THRESHOLD = 150;
-const DISPLAY_DURATION = 3000;  // 3 seconds
-const ANIMATE_OUT_DURATION = 400;
-const STORAGE_KEY = 'budget_banner_dismissed_week';
+const NEGATIVE_KEY = 'budget_banner_negative_state';
+const POSITIVE_KEY = 'budget_banner_positive_state';
+
+interface BannerState {
+  weekStart: string;
+  count: number;
+}
+
+const NEGATIVE_COPY = [
+  {
+    title: 'Budget adjusted',
+    sub: "You're {over} cal over this week. Today's goal is {adjusted} cal.",
+  },
+  {
+    title: "Let's get back on track",
+    sub: "You're {over} cal over this week. Today's goal is {adjusted} cal.",
+  },
+  {
+    title: 'Tough week?',
+    sub: "No worries. You're {over} cal over this week. Today's goal is {adjusted} cal.",
+  },
+];
+
+const POSITIVE_COPY = [
+  {
+    title: "You're ahead this week",
+    sub: "You've got {under} cal to play with. Today's goal is {adjusted} cal.",
+  },
+  {
+    title: 'Still going strong',
+    sub: "You're {under} cal under this week. Today's goal is {adjusted} cal.",
+  },
+  {
+    title: 'Great week so far',
+    sub: "You've got {under} cal extra. Today's goal is {adjusted} cal.",
+  },
+];
 
 export function BudgetAdjustmentBanner({
   cumulativeOverage,
@@ -26,101 +57,192 @@ export function BudgetAdjustmentBanner({
   weekStartDate,
 }: BudgetAdjustmentBannerProps) {
   const [visible, setVisible] = React.useState(false);
-  const translateY = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [copyIndex, setCopyIndex] = React.useState(0);
+  const [isPositive, setIsPositive] = React.useState(false);
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  // 15% of base budget — scales with user's daily target
+  const BANNER_THRESHOLD = Math.round(baseBudget * 0.15);
 
   useEffect(() => {
-    if (!weekStartDate) return; 
+    if (!weekStartDate) return;
     checkShouldShow();
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
   }, [cumulativeOverage, weekStartDate]);
 
   const checkShouldShow = async () => {
-    if (cumulativeOverage <= BANNER_THRESHOLD) return;
+    console.log('🏷️ Banner check:', {
+      cumulativeOverage,
+      baseBudget,
+      threshold: Math.round(baseBudget * 0.15),
+      weekStartDate,
+    });
+    // Not significant enough either way — do nothing
+    if (Math.abs(cumulativeOverage) <= BANNER_THRESHOLD) return;
 
-    const dismissedWeek = await AsyncStorage.getItem(STORAGE_KEY);
+    const positive = cumulativeOverage < 0;
+    const storageKey = positive ? POSITIVE_KEY : NEGATIVE_KEY;
 
-    if (dismissedWeek === weekStartDate) return;
+    try {
+      const raw = await AsyncStorage.getItem(storageKey);
+      let state: BannerState = raw
+        ? JSON.parse(raw)
+        : { weekStart: weekStartDate, count: 0 };
 
-    translateY.setValue(0);
-    opacity.setValue(1);
-    setVisible(true);
+      // Reset if new week
+      if (state.weekStart !== weekStartDate) {
+        state = { weekStart: weekStartDate, count: 0 };
+      }
 
-    timerRef.current = setTimeout(() => {
-      animateOut();
-    }, DISPLAY_DURATION);
+      // Cap at 3 shows per week per banner type
+      if (state.count >= 3) return;
+
+      // Set which copy to show
+      setCopyIndex(state.count);
+      setIsPositive(positive);
+
+      // Increment and save
+      const newState: BannerState = {
+        weekStart: weekStartDate,
+        count: state.count + 1,
+      };
+      await AsyncStorage.setItem(storageKey, JSON.stringify(newState));
+
+      // Show banner
+      setVisible(true);
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+
+    } catch (error) {
+      console.error('Error in BudgetAdjustmentBanner:', error);
+    }
   };
 
-// Update animateOut to store weekStartDate instead of today
-  const animateOut = () => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: -20,
-        duration: ANIMATE_OUT_DURATION,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: ANIMATE_OUT_DURATION,
-        useNativeDriver: true,
-      }),
-    ]).start(async () => {
+  const handleDismiss = () => {
+    Animated.timing(opacity, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
       setVisible(false);
-      await AsyncStorage.setItem(STORAGE_KEY, weekStartDate);
     });
   };
 
   if (!visible) return null;
 
+  const copy = isPositive ? POSITIVE_COPY[copyIndex] : NEGATIVE_COPY[copyIndex];
+
+  // Positive: cumulativeOverage is negative so abs gives the saving amount
+  const subtext = isPositive
+    ? copy.sub
+        .replace('{under}', Math.abs(cumulativeOverage).toLocaleString())
+        .replace('{adjusted}', adjustedBudget.toLocaleString())
+    : copy.sub
+        .replace('{over}', cumulativeOverage.toLocaleString())
+        .replace('{adjusted}', adjustedBudget.toLocaleString());
+
   return (
-    <Animated.View
-      style={[
-        styles.banner,
-        { transform: [{ translateY }], opacity },
-      ]}
-    >
+    <Animated.View style={[
+      styles.banner,
+      isPositive ? styles.bannerPositive : styles.bannerNegative,
+      { opacity },
+    ]}>
       <View style={styles.bannerContent}>
-        <Ionicons name="alert-circle" size={20} color={Colors.energyOrange} />
+        <Ionicons
+          name={isPositive ? 'trending-down' : 'information-circle'}
+          size={20}
+          color={isPositive ? Colors.vividTeal : Colors.energyOrange}
+        />
         <View style={styles.textContainer}>
-          <Text style={styles.title}>Budget adjusted for this week</Text>
-          <Text style={styles.subtext}>
-            You're {cumulativeOverage} cal over. HAVEN recommends {adjustedBudget.toLocaleString()} cal today instead of your usual {baseBudget.toLocaleString()} cal
+          <Text style={[
+            styles.title,
+            isPositive ? styles.titlePositive : styles.titleNegative,
+          ]}>
+            {copy.title}
+          </Text>
+          <Text style={[
+            styles.subtext,
+            isPositive ? styles.subtextPositive : styles.subtextNegative,
+          ]}>
+            {subtext}
           </Text>
         </View>
       </View>
+      <TouchableOpacity
+        style={[
+          styles.dismissButton,
+          isPositive ? styles.dismissButtonPositive : styles.dismissButtonNegative,
+        ]}
+        onPress={handleDismiss}
+      >
+        <Text style={styles.dismissText}>Got it</Text>
+      </TouchableOpacity>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   banner: {
-    backgroundColor: '#FFF7ED',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
     borderLeftWidth: 3,
+    gap: Spacing.md,
+  },
+  bannerNegative: {
+    backgroundColor: '#FFF7ED',
     borderLeftColor: Colors.energyOrange,
+  },
+  bannerPositive: {
+    backgroundColor: '#F0F9F8',
+    borderLeftColor: Colors.vividTeal,
   },
   bannerContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: Spacing.sm,
   },
   textContainer: {
     flex: 1,
   },
   title: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#92400E',
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
     marginBottom: 2,
   },
+  titleNegative: {
+    color: '#92400E',
+  },
+  titlePositive: {
+    color: '#0F5C59',
+  },
   subtext: {
-    fontSize: 13,
-    color: '#B45309',
+    fontSize: Typography.fontSize.xs,
     lineHeight: 18,
+  },
+  subtextNegative: {
+    color: '#B45309',
+  },
+  subtextPositive: {
+    color: '#206E6B',
+  },
+  dismissButton: {
+    alignSelf: 'flex-end',
+    borderRadius: BorderRadius.full,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.lg,
+  },
+  dismissButtonNegative: {
+    backgroundColor: Colors.energyOrange,
+  },
+  dismissButtonPositive: {
+    backgroundColor: Colors.vividTeal,
+  },
+  dismissText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.white,
   },
 });

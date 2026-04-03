@@ -11,6 +11,7 @@ import { calculateComfortFloor } from '@/utils/cheatDayHelpers';
 import { supabase } from '@/lib/supabase';
 import ManualDistributeView from '../plan/manualDistributionView';
 import BoostDayView from '../plan/boostDayView';
+import { useModal } from '@/contexts/modalContext';
 
 type Props = {
   planData: PlanData;
@@ -21,9 +22,17 @@ type ManageMode = 'collapsed' | 'expanded' | 'manual';
 
 export default function ManageCaloriesCard({ planData, refetch }: Props) {
   const { isOverBudget, overageAmount, days, userGoal, userGender } = planData;
+  console.log('🔍 isOverBudget:', isOverBudget);
+  console.log('🔍 overageAmount:', overageAmount);
+  console.log('🔍 totalEaten:', planData.totalEaten);
+  console.log('🔍 weeklyBudget:', planData.weeklyBudget);
+  console.log('🔍 remaining:', planData.remaining);
+  const remainingTargets = days.filter(d => !d.isPast).reduce((sum, d) => sum + d.target, 0);
+  console.log('🔍 remainingTargets:', remainingTargets);
   const [manageMode, setManageMode] = useState<ManageMode>('collapsed');
   const [saving, setSaving]         = useState(false);
   const [showBoost, setShowBoost] = useState(false);
+  const { showModal } = useModal();
 
   const comfortFloor   = calculateComfortFloor(userGoal, userGender);
   const adjustableDays = days.filter((d) => !d.isPast && !d.isTreatDay);
@@ -62,6 +71,7 @@ export default function ManageCaloriesCard({ planData, refetch }: Props) {
       if (error) throw error;
 
       refetch();
+      await showModal({ key: 'budget_personalized' });
       setManageMode('collapsed');
     } catch (err: any) {
       console.log('Auto distribute error:', err.message);
@@ -90,6 +100,7 @@ export default function ManageCaloriesCard({ planData, refetch }: Props) {
       if (error) throw error;
 
       refetch();
+      await showModal({ key: 'budget_personalized' });
       setManageMode('collapsed');
     } catch (err: any) {
       console.log('Manual apply error:', err.message);
@@ -120,9 +131,9 @@ export default function ManageCaloriesCard({ planData, refetch }: Props) {
         activeOpacity={0.8}
       >
         <View style={styles.cardLeft}>
-          <Text style={styles.cardTitle}>Save calories for a day</Text>
+          <Text style={styles.cardTitle}>Hungrier than usual today?</Text>
           <Text style={styles.cardSubtitle}>
-            Plan ahead for a dinner out or special occasion
+          Your week can flex — adjust your calories.
           </Text>
         </View>
         <View style={styles.manageBtnWrapper}>
